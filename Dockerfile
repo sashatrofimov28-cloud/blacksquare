@@ -13,11 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py server.py start.sh templates static ./
 
-RUN chmod +x /app/start.sh && mkdir -p /app/data templates static
+RUN chmod +x /app/start.sh && mkdir -p /app/data
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()" || exit 1
-
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["python"]
+CMD ["server.py"]
