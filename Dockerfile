@@ -11,9 +11,9 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p /data
+RUN mkdir -p /data && chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8000
 VOLUME ["/data"]
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
