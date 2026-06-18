@@ -187,7 +187,10 @@ def inject():
     return {'user':current_user(),'has_perm':has_perm,'perms':PERMS,'visible_phone':visible_phone,'mask_phone':mask_phone}
 
 @app.route('/')
-def index(): return redirect(url_for('dashboard') if current_user() else url_for('login'))
+def index():
+    if current_user():
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
 
 @app.route('/healthz')
 def healthz(): return jsonify(status='ok')
