@@ -727,8 +727,9 @@ def client_card(cid):
     con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
 
 if __name__ == '__main__':
-    host = os.environ.get('HOST', '0.0.0.0')
-    port = int(os.environ.get('PORT', '8000'))
+    # Timeweb reads EXPOSE and expects the app on this exact port.
+    host = '0.0.0.0'
+    port = 8000
     login_template = BASE_DIR / 'templates' / 'login.html'
     template_count = len(list((BASE_DIR / 'templates').glob('*.html')))
     print(
