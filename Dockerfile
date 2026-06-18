@@ -11,12 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py server.py start.sh templates static ./
+COPY app.py server.py docker-entrypoint.sh templates static ./
 
-RUN chmod +x /app/start.sh && mkdir -p /app/data
+RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data
 
 EXPOSE 8000
 
-# Full command in ENTRYPOINT so Timeweb cannot drop CMD args when
-# the panel "launch command" field is empty or overridden.
-ENTRYPOINT ["python", "/app/server.py"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
