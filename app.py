@@ -193,7 +193,14 @@ def index():
     return render_template('login.html')
 
 @app.route('/healthz')
-def healthz(): return jsonify(status='ok')
+def healthz():
+    try:
+        con = db()
+        con.execute("SELECT 1").fetchone()
+        con.close()
+    except Exception as exc:
+        return jsonify(status='error', error=str(exc)), 500
+    return jsonify(status='ok')
 
 @app.route('/login', methods=['GET','POST'])
 def login():

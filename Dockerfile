@@ -18,4 +18,4 @@ RUN mkdir -p /data
 EXPOSE 8000
 VOLUME ["/data"]
 
-CMD ["python", "app.py"]
+CMD ["python", "server.py"]
