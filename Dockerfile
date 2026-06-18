@@ -1,5 +1,6 @@
 FROM python:3.12-slim
 
+COPY . /app
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -8,13 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000 \
     DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && mkdir -p /app/data
 
-COPY app.py server.py docker-entrypoint.sh templates static ./
-
-RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /app/data
+ENTRYPOINT ["python"]
+CMD ["app.py"]
 
 EXPOSE 8000
-
-ENTRYPOINT ["/app/docker-entrypoint.sh"]

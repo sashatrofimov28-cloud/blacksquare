@@ -723,9 +723,8 @@ def client_card(cid):
     con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
 
 if __name__ == '__main__':
-    ensure_db()
-    app.run(
-        debug=os.environ.get('FLASK_DEBUG') == '1',
-        host=os.environ.get('HOST', '127.0.0.1'),
-        port=int(os.environ.get('PORT', '5000')),
-    )
+    host = os.environ.get('HOST', '0.0.0.0')
+    port = int(os.environ.get('PORT', '8000'))
+    print(f'STARTING BlackSquare CRM on {host}:{port}', flush=True)
+    from waitress import serve
+    serve(app, host=host, port=port)
