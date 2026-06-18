@@ -727,15 +727,5 @@ def client_card(cid):
     con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
 
 if __name__ == '__main__':
-    # Timeweb reads EXPOSE and expects the app on this exact port.
-    host = '0.0.0.0'
     port = 8000
-    login_template = BASE_DIR / 'templates' / 'login.html'
-    template_count = len(list((BASE_DIR / 'templates').glob('*.html')))
-    print(
-        f'STARTING BlackSquare CRM on {host}:{port} '
-        f'templates={template_count} login_exists={login_template.is_file()}',
-        flush=True,
-    )
-    from waitress import serve
-    serve(app, host=host, port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
