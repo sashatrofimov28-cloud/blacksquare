@@ -192,6 +192,9 @@ def inject():
 @app.route('/')
 def index(): return redirect(url_for('dashboard') if current_user() else url_for('login'))
 
+@app.route('/healthz')
+def healthz(): return jsonify(status='ok')
+
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
