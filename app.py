@@ -194,13 +194,20 @@ def index():
 
 @app.route('/healthz')
 def healthz():
-    try:
-        con = db()
-        con.execute("SELECT 1").fetchone()
-        con.close()
-    except Exception as exc:
-        return jsonify(status='error', error=str(exc)), 500
     return jsonify(status='ok')
+
+_db_initialized = False
+
+def ensure_db():
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        _db_initialized = True
+
+@app.before_request
+def prepare_db():
+    if request.endpoint != 'healthz':
+        ensure_db()
 
 @app.route('/login', methods=['GET','POST'])
 def login():
@@ -714,9 +721,8 @@ def client_card(cid):
     visits = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE client_id=? ORDER BY appointment_date DESC,start_time DESC", (cid,)).fetchall()
     con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
 
-init_db()
-
 if __name__ == '__main__':
+    ensure_db()
     app.run(
         debug=os.environ.get('FLASK_DEBUG') == '1',
         host=os.environ.get('HOST', '127.0.0.1'),
