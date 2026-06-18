@@ -193,6 +193,7 @@ def index():
     return render_template('login.html')
 
 @app.route('/healthz')
+@app.route('/health')
 def healthz():
     return jsonify(status='ok')
 
@@ -206,7 +207,7 @@ def ensure_db():
 
 @app.before_request
 def prepare_db():
-    if request.endpoint != 'healthz':
+    if request.endpoint not in ('healthz', 'health'):
         ensure_db()
 
 @app.route('/login', methods=['GET','POST'])

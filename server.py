@@ -7,7 +7,7 @@ from waitress import serve
 def main():
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
-    threads = int(os.environ.get("WAITRESS_THREADS", "4"))
+    threads = int(os.environ.get("WAITRESS_THREADS", "1"))
 
     print("BOOTSTRAP BlackSquare CRM importing Flask application", flush=True)
     from app import DB, app
