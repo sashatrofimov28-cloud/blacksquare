@@ -13,7 +13,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip && \
 COPY . .
 RUN mkdir -p /data
 
-EXPOSE 80 8000
+EXPOSE 8000
 VOLUME ["/data"]
 
-CMD ["sh", "-c", "if [ -n \"$PORT\" ] && [ \"$PORT\" != \"80\" ] && [ \"$PORT\" != \"8000\" ]; then EXTRA_BIND=\"--bind 0.0.0.0:$PORT\"; fi; exec gunicorn --bind 0.0.0.0:80 --bind 0.0.0.0:8000 ${EXTRA_BIND:-} --workers ${WEB_CONCURRENCY:-2} --timeout ${GUNICORN_TIMEOUT:-120} app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120", "app:app"]
