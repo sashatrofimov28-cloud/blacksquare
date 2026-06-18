@@ -729,6 +729,12 @@ def client_card(cid):
 if __name__ == '__main__':
     host = os.environ.get('HOST', '0.0.0.0')
     port = int(os.environ.get('PORT', '8000'))
-    print(f'STARTING BlackSquare CRM on {host}:{port}', flush=True)
+    login_template = BASE_DIR / 'templates' / 'login.html'
+    template_count = len(list((BASE_DIR / 'templates').glob('*.html')))
+    print(
+        f'STARTING BlackSquare CRM on {host}:{port} '
+        f'templates={template_count} login_exists={login_template.is_file()}',
+        flush=True,
+    )
     from waitress import serve
     serve(app, host=host, port=port)
