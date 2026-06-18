@@ -8,6 +8,7 @@
 - `styles.css` — все стили и адаптивная верстка.
 - `script.js` — небольшая интерактивность: текущий год, копирование email, плавное появление блоков.
 - `assets/logo.svg` — логотип.
+- `CNAME` — домен `blacksquare72.ru` для GitHub Pages.
 - `.github/workflows/pages.yml` — автоматическая публикация на GitHub Pages.
 - `release/blacksquare-site.zip` — ZIP-архив с готовым сайтом для загрузки на хостинг.
 
@@ -32,22 +33,36 @@
 3. В блоке `Build and deployment` выберите `GitHub Actions`.
 4. После пуша в ветку `main` workflow `Deploy static site to GitHub Pages` опубликует сайт.
 
-## Как подключить свой домен
+## Как подключить домен blacksquare72.ru через Timeweb
 
-1. В GitHub откройте `Settings` -> `Pages`.
-2. В поле `Custom domain` укажите ваш домен.
-3. У регистратора домена настройте DNS-записи по инструкции GitHub Pages.
-4. Если хотите хранить домен в репозитории, создайте файл `CNAME` в корне проекта и впишите туда только домен, например:
+В репозитории уже есть файл `CNAME` со значением:
 
-   ```text
-   example.com
-   ```
+```text
+blacksquare72.ru
+```
+
+В Timeweb в DNS-зоне домена добавьте A-записи для основного домена:
+
+```text
+@    A    185.199.108.153
+@    A    185.199.109.153
+@    A    185.199.110.153
+@    A    185.199.111.153
+```
+
+Для `www.blacksquare72.ru` добавьте CNAME:
+
+```text
+www    CNAME    sashatrofimov28-cloud.github.io
+```
+
+После этого в GitHub откройте `Settings` -> `Pages`, укажите `blacksquare72.ru` в поле `Custom domain` и включите `Enforce HTTPS`, когда проверка домена пройдет.
 
 ## Как пересобрать ZIP-архив
 
 ```bash
 zip -r release/blacksquare-site.zip \
-  index.html styles.css script.js assets robots.txt site.webmanifest .nojekyll \
+  index.html styles.css script.js assets robots.txt site.webmanifest .nojekyll CNAME \
   -x "*.DS_Store"
 ```
 
