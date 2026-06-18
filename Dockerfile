@@ -17,5 +17,6 @@ RUN chmod +x /app/start.sh && mkdir -p /app/data
 
 EXPOSE 8000
 
-ENTRYPOINT ["python"]
-CMD ["server.py"]
+# Full command in ENTRYPOINT so Timeweb cannot drop CMD args when
+# the panel "launch command" field is empty or overridden.
+ENTRYPOINT ["python", "/app/server.py"]
