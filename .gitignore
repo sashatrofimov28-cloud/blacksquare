@@ -1,0 +1,9 @@
+incoming/
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+*.db
+*.sqlite
+*.sqlite3
