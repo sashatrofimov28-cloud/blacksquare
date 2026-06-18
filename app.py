@@ -5,8 +5,12 @@ from pathlib import Path
 import sqlite3, calendar as pycal
 import os
 
-app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / 'templates'),
+    static_folder=str(BASE_DIR / 'static'),
+)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
 DB = os.environ.get('DATABASE_PATH', str(BASE_DIR / 'blacksquare_stock_crm_v2.db'))
 DEFAULT_PASSWORD = 'blacksquare'
