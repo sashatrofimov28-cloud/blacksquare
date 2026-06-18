@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="BlackSquare — лаконичная студия для запуска современных сайтов, визуальной упаковки и публикации проектов через GitHub Pages."
+    >
+    <meta name="theme-color" content="#050505">
+    <meta property="og:title" content="BlackSquare — готовый сайт">
+    <meta
+      property="og:description"
+      content="Современный статический сайт, готовый к загрузке на домен через GitHub Pages."
+    >
+    <meta property="og:type" content="website">
+    <title>BlackSquare — готовый сайт</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="BlackSquare — на главную">
+        <img src="assets/logo.svg" alt="" width="36" height="36">
+        <span>BlackSquare</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Главное меню">
+        <a href="#services">Услуги</a>
+        <a href="#process">Процесс</a>
+        <a href="#contacts">Контакты</a>
+      </nav>
+
+      <a class="header-cta" href="#contacts">Обсудить проект</a>
+    </header>
+
+    <main id="top">
+      <section class="hero section">
+        <div class="hero-content">
+          <p class="eyebrow">Готово для GitHub Pages и домена</p>
+          <h1>Запускайте сайт быстро, чисто и без лишней сложности.</h1>
+          <p class="hero-text">
+            BlackSquare — минималистичный одностраничный сайт для презентации
+            проекта, услуг или личного бренда. Его можно загрузить на хостинг
+            архивом ZIP или опубликовать через GitHub Pages.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#contacts">Связаться</a>
+            <a class="button button-secondary" href="#services">Смотреть услуги</a>
+          </div>
+        </div>
+
+        <div class="hero-card" aria-label="Ключевые преимущества">
+          <div class="floating-square"></div>
+          <p class="hero-card-label">Статический сайт</p>
+          <strong>HTML + CSS + JS</strong>
+          <span>Без базы данных, без сборки, без зависимостей.</span>
+        </div>
+      </section>
+
+      <section class="section stats" aria-label="Преимущества">
+        <article>
+          <strong>100%</strong>
+          <span>готов к загрузке</span>
+        </article>
+        <article>
+          <strong>0</strong>
+          <span>внешних зависимостей</span>
+        </article>
+        <article>
+          <strong>1</strong>
+          <span>команда для ZIP</span>
+        </article>
+      </section>
+
+      <section id="services" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Что внутри</p>
+          <h2>Основа для аккуратного онлайн-присутствия</h2>
+        </div>
+
+        <div class="cards-grid">
+          <article class="service-card reveal">
+            <span class="card-number">01</span>
+            <h3>Лендинг</h3>
+            <p>
+              Главная страница с блоками для предложения, преимуществ, процесса
+              и контактов.
+            </p>
+          </article>
+          <article class="service-card reveal">
+            <span class="card-number">02</span>
+            <h3>Адаптивность</h3>
+            <p>
+              Дизайн корректно выглядит на телефонах, планшетах и больших
+              экранах.
+            </p>
+          </article>
+          <article class="service-card reveal">
+            <span class="card-number">03</span>
+            <h3>Публикация</h3>
+            <p>
+              Добавлен workflow для GitHub Pages и инструкция по подключению
+              домена.
+            </p>
+          </article>
+          <article class="service-card reveal">
+            <span class="card-number">04</span>
+            <h3>Архив</h3>
+            <p>
+              В репозитории лежит ZIP с готовыми файлами, который можно отдать
+              хостингу.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="process" class="section split-section">
+        <div>
+          <p class="eyebrow">Как запустить</p>
+          <h2>Два простых сценария публикации</h2>
+        </div>
+
+        <ol class="timeline">
+          <li class="reveal">
+            <span>GitHub Pages</span>
+            Залейте репозиторий на GitHub, включите Pages и выберите деплой
+            через GitHub Actions.
+          </li>
+          <li class="reveal">
+            <span>Свой домен</span>
+            В настройках Pages добавьте домен, а у регистратора направьте DNS на
+            GitHub Pages.
+          </li>
+          <li class="reveal">
+            <span>ZIP-архив</span>
+            Если хостинг просит архив, загрузите файл
+            <code>release/blacksquare-site.zip</code>.
+          </li>
+        </ol>
+      </section>
+
+      <section class="section showcase">
+        <div class="showcase-panel reveal">
+          <p class="eyebrow">Визуальный стиль</p>
+          <h2>Контрастный, спокойный, легко редактируемый.</h2>
+          <p>
+            Все тексты находятся прямо в <code>index.html</code>, цвета и
+            отступы — в <code>styles.css</code>. Это удобно для быстрого
+            изменения под ваш бренд.
+          </p>
+        </div>
+      </section>
+
+      <section id="contacts" class="section contact-section">
+        <div>
+          <p class="eyebrow">Контакты</p>
+          <h2>Готовы заменить текст под ваш проект?</h2>
+          <p>
+            Укажите свой email, телефон, ссылки на соцсети или форму заявки в
+            этом блоке перед публикацией.
+          </p>
+        </div>
+
+        <div class="contact-card">
+          <a class="contact-link" href="mailto:hello@example.com">hello@example.com</a>
+          <a class="contact-link" href="tel:+10000000000">+1 000 000 00 00</a>
+          <button class="button button-primary" type="button" data-copy-email>
+            Скопировать email
+          </button>
+          <p class="copy-status" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>© <span data-year></span> BlackSquare</span>
+      <a href="#top">Наверх</a>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
