@@ -58,11 +58,8 @@ def init_db():
 
     default_users = [('director','director','Директор'),('admin','admin','Администратор'),('katya','master','Катя'),('stas','master','Стас')]
     for username, role, full_name in default_users:
-        row = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-        if row: uid = row['id']
-        else:
-            c.execute("INSERT INTO users(username,password_hash,role,full_name,hired_at,created_at) VALUES(?,?,?,?,?,?)", (username, generate_password_hash(DEFAULT_PASSWORD), role, full_name, today(), now()))
-            uid = c.lastrowid
+        c.execute("INSERT OR IGNORE INTO users(username,password_hash,role,full_name,hired_at,created_at) VALUES(?,?,?,?,?,?)", (username, generate_password_hash(DEFAULT_PASSWORD), role, full_name, today(), now()))
+        uid = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()['id']
         for p in PERMS:
             if role == 'director': allowed = 1
             elif role == 'admin': allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access'] else 0
