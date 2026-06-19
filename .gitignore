@@ -1,3 +1,4 @@
+.cursor/mcp.json
 incoming/
 __pycache__/
 *.py[cod]
