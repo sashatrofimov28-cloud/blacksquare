@@ -114,6 +114,57 @@ def restore_database_if_needed():
         return True
     return False
 
+def remote_db_configured():
+    return all(os.environ.get(key) for key in ('S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY'))
+
+def remote_db_key():
+    return os.environ.get('S3_DB_KEY', 'db/blacksquare_stock_crm_v2.db')
+
+def remote_restore_database():
+    if not remote_db_configured():
+        return False
+    db_path = Path(DB)
+    if database_activity_score(db_path) > 0:
+        return False
+    try:
+        import boto3
+        from botocore.config import Config
+        client = boto3.client(
+            's3',
+            endpoint_url=os.environ['S3_ENDPOINT'].rstrip('/'),
+            aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+            aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+            region_name=os.environ.get('S3_REGION', 'ru-1'),
+            config=Config(signature_version='s3v4'),
+        )
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        client.download_file(os.environ['S3_BUCKET'], remote_db_key(), str(db_path))
+        return database_activity_score(db_path) > 0
+    except Exception:
+        return False
+
+def remote_backup_database():
+    if not remote_db_configured():
+        return False
+    db_path = Path(DB)
+    if database_activity_score(db_path) == 0:
+        return False
+    try:
+        import boto3
+        from botocore.config import Config
+        client = boto3.client(
+            's3',
+            endpoint_url=os.environ['S3_ENDPOINT'].rstrip('/'),
+            aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+            aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+            region_name=os.environ.get('S3_REGION', 'ru-1'),
+            config=Config(signature_version='s3v4'),
+        )
+        client.upload_file(str(db_path), os.environ['S3_BUCKET'], remote_db_key())
+        return True
+    except Exception:
+        return False
+
 DB = resolve_database_path()
 
 PERMS = {
@@ -221,6 +272,7 @@ def backup_database():
     old = sorted(backup_dir.glob('blacksquare_2*.db'), key=lambda p: p.stat().st_mtime, reverse=True)
     for path in old[15:]:
         path.unlink(missing_ok=True)
+    remote_backup_database()
 
 def migrate_db(c):
     """Добавляет новые колонки и настройки без потери данных."""
@@ -576,6 +628,7 @@ _db_initialized = False
 def ensure_db():
     global _db_initialized
     if not _db_initialized:
+        remote_restore_database()
         restore_database_if_needed()
         init_db()
         _db_initialized = True
@@ -1366,7 +1419,8 @@ def settings():
             backup_database()
             flash('Резервная копия базы создана')
         elif action == 'restore':
-            if restore_database_if_needed():
+            restored = remote_restore_database() or restore_database_if_needed()
+            if restored:
                 flash('База восстановлена из резервной копии')
             else:
                 flash('Не найдена резервная копия с данными')

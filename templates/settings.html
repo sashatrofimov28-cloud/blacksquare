@@ -7,7 +7,7 @@
 
 <div class="panel profile-card">
   <h2>База данных</h2>
-  <p style="color:#666;font-size:14px">Записи хранятся в файле на постоянном диске сервера (<code>/data</code>). При обновлениях приложения создаётся резервная копия. Если после обновления данные пропали — нажмите «Восстановить из копии».</p>
+  <p style="color:#666;font-size:14px">Записи сохраняются в облачное хранилище (S3) и на диск сервера. При каждом обновлении создаётся копия — данные не должны пропадать. Если пропали — нажмите «Восстановить из копии».</p>
   <div class="cards simple" style="margin-top:12px">
     <div class="card"><span>Записей в CRM</span><strong>{{ db_info.appointments }}</strong></div>
     <div class="card"><span>Клиентов</span><strong>{{ db_info.clients }}</strong></div>
