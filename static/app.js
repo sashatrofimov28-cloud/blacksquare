@@ -53,7 +53,7 @@
 
   /* --- Service Worker --- */
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=5', { scope: '/' }).then(function (reg) {
+    navigator.serviceWorker.register('/sw.js?v=9', { scope: '/' }).then(function (reg) {
       reg.update();
     }).catch(function () {});
   }
@@ -172,10 +172,24 @@
   }
 
   async function testPush() {
-    const res = await fetch('/api/push-test', { method: 'POST' });
-    const data = await res.json();
-    if (pushStatus) {
-      pushStatus.textContent = data.ok ? 'Тестовое уведомление отправлено.' : (data.error || 'Ошибка отправки');
+    try {
+      const reg = await getSwReg();
+      const sub = reg && (await reg.pushManager.getSubscription());
+      const res = await fetch('/api/push-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub ? sub.toJSON() : null }),
+      });
+      const data = await res.json();
+      if (pushStatus) {
+        if (data.ok) {
+          setPushUi('on', 'Тестовое уведомление отправлено. Проверьте экран телефона.');
+        } else {
+          setPushUi('on', data.error || 'Ошибка отправки');
+        }
+      }
+    } catch (e) {
+      if (pushStatus) pushStatus.textContent = 'Ошибка: ' + (e.message || 'не удалось отправить тест');
     }
   }
 

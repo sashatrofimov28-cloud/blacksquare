@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=9">
   <style>
     @media (min-width: 1025px) {
       .app-shell {
@@ -110,7 +110,7 @@
 <script>
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=8"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=9"></script>
 {% else %}
 </main>
 {% endif %}

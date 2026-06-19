@@ -338,20 +338,36 @@ VAPID_CLAIMS = {'sub': 'mailto:director@blacksquare72.ru'}
 def vapid_public_key():
     return VAPID_PUBLIC_KEY
 
-def send_push_to_user(user_id, title, body, url='/'):
-    if not webpush or not VAPID_PRIVATE_KEY:
+def save_push_subscription(user_id, sub):
+    if not sub or not sub.get('endpoint') or not sub.get('keys'):
         return False
     con = db()
-    subs = con.execute("SELECT * FROM push_subscriptions WHERE user_id=?", (user_id,)).fetchall()
+    con.execute(
+        "INSERT INTO push_subscriptions(user_id,endpoint,p256dh,auth,created_at) VALUES(?,?,?,?,?) "
+        "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth",
+        (user_id, sub['endpoint'], sub['keys']['p256dh'], sub['keys']['auth'], now()),
+    )
+    con.commit()
     con.close()
+    return True
+
+def send_push_to_user(user_id, title, body, url='/'):
+    if not webpush:
+        return False, 'Модуль pywebpush не установлен на сервере'
+    if not VAPID_PRIVATE_KEY:
+        return False, 'VAPID ключ не настроен на сервере'
+    con = db()
+    subs = con.execute("SELECT * FROM push_subscriptions WHERE user_id=?", (user_id,)).fetchall()
     if not subs:
-        return False
+        con.close()
+        return False, 'Нет подписки на сервере. Нажмите «Включить уведомления» в профиле.'
     if url.startswith('/'):
         base = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
         if base:
             url = base + url
     payload = json.dumps({'title': title, 'body': body, 'url': url, 'tag': 'bs-' + str(user_id)})
     sent = False
+    last_err = 'Не удалось доставить уведомление'
     for s in subs:
         try:
             webpush(
@@ -359,11 +375,19 @@ def send_push_to_user(user_id, title, body, url='/'):
                 data=payload,
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims=VAPID_CLAIMS,
+                ttl=86400,
             )
             sent = True
-        except WebPushException:
-            pass
-    return sent
+        except WebPushException as e:
+            last_err = str(e.response.text if getattr(e, 'response', None) is not None else e)[:200]
+            code = getattr(getattr(e, 'response', None), 'status_code', None)
+            if code in (404, 410):
+                con.execute("DELETE FROM push_subscriptions WHERE id=?", (s['id'],))
+                con.commit()
+    con.close()
+    if not sent and 'подписк' not in last_err.lower():
+        last_err = 'Подписка устарела. Отключите и снова включите уведомления в профиле.'
+    return sent, None if sent else last_err
 
 def notify_employee_appointment(employee_id, ap_date, start_time, client_name, service_name, car=''):
     car_part = f' · {car}' if car else ''
@@ -1362,16 +1386,9 @@ def push_subscribe():
         return jsonify({'ok': False, 'error': 'Нет данных подписки'}), 400
     if not VAPID_PRIVATE_KEY:
         return jsonify({'ok': False, 'error': 'Push не настроен на сервере'}), 503
-    con = db()
     u = current_user()
-    con.execute(
-        "INSERT INTO push_subscriptions(user_id,endpoint,p256dh,auth,created_at) VALUES(?,?,?,?,?) "
-        "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth",
-        (u['id'], sub['endpoint'], sub['keys']['p256dh'], sub['keys']['auth'], now()),
-    )
-    con.commit()
-    con.close()
-    test_sent = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
+    save_push_subscription(u['id'], sub)
+    test_sent, _ = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
     return jsonify({'ok': True, 'test_sent': test_sent})
 
 
@@ -1381,10 +1398,14 @@ def push_test():
     if not VAPID_PRIVATE_KEY:
         return jsonify({'ok': False, 'error': 'Push не настроен на сервере'})
     u = current_user()
-    ok = send_push_to_user(u['id'], 'BlackSquare — тест', 'Если вы видите это — уведомления работают.', url_for('dashboard'))
+    data = request.get_json(silent=True) or {}
+    sub = data.get('subscription')
+    if sub:
+        save_push_subscription(u['id'], sub)
+    ok, err = send_push_to_user(u['id'], 'BlackSquare — тест', 'Если вы видите это — уведомления работают.', url_for('dashboard'))
     if ok:
         return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': 'Не удалось отправить. Проверьте подписку в профиле.'})
+    return jsonify({'ok': False, 'error': err or 'Не удалось отправить. Проверьте подписку в профиле.'})
 
 
 @app.route('/api/push-unsubscribe', methods=['POST'])
