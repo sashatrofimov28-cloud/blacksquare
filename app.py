@@ -50,8 +50,8 @@ def db():
 def now(): return datetime.now().strftime('%Y-%m-%d %H:%M')
 def today(): return date.today().isoformat()
 def hm2m(hm):
-    h, m = map(int, hm.split(':'))
-    return h * 60 + m
+    parts = (hm or '0:0').split(':')
+    return int(parts[0]) * 60 + int(parts[1])
 def m2hm(minutes): return f'{minutes // 60:02d}:{minutes % 60:02d}'
 
 def init_db():
@@ -325,6 +325,10 @@ def available_slots(con, uid, sid, d):
         t += 30
     return out
 
+def online_slot_allowed(con, uid, sid, d, start):
+    start = (start or '')[:5]
+    return any(s['start'] == start for s in available_slots(con, uid, sid, d))
+
 def booking_public_url():
     explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
     if explicit:
@@ -524,8 +528,8 @@ def booking():
         if not service or not emp or not employee_can_service(con, uid, sid):
             flash('Мастер не выполняет эту услугу'); return redirect(url_for('booking'))
         end = m2hm(hm2m(start) + int(service['duration_min']))
-        if not slot_free(con, uid, d, start, end):
-            flash('Это окно уже занято'); return redirect(url_for('booking'))
+        if not online_slot_allowed(con, uid, sid, d, start):
+            flash('Это время недоступно для онлайн-записи. Выберите свободное окно из списка.'); return redirect(url_for('booking'))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
         price = float(request.form.get('price') or service['base_price'] or 0)
@@ -558,8 +562,6 @@ def calendar_view():
         sid = request.form['service_id']; uid = request.form['employee_id']; d = request.form['appointment_date']; start = request.form['start_time']
         service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
         end = m2hm(hm2m(start) + int(service['duration_min']))
-        if not slot_free(con, uid, d, start, end):
-            flash('Время занято'); return redirect(url_for('calendar_view', date=d))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
         price = float(request.form.get('price') or service['base_price'] or 0)
@@ -717,11 +719,6 @@ def edit_appointment(aid):
         sid = request.form['service_id']; uid = int(request.form['employee_id']); d = request.form['appointment_date']; start = request.form['start_time']
         service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
         end = m2hm(hm2m(start) + int(service['duration_min']))
-        others = con.execute("SELECT id,start_time,end_time FROM appointments WHERE employee_id=? AND appointment_date=? AND status!='Отменен' AND id!=?", (uid, d, aid)).fetchall()
-        s, e = hm2m(start), hm2m(end)
-        for r in others:
-            if s < hm2m(r['end_time']) and e > hm2m(r['start_time']):
-                con.close(); flash('Время занято'); return redirect(url_for('edit_appointment', aid=aid))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car', ''); plate = request.form.get('plate_number', '').upper().replace(' ', '')
         price = float(request.form.get('price') or service['base_price'] or 0)
         con.execute(
