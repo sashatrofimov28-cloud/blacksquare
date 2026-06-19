@@ -28,10 +28,11 @@
 
 <div class="panel profile-card">
   <h2>Статистика на главной</h2>
-  <p style="color:#666;font-size:14px">Подробная статистика всегда во вкладке «Статистика» (по умолчанию — текущий месяц).</p>
+  <p style="color:#666;font-size:14px">Общая касса на главной обновляется сразу при закрытии записи.</p>
   <form method="post" class="form-grid">
     <input type="hidden" name="action" value="stats">
     <select name="stats_refresh">
+      <option value="live" {% if stats_refresh=='live' %}selected{% endif %}>Сразу при закрытии записи</option>
       <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Обновлять каждый день</option>
       <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
       <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>

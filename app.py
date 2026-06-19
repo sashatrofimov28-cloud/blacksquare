@@ -356,7 +356,7 @@ def migrate_db(c):
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_mode TEXT DEFAULT 'per_roll'")
     if 'cost_per_meter' not in cols:
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_per_meter REAL DEFAULT 0")
-    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_refresh','daily')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_refresh','live')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_cached','{}')")
     for p in PERMS:
         for u in c.execute("SELECT id, role FROM users").fetchall():
@@ -411,8 +411,21 @@ def compute_dashboard_stats(con):
         'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
     }
 
+def refresh_dashboard_stats():
+    """Пересчитывает показатели главной (касса, прибыль и т.д.) сразу после закрытия записи."""
+    con = db()
+    stats = compute_dashboard_stats(con)
+    con.close()
+    set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
+    return stats
+
 def dashboard_stats():
-    interval = get_setting('stats_refresh', 'daily')
+    interval = get_setting('stats_refresh', 'live')
+    if interval == 'live':
+        con = db()
+        stats = compute_dashboard_stats(con)
+        con.close()
+        return stats, now()
     cached_raw = get_setting('stats_cached', '{}')
     try:
         cached = json.loads(cached_raw)
@@ -967,7 +980,9 @@ def edit_appointment(aid):
             if salary_amount > 0:
                 con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)",
                             (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment', '') or 'ЗП из закрытой записи', now()))
-            con.commit(); con.close(); flash('Закрытый заказ обновлён')
+            con.commit()
+            refresh_dashboard_stats()
+            con.close(); flash('Закрытый заказ обновлён')
             return redirect(url_for('calendar_view', date=ap['appointment_date']))
         employee_ids = parse_employee_ids(request.form)
         ok, err = validate_master_ids(con, employee_ids)
@@ -1030,7 +1045,9 @@ def close_appointment(aid):
                     (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
         if salary_amount > 0:
             con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
-        con.commit(); con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
+        con.commit()
+        refresh_dashboard_stats()
+        con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     con.close(); return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'))
@@ -1047,10 +1064,13 @@ def delete_appointment(aid):
         con.execute("DELETE FROM appointment_employees WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM appointments WHERE id=?", (aid,))
-        con.commit(); flash('Запись удалена')
-    con.close(); return redirect(url_for('calendar_view', date=request.form.get('date') or today()))
-
-
+        con.commit()
+        if ap['status'] == 'Закрыт':
+            refresh_dashboard_stats()
+        con.close(); flash('Запись удалена')
+    else:
+        con.close()
+    return redirect(url_for('calendar_view', date=request.form.get('date') or today()))
 @app.route('/phone_request/<int:aid>', methods=['POST'])
 @login_required
 def phone_request(aid):
@@ -1575,7 +1595,7 @@ def settings():
             else:
                 flash('Не найдена резервная копия с данными')
         return redirect(url_for('settings'))
-    stats_refresh = get_setting('stats_refresh', 'daily')
+    stats_refresh = get_setting('stats_refresh', 'live')
     stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
     con = db()
     db_info = {
