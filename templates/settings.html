@@ -7,7 +7,7 @@
 
 <div class="panel profile-card">
   <h2>База данных</h2>
-  <p style="color:#666;font-size:14px">Все записи хранятся на диске сервера. При каждом обновлении приложения автоматически создаётся резервная копия — данные не удаляются.</p>
+  <p style="color:#666;font-size:14px">Записи хранятся в файле на постоянном диске сервера (<code>/data</code>). При обновлениях приложения создаётся резервная копия. Если после обновления данные пропали — нажмите «Восстановить из копии».</p>
   <div class="cards simple" style="margin-top:12px">
     <div class="card"><span>Записей в CRM</span><strong>{{ db_info.appointments }}</strong></div>
     <div class="card"><span>Клиентов</span><strong>{{ db_info.clients }}</strong></div>
@@ -16,6 +16,10 @@
   <form method="post" style="margin-top:12px">
     <input type="hidden" name="action" value="backup">
     <button class="ghost">Создать резервную копию сейчас</button>
+  </form>
+  <form method="post" style="margin-top:12px">
+    <input type="hidden" name="action" value="restore">
+    <button class="ghost">Восстановить из последней копии</button>
   </form>
   {% if backups %}
   <p class="hint" style="margin-top:12px">Последние копии: {% for b in backups %}{{ b.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>

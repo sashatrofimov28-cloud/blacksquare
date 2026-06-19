@@ -5,7 +5,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir -r requirements.txt && mkdir -p /app/data
 
-ENV DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db \
+ENV DATABASE_PATH=/data/blacksquare_stock_crm_v2.db \
     PORT=8000
 
 EXPOSE 8000

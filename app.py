@@ -20,8 +20,101 @@ app = Flask(
 )
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
-DB = os.environ.get('DATABASE_PATH', str(BASE_DIR / 'blacksquare_stock_crm_v2.db'))
 DEFAULT_PASSWORD = 'blacksquare'
+DB_FILENAME = 'blacksquare_stock_crm_v2.db'
+PERSISTENT_DB_DIRS = ('/data', '/app/data')
+
+def database_activity_score(db_path):
+    path = Path(db_path)
+    if not path.exists() or path.stat().st_size == 0:
+        return 0
+    try:
+        con = sqlite3.connect(str(path))
+        con.row_factory = sqlite3.Row
+        appts = con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c']
+        clients = con.execute("SELECT COUNT(*) c FROM clients").fetchone()['c']
+        con.close()
+        return int(appts) * 10 + int(clients)
+    except Exception:
+        return 0
+
+def resolve_database_path():
+    explicit = os.environ.get('DATABASE_PATH', '').strip()
+    candidates = []
+    if explicit:
+        candidates.append(explicit)
+    for root in PERSISTENT_DB_DIRS:
+        candidates.append(str(Path(root) / DB_FILENAME))
+    candidates.append(str(BASE_DIR / DB_FILENAME))
+    seen = set()
+    ordered = []
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+
+    best_path = None
+    best_score = -1
+    for path in ordered:
+        score = database_activity_score(path)
+        if score > best_score:
+            best_score = score
+            best_path = path
+    if best_path and best_score > 0:
+        return best_path
+
+    for path in ordered:
+        try:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            test_file = Path(path).parent / '.write_test'
+            test_file.write_text('ok')
+            test_file.unlink(missing_ok=True)
+            return path
+        except OSError:
+            continue
+    return ordered[0] if ordered else str(BASE_DIR / DB_FILENAME)
+
+def backup_sources():
+    sources = []
+    for root in PERSISTENT_DB_DIRS:
+        backup_dir = Path(root) / 'backups'
+        if backup_dir.exists():
+            sources.extend(backup_dir.glob('blacksquare_*.db'))
+        latest = Path(root) / f'{DB_FILENAME}.latest.bak'
+        if latest.exists():
+            sources.append(latest)
+        db_file = Path(root) / DB_FILENAME
+        if db_file.exists():
+            sources.append(db_file)
+    explicit = os.environ.get('DATABASE_PATH', '').strip()
+    if explicit:
+        db_file = Path(explicit)
+        if db_file.exists():
+            sources.append(db_file)
+        latest = db_file.with_suffix(db_file.suffix + '.latest.bak')
+        if latest.exists():
+            sources.append(latest)
+        backup_dir = db_file.parent / 'backups'
+        if backup_dir.exists():
+            sources.extend(backup_dir.glob('blacksquare_*.db'))
+    unique = {}
+    for src in sources:
+        unique[str(src.resolve()) if src.exists() else str(src)] = src
+    return sorted(unique.values(), key=lambda p: (database_activity_score(p), p.stat().st_mtime if p.exists() else 0), reverse=True)
+
+def restore_database_if_needed():
+    db_path = Path(DB)
+    if database_activity_score(db_path) > 0:
+        return False
+    for src in backup_sources():
+        if database_activity_score(src) <= 0:
+            continue
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, db_path)
+        return True
+    return False
+
+DB = resolve_database_path()
 
 PERMS = {
     'calendar': 'Календарь',
@@ -116,6 +209,8 @@ def backup_database():
     """Копия базы перед обновлениями — данные не теряются при деплое."""
     db_path = Path(DB)
     if not db_path.exists() or db_path.stat().st_size == 0:
+        return
+    if database_activity_score(db_path) == 0:
         return
     backup_dir = db_path.parent / 'backups'
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -481,6 +576,7 @@ _db_initialized = False
 def ensure_db():
     global _db_initialized
     if not _db_initialized:
+        restore_database_if_needed()
         init_db()
         _db_initialized = True
 
@@ -1269,6 +1365,11 @@ def settings():
         elif action == 'backup':
             backup_database()
             flash('Резервная копия базы создана')
+        elif action == 'restore':
+            if restore_database_if_needed():
+                flash('База восстановлена из резервной копии')
+            else:
+                flash('Не найдена резервная копия с данными')
         return redirect(url_for('settings'))
     stats_refresh = get_setting('stats_refresh', 'daily')
     stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
