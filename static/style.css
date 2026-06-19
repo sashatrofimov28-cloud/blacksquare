@@ -137,8 +137,9 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 
 @media(min-width:1025px){
   .mobile-top,.mobile-tabs,.sidebar-backdrop{display:none!important}
-  .sidebar{order:-1}
-  .main-wrap{order:0;flex:1}
+  .app-shell{display:flex;flex-direction:row}
+  .sidebar{display:flex!important;flex-direction:column;position:relative;transform:none}
+  .main-wrap{flex:1;min-width:0}
 }
 
 @media(max-width:1024px){

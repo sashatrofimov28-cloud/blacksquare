@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=6">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=7">
   <style>
     @media (max-width: 1024px) {
       .app-shell { display: block !important; height: 100dvh; overflow: hidden; }
@@ -21,7 +21,6 @@
         width: min(300px, 92vw) !important;
         z-index: 1000;
         height: 100dvh;
-        transform: none !important;
       }
       .sidebar.open { display: flex !important; flex-direction: column; }
       .sidebar-backdrop {
@@ -37,6 +36,28 @@
 <body>
 {% if user %}
 <div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Меню">
+    <div class="brand">
+      <div class="wordmark">BlackSquare</div>
+      <span>{{ 'директор' if user.role=='director' else ('администратор' if user.role=='admin' else 'мастер') }}</span>
+    </div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Главная</a>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Календарь</a>{% endif %}
+      {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
+      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
+      {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}
+      {% if has_perm('certificates') %}<a href="{{ url_for('certificates') }}" class="{% if request.endpoint=='certificates' %}active{% endif %}">Сертификаты</a>{% endif %}
+      {% if has_perm('salary') %}<a href="{{ url_for('salary') }}" class="{% if request.endpoint=='salary' %}active{% endif %}">Зарплата</a>{% endif %}
+      {% if has_perm('finance') %}<a href="{{ url_for('finance') }}" class="{% if request.endpoint=='finance' %}active{% endif %}">Финансы</a>{% endif %}
+      {% if has_perm('analytics') %}<a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">Статистика</a>{% endif %}
+      {% if has_perm('employees') %}<a href="{{ url_for('employees') }}" class="{% if request.endpoint=='employees' %}active{% endif %}">Сотрудники</a>{% endif %}
+      {% if user.role=='director' %}<a href="{{ url_for('settings') }}" class="{% if request.endpoint=='settings' %}active{% endif %}">Настройки</a>{% endif %}
+      <a href="{{ url_for('profile') }}" class="{% if request.endpoint=='profile' %}active{% endif %}">Профиль</a>
+      <a href="{{ url_for('logout') }}">Выход</a>
+    </nav>
+    <div class="profile">Вошли как: <b>{{ user.full_name }}</b></div>
+  </aside>
   <div class="main-wrap">
     <header class="mobile-top">
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
@@ -69,33 +90,11 @@
     </main>
   </div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
-  <aside class="sidebar" id="sidebar" aria-label="Меню">
-    <div class="brand">
-      <div class="wordmark">BlackSquare</div>
-      <span>{{ 'директор' if user.role=='director' else ('администратор' if user.role=='admin' else 'мастер') }}</span>
-    </div>
-    <nav>
-      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Главная</a>
-      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Календарь</a>{% endif %}
-      {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
-      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
-      {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}
-      {% if has_perm('certificates') %}<a href="{{ url_for('certificates') }}" class="{% if request.endpoint=='certificates' %}active{% endif %}">Сертификаты</a>{% endif %}
-      {% if has_perm('salary') %}<a href="{{ url_for('salary') }}" class="{% if request.endpoint=='salary' %}active{% endif %}">Зарплата</a>{% endif %}
-      {% if has_perm('finance') %}<a href="{{ url_for('finance') }}" class="{% if request.endpoint=='finance' %}active{% endif %}">Финансы</a>{% endif %}
-      {% if has_perm('analytics') %}<a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">Статистика</a>{% endif %}
-      {% if has_perm('employees') %}<a href="{{ url_for('employees') }}" class="{% if request.endpoint=='employees' %}active{% endif %}">Сотрудники</a>{% endif %}
-      {% if user.role=='director' %}<a href="{{ url_for('settings') }}" class="{% if request.endpoint=='settings' %}active{% endif %}">Настройки</a>{% endif %}
-      <a href="{{ url_for('profile') }}" class="{% if request.endpoint=='profile' %}active{% endif %}">Профиль</a>
-      <a href="{{ url_for('logout') }}">Выход</a>
-    </nav>
-    <div class="profile">Вошли как: <b>{{ user.full_name }}</b></div>
-  </aside>
 </div>
 <script>
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=7"></script>
 {% else %}
 </main>
 {% endif %}
