@@ -891,6 +891,29 @@ def check_finance_reminders(user):
             msg = f'Через {days} дн.: {r["title"]} — {r["amount"]:.0f} ₽'
         send_push_to_user(user['id'], 'Финансы BlackSquare', msg, url_for('finance'))
 
+def user_has_stock_perm(con, user):
+    if not user:
+        return False
+    if user['role'] == 'director':
+        return True
+    row = con.execute(
+        "SELECT allowed FROM user_permissions WHERE user_id=? AND permission='stock'",
+        (user['id'],),
+    ).fetchone()
+    return bool(row and row['allowed'])
+
+def list_stock_for_writeoff(con, user):
+    """Материалы для списания при закрытии заказа — без права «Склад»."""
+    if not user:
+        return []
+    if user_has_stock_perm(con, user):
+        return con.execute(
+            "SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 ORDER BY category,name"
+        ).fetchall()
+    return con.execute(
+        "SELECT id,name,0 AS balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 ORDER BY category,name"
+    ).fetchall()
+
 def write_off_material(con, aid, uid, item_id, qty, length_m, width_cm, comment=''):
     item = con.execute("SELECT * FROM stock_items WHERE id=? AND active=1", (item_id,)).fetchone()
     if not item or qty <= 0:
@@ -1241,7 +1264,7 @@ def edit_appointment(aid):
         set_appointment_employees(con, aid, employee_ids)
         con.commit(); con.close(); flash('Запись обновлена')
         return redirect(url_for('calendar_view', date=d))
-    materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
+    materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     used_materials = con.execute(
         "SELECT am.*, si.name, si.category, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
@@ -1291,7 +1314,7 @@ def close_appointment(aid):
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         notify_directors_appointment_closed(con, ap_closed, price)
         con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
-    materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
+    materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     con.close(); return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'))
 

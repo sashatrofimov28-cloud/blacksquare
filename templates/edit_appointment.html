@@ -24,7 +24,7 @@
 <div class="panel">
   <form method="post" id="closeForm">
     <h2>Материалы со склада</h2>
-    <p style="color:#666;font-size:14px">Укажите материалы заново — старые списания будут возвращены на склад.</p>
+    <p style="color:#666;font-size:14px">Укажите материалы заново — старые списания будут возвращены на склад.{% if is_master %} Доступ к разделу «Склад» для этого не нужен.{% endif %}</p>
     <div id="materialRows" class="material-rows"></div>
     <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
     <div class="form-grid" style="margin-top:20px">
