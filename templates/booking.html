@@ -1,1 +1,131 @@
-{% extends "base.html" %}{% block content %}<div class="public-wrap"><div class="public-card"><div class="wordmark center">BlackSquare</div><h1>Онлайн-запись</h1><p>Выберите услугу, мастера и свободное окно.</p><form method="post"><input name="client_name" placeholder="Ваше имя" required><input name="phone" placeholder="Телефон" required><input name="car" placeholder="Автомобиль"><input name="plate_number" placeholder="Госномер авто"><select name="service_id" id="service" required><option value="">Услуга</option>{% for s in services %}<option value="{{ s.id }}">{{ s.name }} — {{ service_price_label(s.base_price) }}, {{ s.duration_min }} мин</option>{% endfor %}</select><select name="employee_id" id="employee" required><option value="">Сначала выберите услугу</option></select><input type="date" name="appointment_date" id="date" required><select name="start_time" id="slot" required><option value="">Свободные окна появятся тут</option></select><textarea name="comment" placeholder="Комментарий"></textarea><button>Записаться</button></form></div></div><script>async function masters(){let s=service.value;employee.innerHTML='<option>Загрузка...</option>';if(!s)return;let r=await fetch('/api/masters?service_id='+s);let d=await r.json();employee.innerHTML='<option value="">Мастер</option>';d.forEach(x=>{let o=document.createElement('option');o.value=x.id;o.textContent=x.name;employee.appendChild(o);});slots();}async function slots(){let s=service.value,e=employee.value,d=date.value;slot.innerHTML='<option>Загрузка...</option>';if(!s||!e||!d){slot.innerHTML='<option value="">Выберите услугу, мастера и дату</option>';return;}let r=await fetch(`/api/slots?service_id=${s}&employee_id=${e}&date=${d}`);let data=await r.json();slot.innerHTML='';if(!data.length){slot.innerHTML='<option value="">Свободных окон нет</option>';return;}data.forEach(x=>{let o=document.createElement('option');o.value=x.start;o.textContent=x.start+'–'+x.end;slot.appendChild(o);});}service.onchange=masters;employee.onchange=slots;date.onchange=slots;</script>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="public-wrap">
+  <div class="public-card">
+    <div class="wordmark center">BlackSquare</div>
+    <h1>Онлайн-запись</h1>
+    <p>Выберите услугу, мастера и свободное окно.</p>
+    <form method="post" id="booking-form">
+      <input name="client_name" placeholder="Ваше имя" required>
+      <input name="phone" placeholder="Телефон" required>
+      <input name="car" placeholder="Автомобиль">
+      <input name="plate_number" placeholder="Госномер авто">
+      <select name="service_id" id="service" required>
+        <option value="">Услуга</option>
+        {% for s in services %}
+        <option value="{{ s.id }}">{{ s.name }} — {{ service_price_label(s.base_price) }}, {{ s.duration_min }} мин</option>
+        {% endfor %}
+      </select>
+      <select name="employee_id" id="employee" required disabled>
+        <option value="">Сначала выберите услугу</option>
+      </select>
+      <input type="date" name="appointment_date" id="date" value="{{ default_date }}" min="{{ default_date }}" required>
+      <select name="start_time" id="slot" required disabled>
+        <option value="">Свободные окна появятся тут</option>
+      </select>
+      <textarea name="comment" placeholder="Комментарий"></textarea>
+      <button type="submit" id="submit-btn" disabled>Записаться</button>
+    </form>
+  </div>
+</div>
+<script>
+const form = document.getElementById('booking-form');
+const submitBtn = document.getElementById('submit-btn');
+const service = document.getElementById('service');
+const employee = document.getElementById('employee');
+const date = document.getElementById('date');
+const slot = document.getElementById('slot');
+
+function setLoading(select, text) {
+  select.innerHTML = '';
+  const o = document.createElement('option');
+  o.value = '';
+  o.textContent = text;
+  o.disabled = true;
+  o.selected = true;
+  select.appendChild(o);
+  select.disabled = true;
+  updateSubmit();
+}
+
+function updateSubmit() {
+  const ready = service.value && employee.value && date.value && slot.value
+    && !employee.disabled && !slot.disabled;
+  submitBtn.disabled = !ready;
+}
+
+async function masters() {
+  const s = service.value;
+  employee.disabled = true;
+  slot.disabled = true;
+  slot.innerHTML = '<option value="">Выберите услугу, мастера и дату</option>';
+  if (!s) {
+    employee.innerHTML = '<option value="">Сначала выберите услугу</option>';
+    updateSubmit();
+    return;
+  }
+  setLoading(employee, 'Загрузка мастеров...');
+  try {
+    const r = await fetch('/api/masters?service_id=' + encodeURIComponent(s));
+    const d = await r.json();
+    employee.innerHTML = '<option value="">Мастер</option>';
+    d.forEach(x => {
+      const o = document.createElement('option');
+      o.value = x.id;
+      o.textContent = x.name;
+      employee.appendChild(o);
+    });
+    employee.disabled = false;
+  } catch (e) {
+    employee.innerHTML = '<option value="">Не удалось загрузить мастеров</option>';
+  }
+  slots();
+}
+
+async function slots() {
+  const s = service.value, e = employee.value, d = date.value;
+  slot.disabled = true;
+  if (!s || !e || !d) {
+    slot.innerHTML = '<option value="">Выберите услугу, мастера и дату</option>';
+    updateSubmit();
+    return;
+  }
+  setLoading(slot, 'Загрузка окон...');
+  try {
+    const r = await fetch(`/api/slots?service_id=${encodeURIComponent(s)}&employee_id=${encodeURIComponent(e)}&date=${encodeURIComponent(d)}`);
+    const data = await r.json();
+    slot.innerHTML = '';
+    if (!data.length) {
+      slot.innerHTML = '<option value="">Свободных окон нет</option>';
+      slot.disabled = true;
+      updateSubmit();
+      return;
+    }
+    slot.innerHTML = '<option value="">Выберите время</option>';
+    data.forEach(x => {
+      const o = document.createElement('option');
+      o.value = x.start;
+      o.textContent = x.start + '–' + x.end;
+      slot.appendChild(o);
+    });
+    slot.disabled = false;
+  } catch (e) {
+    slot.innerHTML = '<option value="">Не удалось загрузить окна</option>';
+  }
+  updateSubmit();
+}
+
+service.onchange = masters;
+employee.onchange = slots;
+date.onchange = slots;
+slot.onchange = updateSubmit;
+form.addEventListener('submit', e => {
+  if (submitBtn.disabled || !slot.value) {
+    e.preventDefault();
+    alert('Дождитесь загрузки и выберите свободное время.');
+  }
+});
+if (service.value) masters();
+else updateSubmit();
+</script>
+{% endblock %}

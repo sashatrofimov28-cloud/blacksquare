@@ -197,6 +197,16 @@ def hm2m(hm):
     parts = (hm or '0:0').split(':')
     return int(parts[0]) * 60 + int(parts[1])
 def m2hm(minutes): return f'{minutes // 60:02d}:{minutes % 60:02d}'
+def normalize_hm(hm):
+    if not hm:
+        return ''
+    parts = str(hm).strip().split(':')
+    if len(parts) < 2:
+        return ''
+    try:
+        return f'{int(parts[0]):02d}:{int(parts[1]):02d}'
+    except ValueError:
+        return ''
 
 EMPLOYEE_NAME_SQL = """COALESCE(
     (SELECT GROUP_CONCAT(u2.full_name, ', ')
@@ -592,7 +602,14 @@ def get_schedule(con, uid, d):
 
 def slot_free(con, uid, d, start, end):
     s = hm2m(start); e = hm2m(end)
-    rows = con.execute("SELECT start_time,end_time FROM appointments WHERE employee_id=? AND appointment_date=? AND status!='Отменен'", (uid,d)).fetchall()
+    rows = con.execute(
+        "SELECT a.start_time,a.end_time FROM appointments a "
+        "WHERE a.appointment_date=? AND a.status!='Отменен' "
+        "AND (a.employee_id=? OR EXISTS ("
+        "SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=?"
+        "))",
+        (d, uid, uid),
+    ).fetchall()
     for r in rows:
         if s < hm2m(r['end_time']) and e > hm2m(r['start_time']):
             return False
@@ -600,7 +617,7 @@ def slot_free(con, uid, d, start, end):
 
 def available_slots(con, uid, sid, d):
     service = con.execute("SELECT * FROM services WHERE id=? AND active=1", (sid,)).fetchone()
-    emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role!='director'", (uid,)).fetchone()
+    emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role='master'", (uid,)).fetchone()
     if not service or not emp or not employee_can_service(con, uid, sid): return []
     sched = get_schedule(con, uid, d)
     if int(sched['is_day_off']): return []
@@ -612,8 +629,10 @@ def available_slots(con, uid, sid, d):
     return out
 
 def online_slot_allowed(con, uid, sid, d, start):
-    start = (start or '')[:5]
-    return any(s['start'] == start for s in available_slots(con, uid, sid, d))
+    start = normalize_hm(start)
+    if not start:
+        return False
+    return any(normalize_hm(s['start']) == start for s in available_slots(con, uid, sid, d))
 
 def booking_public_url():
     explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
@@ -940,14 +959,25 @@ def dashboard():
 def booking():
     con = db()
     if request.method == 'POST':
-        sid = request.form['service_id']; uid = request.form['employee_id']; d = request.form['appointment_date']; start = request.form['start_time']
+        sid = request.form.get('service_id', '').strip()
+        uid = request.form.get('employee_id', '').strip()
+        d = request.form.get('appointment_date', '').strip()
+        start = normalize_hm(request.form.get('start_time', ''))
+        if not sid or not uid or not d or not start:
+            con.close()
+            flash('Заполните все поля и выберите свободное время из списка.')
+            return redirect(url_for('booking'))
         service = con.execute("SELECT * FROM services WHERE id=? AND active=1", (sid,)).fetchone()
-        emp = con.execute("SELECT * FROM users WHERE id=? AND active=1", (uid,)).fetchone()
+        emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role='master'", (uid,)).fetchone()
         if not service or not emp or not employee_can_service(con, uid, sid):
-            flash('Мастер не выполняет эту услугу'); return redirect(url_for('booking'))
+            con.close()
+            flash('Мастер не выполняет эту услугу')
+            return redirect(url_for('booking'))
         end = m2hm(hm2m(start) + int(service['duration_min']))
         if not online_slot_allowed(con, uid, sid, d, start):
-            flash('Это время недоступно для онлайн-записи. Выберите свободное окно из списка.'); return redirect(url_for('booking'))
+            con.close()
+            flash('Это время недоступно для онлайн-записи. Выберите свободное окно из списка.')
+            return redirect(url_for('booking'))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
         price = float(request.form.get('price') or service['base_price'] or 0)
@@ -956,16 +986,17 @@ def booking():
         aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
         set_appointment_employees(con, aid, [int(uid)])
         con.commit()
+        remote_backup_database()
         notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
         con.close()
         return render_template('booking_success.html', service=service, emp=emp, d=d, start=start, end=end)
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    con.close(); return render_template('booking.html', services=services)
+    con.close(); return render_template('booking.html', services=services, default_date=today())
 
 @app.route('/api/masters')
 def api_masters():
     con = db(); sid = request.args.get('service_id')
-    rows = con.execute("SELECT u.id,u.full_name FROM users u JOIN user_services us ON us.user_id=u.id WHERE us.service_id=? AND us.allowed=1 AND u.active=1 AND u.role!='director' ORDER BY u.full_name", (sid,)).fetchall()
+    rows = con.execute("SELECT u.id,u.full_name FROM users u JOIN user_services us ON us.user_id=u.id WHERE us.service_id=? AND us.allowed=1 AND u.active=1 AND u.role='master' ORDER BY u.full_name", (sid,)).fetchall()
     con.close(); return jsonify([{'id':r['id'],'name':r['full_name']} for r in rows])
 
 @app.route('/api/slots')
