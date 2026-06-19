@@ -1,1 +1,91 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Календарь</h1><p>В днях видно количество записей и закрытых работ. За день: {{ load.c }} записей, {{ load.mins }} минут загрузки.</p></header><div class="notice"><form method="get" class="inline"><input type="date" name="date" value="{{ selected }}"><input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя / авто"><button class="ghost">Найти</button></form><b>Ссылка клиенту:</b><code><a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></code></div><div class="panel"><h2>Записать клиента вручную</h2><form method="post" class="form-grid"><input name="client_name" placeholder="Клиент" required><input name="phone" placeholder="Телефон" required><input name="car" placeholder="Авто"><input name="plate_number" placeholder="Госномер"><select name="service_id">{% for s in services %}<option value="{{ s.id }}">{{ s.name }} — {{ s.duration_min }} мин</option>{% endfor %}</select><select name="employee_id">{% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}</select><input type="date" name="appointment_date" value="{{ selected }}"><input type="time" name="start_time" required><input name="comment" placeholder="Комментарий"><button>Добавить запись</button></form></div><div class="calendar-grid">{% for c in cells %}{% if c %}<a class="day {% if c.date==selected %}active{% endif %}" href="{{ url_for('calendar_view', date=c.date, q=q) }}"><b>{{ c.day }}</b><span>{{ c.count }} записей</span><small>{{ c.closed }} закрыто</small></a>{% else %}<div class="day empty"></div>{% endif %}{% endfor %}</div><div class="panel"><table><tr><th>Время</th><th>Клиент</th><th>Телефон</th><th>Госномер</th><th>Авто</th><th>Услуга</th><th>Мастер</th><th>Статус</th><th></th></tr>{% for r in rows %}<tr><td><b>{{ r.start_time }}–{{ r.end_time }}</b></td><td>{{ r.client_name }}</td><td>{{ visible_phone(r) }}{% if user.role=='master' and visible_phone(r) != r.phone %}<form method="post" action="{{ url_for('phone_request', aid=r.id) }}" class="inline"><input name="reason" placeholder="зачем номер" required><button class="ghost">Запросить</button></form>{% endif %}</td><td>{{ r.plate_number }}</td><td>{{ r.car }}</td><td>{{ r.service_name }}</td><td>{{ r.employee_name }}</td><td>{{ r.status }}</td><td>{% if r.status not in ['Закрыт','Отменен'] %}<a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a><form method="post" action="{{ url_for('cancel', aid=r.id) }}"><input type="hidden" name="date" value="{{ selected }}"><button class="ghost">Отменить</button></form>{% endif %}{% if has_perm('delete_appointments') %}<form method="post" action="{{ url_for('delete_appointment', aid=r.id) }}"><input type="hidden" name="date" value="{{ selected }}"><button class="danger">Удалить</button></form>{% endif %}</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top">
+  <h1>Календарь</h1>
+  <p>За день: {{ load.c }} записей, {{ load.mins }} минут загрузки.</p>
+</header>
+<div class="notice">
+  <form method="get" class="inline">
+    <input type="date" name="date" value="{{ selected }}">
+    <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя / авто">
+    <button class="ghost">Найти</button>
+  </form>
+  <b>Ссылка клиенту:</b><code><a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></code>
+</div>
+<div class="panel">
+  <h2>Записать клиента вручную</h2>
+  <form method="post" class="form-grid">
+    <input name="client_name" placeholder="Клиент" required>
+    <input name="phone" placeholder="Телефон" required>
+    <input name="car" placeholder="Авто">
+    <input name="plate_number" placeholder="Госномер">
+    <select name="service_id">{% for s in services %}<option value="{{ s.id }}">{{ s.name }} — {{ service_price_label(s.base_price) }}</option>{% endfor %}</select>
+    <select name="employee_id">{% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}</select>
+    <input type="date" name="appointment_date" value="{{ selected }}">
+    <input type="time" name="start_time" required>
+    <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)">
+    <input name="comment" placeholder="Комментарий">
+    <button>Добавить запись</button>
+  </form>
+</div>
+<div class="calendar-grid">{% for c in cells %}{% if c %}<a class="day {% if c.date==selected %}active{% endif %}" href="{{ url_for('calendar_view', date=c.date, q=q) }}"><b>{{ c.day }}</b><span>{{ c.count }} записей</span><small>{{ c.closed }} закрыто</small></a>{% else %}<div class="day empty"></div>{% endif %}{% endfor %}</div>
+<div class="panel">
+  <h2>Записи на {{ selected }}</h2>
+  <div class="appt-list">
+    {% for r in rows %}
+    <details class="appt-card">
+      <summary>
+        <span class="appt-time">{{ r.start_time }}–{{ r.end_time }}</span>
+        <span class="appt-service">{{ r.service_name }}</span>
+        <span class="appt-car">{{ r.car or r.plate_number or '—' }}</span>
+        <span class="appt-master">{{ r.employee_name }}</span>
+      </summary>
+      <div class="appt-details">
+        <div><b>Клиент:</b> {{ r.client_name }}</div>
+        <div><b>Телефон:</b> {{ visible_phone(r) }}{% if user.role=='master' and visible_phone(r) != r.phone %}<form method="post" action="{{ url_for('phone_request', aid=r.id) }}" class="inline"><input name="reason" placeholder="зачем номер" required><button class="ghost">Запросить</button></form>{% endif %}</div>
+        <div><b>Госномер:</b> {{ r.plate_number or '—' }}</div>
+        <div><b>Авто:</b> {{ r.car or '—' }}</div>
+        <div><b>Цена:</b> {{ "%.0f"|format(r.price or 0) }} ₽</div>
+        <div><b>Статус:</b> {{ r.status }}</div>
+        <div class="appt-actions">
+          {% if r.status not in ['Закрыт','Отменен'] %}
+          <a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a>
+          <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Изменить</a>
+          <form method="post" action="{{ url_for('cancel', aid=r.id) }}" class="inline"><input type="hidden" name="date" value="{{ selected }}"><button class="ghost">Отменить</button></form>
+          {% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}
+          <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Редактировать</a>
+          {% endif %}
+          {% if has_perm('delete_appointments') %}
+          <form method="post" action="{{ url_for('delete_appointment', aid=r.id) }}" class="inline"><input type="hidden" name="date" value="{{ selected }}"><button class="danger">Удалить</button></form>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  <table class="desktop-only">
+    <tr><th>Время</th><th>Клиент</th><th>Телефон</th><th>Госномер</th><th>Авто</th><th>Услуга</th><th>Мастер</th><th>Цена</th><th>Статус</th><th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><b>{{ r.start_time }}–{{ r.end_time }}</b></td>
+      <td>{{ r.client_name }}</td>
+      <td>{{ visible_phone(r) }}</td>
+      <td>{{ r.plate_number }}</td>
+      <td>{{ r.car }}</td>
+      <td>{{ r.service_name }}</td>
+      <td>{{ r.employee_name }}</td>
+      <td>{{ "%.0f"|format(r.price or 0) }} ₽</td>
+      <td>{{ r.status }}</td>
+      <td>
+        {% if r.status not in ['Закрыт','Отменен'] %}
+        <a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a>
+        <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Изменить</a>
+        {% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}
+        <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Редактировать</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

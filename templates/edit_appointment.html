@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="top">
+  <h1>{% if is_closed %}Редактировать заказ{% else %}Изменить запись{% endif %}</h1>
+  <p>{{ ap.client_name }} · {{ ap.plate_number }} · {{ ap.service_name }}</p>
+</header>
+
+{% if is_closed %}
+{% if has_perm('extra_services') %}
+<div class="panel">
+  <h2>Дополнительные услуги</h2>
+  <table>
+    <tr><th>Услуга</th><th>Сумма</th></tr>
+    {% for e in extras %}
+    <tr><td>{{ e.name }}</td><td>{{ "%.0f"|format(e.price) }} ₽</td></tr>
+    {% endfor %}
+  </table>
+  {% if used_materials %}
+  <h3 style="margin-top:16px">Было списано</h3>
+  <ul>{% for m in used_materials %}<li>{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+<div class="panel">
+  <form method="post" id="closeForm">
+    <h2>Материалы со склада</h2>
+    <p style="color:#666;font-size:14px">Укажите материалы заново — старые списания будут возвращены на склад.</p>
+    <div id="materialRows" class="material-rows"></div>
+    <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
+    <div class="form-grid" style="margin-top:20px">
+      <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽" required>
+      <input name="salary_amount" type="number" step="0.01" value="{{ ap.salary_amount or '' }}" placeholder="ЗП за заказ ₽">
+      <textarea name="comment" placeholder="Комментарий" class="span4">{{ ap.comment or '' }}</textarea>
+      <button>Сохранить изменения</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="panel">
+  <form method="post" class="form-grid">
+    <input name="client_name" value="{{ ap.client_name }}" required>
+    <input name="phone" value="{{ ap.phone }}" required>
+    <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
+    <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
+    <select name="service_id">{% for s in services %}<option value="{{ s.id }}" {% if s.id==ap.service_id %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>{% endfor %}</select>
+    <select name="employee_id">{% for e in employees %}<option value="{{ e.id }}" {% if e.id==ap.employee_id %}selected{% endif %}>{{ e.full_name }}</option>{% endfor %}</select>
+    <input type="date" name="appointment_date" value="{{ ap.appointment_date }}">
+    <input type="time" name="start_time" value="{{ ap.start_time }}" required>
+    <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Цена заказа ₽">
+    <textarea name="comment" placeholder="Комментарий" class="span4">{{ ap.comment or '' }}</textarea>
+    <button>Сохранить</button>
+  </form>
+</div>
+{% endif %}
+
+{% if is_closed %}
+<script>
+const STOCK_DATA = {
+  {% for m in materials %}
+  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }} },
+  {% endfor %}
+};
+const IS_MASTER = {{ 'true' if is_master else 'false' }};
+function buildMaterialRow() {
+  const wrap = document.createElement('div');
+  wrap.className = 'material-row';
+  let opts = '<option value="">Выберите материал</option>';
+  Object.keys(STOCK_DATA).forEach(id => {
+    const m = STOCK_DATA[id];
+    const bal = IS_MASTER ? '' : ` — ${m.balance} ${m.unit}`;
+    opts += `<option value="${id}">${m.name}${bal}</option>`;
+  });
+  wrap.innerHTML = `<select name="material_item_id" class="mat-select">${opts}</select>
+    <input name="material_length_m" type="number" step="0.01" class="film-only" placeholder="Длина, м">
+    <input name="material_width_cm" type="number" step="0.01" class="film-only" placeholder="Ширина, см">
+    <input name="material_qty" type="number" step="0.01" class="cons-only" placeholder="Кол-во" style="display:none">
+    <button type="button" class="danger remove-mat">×</button>`;
+  wrap.querySelector('.mat-select').addEventListener('change', () => toggleRowType(wrap));
+  wrap.querySelector('.remove-mat').addEventListener('click', () => wrap.remove());
+  toggleRowType(wrap);
+  return wrap;
+}
+function toggleRowType(row) {
+  const id = row.querySelector('.mat-select').value;
+  const item = STOCK_DATA[id];
+  const isFilm = item && item.category === 'film';
+  row.querySelectorAll('.film-only').forEach(el => el.style.display = isFilm ? '' : 'none');
+  const q = row.querySelector('.cons-only');
+  if (q) q.style.display = isFilm ? 'none' : '';
+}
+document.getElementById('addMaterialBtn').addEventListener('click', () => document.getElementById('materialRows').appendChild(buildMaterialRow()));
+document.getElementById('materialRows').appendChild(buildMaterialRow());
+</script>
+{% endif %}
+{% endblock %}

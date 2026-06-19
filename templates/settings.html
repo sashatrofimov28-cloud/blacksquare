@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="top">
+  <h1>Настройки</h1>
+  <p>Обновление статистики на главной и сохранение базы данных</p>
+</header>
+
+<div class="panel profile-card">
+  <h2>Статистика на главной</h2>
+  <p style="color:#666;font-size:14px">Подробная статистика всегда доступна во вкладке «Статистика» за выбранный период (по умолчанию — текущий месяц).</p>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="stats">
+    <select name="stats_refresh">
+      <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Обновлять каждый день</option>
+      <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
+      <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>
+    </select>
+    <button>Сохранить</button>
+  </form>
+  {% if stats_updated %}<p class="hint">Последнее обновление: {{ stats_updated }}</p>{% endif %}
+  <form method="post" style="margin-top:12px">
+    <input type="hidden" name="action" value="refresh_stats">
+    <button class="ghost">Обновить сейчас</button>
+  </form>
+</div>
+
+<div class="panel profile-card">
+  <h2>База данных</h2>
+  <p style="color:#666;font-size:14px">Все записи хранятся в файле на диске сервера и сохраняются при обновлениях приложения.</p>
+  <p><code>{{ db_path }}</code></p>
+  <p class="hint">При деплое данные не удаляются — меняется только код приложения.</p>
+</div>
+{% endblock %}

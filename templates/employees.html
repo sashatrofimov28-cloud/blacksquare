@@ -24,7 +24,32 @@
 </div>
 
 <div class="panel">
-  <h2>График сотрудника</h2>
+  <h2>Недельный график сотрудника</h2>
+  <form method="post">
+    <input type="hidden" name="form_type" value="weekly">
+    <select name="user_id" onchange="location.href='{{ url_for('employees') }}?user_id='+this.value">
+      {% for r in rows if r.active %}
+      <option value="{{ r.id }}" {% if selected_user==r.id %}selected{% endif %}>{{ r.full_name }}</option>
+      {% endfor %}
+    </select>
+    <table style="margin-top:12px">
+      <tr><th>День</th><th>Начало</th><th>Конец</th><th>Выходной</th></tr>
+      {% for wd in range(7) %}
+      {% set w = weekly.get(selected_user, {}).get(wd) %}
+      <tr>
+        <td>{{ weekdays[wd] }}</td>
+        <td><input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}"></td>
+        <td><input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}"></td>
+        <td><label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}></label></td>
+      </tr>
+      {% endfor %}
+    </table>
+    <button style="margin-top:12px">Сохранить недельный график</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>График на конкретную дату</h2>
   <form method="post" class="form-grid">
     <input type="hidden" name="form_type" value="schedule">
     <select name="user_id">{% for r in rows if r.active %}<option value="{{ r.id }}">{{ r.full_name }}</option>{% endfor %}</select>

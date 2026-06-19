@@ -1,1 +1,47 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Склад</h1><p>Пленка ведется в м², инструменты и расходники — поштучно. Себестоимость видит только директор.</p></header><div class="panel"><h2>Добавить позицию</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="add"><input name="name" placeholder="Название" required><select name="category"><option value="film">Пленка</option><option value="tool">Инструмент</option><option value="consumable">Расходник</option></select><input name="width_m" type="number" step="0.01" value="1.52" placeholder="Ширина, м для пленки"><input name="length_m" type="number" step="0.01" placeholder="Длина, м для пленки"><input name="balance" type="number" step="0.01" placeholder="Остаток м² или шт">{% if is_director %}<input name="cost_total" type="number" step="0.01" placeholder="Стоимость ₽">{% endif %}<label class="check"><input type="checkbox" name="visible_to_staff"> доступно сотрудникам</label><input name="comment" placeholder="Комментарий"><button>Добавить</button></form></div><div class="panel"><h2>Списать вручную</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="writeoff"><select name="item_id">{% for r in film %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}{% for r in tools %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}</select><input name="qty" type="number" step="0.01" placeholder="Сколько списать"><input name="comment" placeholder="Причина списания" required><button>Списать</button></form></div><div class="panel"><h2>Пленка</h2><table><tr><th>Название</th><th>Остаток</th><th>Доступ сотрудникам</th>{% if is_director %}<th>Себестоимость</th><th>Стоимость</th>{% endif %}</tr>{% for r in film %}<tr><td>{{ r.name }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td><td>{{ 'Да' if r.visible_to_staff else 'Нет' }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td>{{ "%.0f"|format(r.cost_total) }} ₽</td>{% endif %}</tr>{% endfor %}</table></div><div class="panel"><h2>Инструмент и расходники</h2><table><tr><th>Название</th><th>Категория</th><th>Остаток</th><th>Доступ сотрудникам</th>{% if is_director %}<th>Себестоимость</th><th>Стоимость</th>{% endif %}</tr>{% for r in tools %}<tr><td>{{ r.name }}</td><td>{{ r.category }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td><td>{{ 'Да' if r.visible_to_staff else 'Нет' }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td>{{ "%.0f"|format(r.cost_total) }} ₽</td>{% endif %}</tr>{% endfor %}</table></div><div class="panel"><h2>Движение склада</h2><table><tr><th>Дата</th><th>Позиция</th><th>Изменение</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>{% for m in moves %}<tr><td>{{ m.created_at }}</td><td>{{ m.item_name }}</td><td>{{ "%.2f"|format(m.change_qty) }} {{ m.unit }}</td><td>{{ m.move_type }}</td><td>{{ m.user_name }}</td><td>{{ m.comment }}</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top"><h1>Склад</h1><p>Плёнка — себестоимость за погонный метр или за рулон. Инструменты и расходники — поштучно.</p></header>
+<div class="panel">
+  <h2>Добавить позицию</h2>
+  <form method="post" class="form-grid" id="addStockForm">
+    <input type="hidden" name="action" value="add">
+    <input name="name" placeholder="Название" required>
+    <select name="category" id="stockCategory"><option value="film">Плёнка</option><option value="tool">Инструмент</option><option value="consumable">Расходник</option></select>
+    <input name="width_m" type="number" step="0.01" value="1.52" placeholder="Ширина, м" class="film-field">
+    <input name="length_m" type="number" step="0.01" placeholder="Длина рулона, м" class="film-field">
+    <input name="balance" type="number" step="0.01" placeholder="Остаток м² или шт">
+    {% if is_director %}
+    <select name="cost_mode" class="film-field" id="costMode">
+      <option value="per_meter">Цена за погонный метр</option>
+      <option value="per_roll">Цена за рулон</option>
+    </select>
+    <input name="cost_per_meter" type="number" step="0.01" placeholder="₽ за пог. метр" class="film-field cost-meter">
+    <input name="cost_total" type="number" step="0.01" placeholder="₽ за рулон / партию" class="film-field cost-roll">
+    {% endif %}
+    <label class="check"><input type="checkbox" name="visible_to_staff"> доступно сотрудникам</label>
+    <input name="comment" placeholder="Комментарий">
+    <button>Добавить</button>
+  </form>
+</div>
+<div class="panel"><h2>Списать вручную</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="writeoff"><select name="item_id">{% for r in film if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}{% for r in tools if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}</select><input name="qty" type="number" step="0.01" placeholder="Сколько списать"><input name="comment" placeholder="Причина" required><button>Списать</button></form></div>
+<div class="panel"><h2>Плёнка</h2><table><tr><th>Название</th><th>Остаток</th><th>Доступ</th>{% if is_director %}<th>₽/м²</th><th>Учёт</th>{% endif %}<th></th></tr>{% for r in film if r.active %}<tr><td>{{ r.name }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td><td>{{ 'Да' if r.visible_to_staff else 'Нет' }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td>{% if r.cost_mode=='per_meter' %}за метр{% else %}за рулон{% endif %}</td>{% endif %}<td>{% if is_director %}<form method="post" onsubmit="return confirm('Удалить позицию?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="{{ r.id }}"><button class="danger">Удалить</button></form>{% endif %}</td></tr>{% endfor %}</table></div>
+<div class="panel"><h2>Инструмент и расходники</h2><table><tr><th>Название</th><th>Категория</th><th>Остаток</th>{% if is_director %}<th>₽/шт</th><th></th>{% endif %}</tr>{% for r in tools if r.active %}<tr><td>{{ r.name }}</td><td>{{ r.category }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td><form method="post" onsubmit="return confirm('Удалить?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="{{ r.id }}"><button class="danger">Удалить</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
+<div class="panel"><h2>Движение склада</h2><table><tr><th>Дата</th><th>Позиция</th><th>Изменение</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>{% for m in moves %}<tr><td>{{ m.created_at }}</td><td>{{ m.item_name }}</td><td>{{ "%.2f"|format(m.change_qty) }} {{ m.unit }}</td><td>{{ m.move_type }}</td><td>{{ m.user_name }}</td><td>{{ m.comment }}</td></tr>{% endfor %}</table></div>
+<script>
+const cat = document.getElementById('stockCategory');
+const mode = document.getElementById('costMode');
+function toggleStockFields() {
+  const isFilm = cat && cat.value === 'film';
+  document.querySelectorAll('.film-field').forEach(el => el.style.display = isFilm ? '' : 'none');
+  if (mode) toggleCostFields();
+}
+function toggleCostFields() {
+  if (!mode) return;
+  const perMeter = mode.value === 'per_meter';
+  document.querySelectorAll('.cost-meter').forEach(el => el.style.display = perMeter ? '' : 'none');
+  document.querySelectorAll('.cost-roll').forEach(el => el.style.display = perMeter ? 'none' : '');
+}
+if (cat) { cat.addEventListener('change', toggleStockFields); toggleStockFields(); }
+if (mode) { mode.addEventListener('change', toggleCostFields); }
+</script>
+{% endblock %}

@@ -50,6 +50,11 @@
   if (document.querySelector('.app-shell')) {
     window.addEventListener('load', function () {
       setTimeout(subscribePush, 1500);
+      const tabs = document.getElementById('mobileTabs');
+      if (tabs) {
+        const active = tabs.querySelector('a.active');
+        if (active) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+      }
     });
   }
 })();

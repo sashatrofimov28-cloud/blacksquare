@@ -32,11 +32,14 @@ PERMS = {
     'analytics': 'Статистика',
     'employees': 'Сотрудники и права',
     'delete_appointments': 'Удаление записей',
+    'edit_closed_appointments': 'Редактирование закрытых заказов',
     'certificates': 'Сертификаты',
     'extra_services': 'Допуслуги в заказе',
     'phone_access': 'Доступ к телефонам',
     'finance': 'Финансы',
 }
+
+WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +74,10 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS appointment_materials(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, item_id INTEGER, qty REAL DEFAULT 0, length_m REAL DEFAULT 0, width_cm REAL DEFAULT 0, cost REAL DEFAULT 0, comment TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS finance_payments(id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT, amount REAL DEFAULT 0, due_date TEXT, paid_amount REAL DEFAULT 0, paid_date TEXT, status TEXT DEFAULT 'Ожидает', comment TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS push_subscriptions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, endpoint TEXT UNIQUE, p256dh TEXT, auth TEXT, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS employee_weekly_schedule(user_id INTEGER, weekday INTEGER, start_time TEXT, end_time TEXT, is_day_off INTEGER DEFAULT 0, UNIQUE(user_id, weekday))")
     con.commit()
+    migrate_db(c)
 
     default_users = [('director','director','Директор'),('admin','admin','Администратор'),('katya','master','Катя'),('stas','master','Стас')]
     for username, role, full_name in default_users:
@@ -79,7 +85,7 @@ def init_db():
         uid = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()['id']
         for p in PERMS:
             if role == 'director': allowed = 1
-            elif role == 'admin': allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access'] else 0
+            elif role == 'admin': allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access','edit_closed_appointments'] else 0
             elif p == 'finance': allowed = 0
             else: allowed = 1 if p in ['calendar','salary','extra_services'] else 0
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (uid,p,allowed))
@@ -100,11 +106,98 @@ def init_db():
             elif u['role'] == 'director':
                 allowed = 1
             elif u['role'] == 'admin':
-                allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access'] else 0
+                allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access','edit_closed_appointments'] else 0
             else:
                 allowed = 1 if p in ['calendar','salary','extra_services'] else 0
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
     con.commit(); con.close()
+
+def migrate_db(c):
+    """Добавляет новые колонки и настройки без потери данных."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(stock_items)").fetchall()}
+    if 'cost_mode' not in cols:
+        c.execute("ALTER TABLE stock_items ADD COLUMN cost_mode TEXT DEFAULT 'per_roll'")
+    if 'cost_per_meter' not in cols:
+        c.execute("ALTER TABLE stock_items ADD COLUMN cost_per_meter REAL DEFAULT 0")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_refresh','daily')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_cached','{}')")
+    for p in PERMS:
+        for u in c.execute("SELECT id, role FROM users").fetchall():
+            if p == 'edit_closed_appointments':
+                allowed = 1 if u['role'] in ('director', 'admin') else 0
+            elif u['role'] == 'director':
+                allowed = 1
+            elif u['role'] == 'admin':
+                allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access','edit_closed_appointments'] else 0
+            else:
+                allowed = 1 if p in ['calendar','salary','extra_services'] else 0
+            c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
+
+def get_setting(key, default=''):
+    con = db()
+    row = con.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+    con.close()
+    return row['value'] if row else default
+
+def set_setting(key, value):
+    con = db()
+    con.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+    con.commit()
+    con.close()
+
+def film_cost_per_unit(width_m, length_m, balance, cost_mode, cost_total, cost_per_meter):
+    w = float(width_m or 1.52)
+    if cost_mode == 'per_meter' and cost_per_meter:
+        return float(cost_per_meter) / w if w else float(cost_per_meter)
+    if cost_total and balance > 0:
+        return float(cost_total) / float(balance)
+    roll_m2 = w * float(length_m or 0)
+    if cost_mode == 'per_roll' and cost_total and roll_m2 > 0:
+        return float(cost_total) / roll_m2
+    return 0
+
+def compute_dashboard_stats(con):
+    return {
+        'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
+        'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
+        'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'certificate_paid': con.execute("SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'material_m2': con.execute("SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'material_cost': con.execute("SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'salary': con.execute("SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'profit': con.execute("SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
+    }
+
+def dashboard_stats():
+    interval = get_setting('stats_refresh', 'daily')
+    cached_raw = get_setting('stats_cached', '{}')
+    try:
+        cached = json.loads(cached_raw)
+    except json.JSONDecodeError:
+        cached = {}
+    now_dt = datetime.now()
+    need_refresh = True
+    if cached.get('at'):
+        last = datetime.strptime(cached['at'], '%Y-%m-%d %H:%M')
+        delta = now_dt - last
+        if interval == 'weekly' and delta.days < 7:
+            need_refresh = False
+        elif interval == 'monthly' and (now_dt.year, now_dt.month) == (last.year, last.month):
+            need_refresh = False
+        elif interval == 'daily' and delta.days < 1:
+            need_refresh = False
+    if need_refresh:
+        con = db()
+        stats = compute_dashboard_stats(con)
+        con.close()
+        set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
+        return stats, now()
+    return cached.get('stats', {}), cached.get('at', '')
+
+def service_price_label(price):
+    p = float(price or 0)
+    return f'от {p:.0f} ₽' if p else 'цена по согласованию'
 
 def current_user():
     if 'uid' not in session: return None
@@ -187,7 +280,12 @@ def employee_can_service(con, uid, sid):
 
 def get_schedule(con, uid, d):
     row = con.execute("SELECT * FROM schedules WHERE user_id=? AND work_date=?", (uid,d)).fetchone()
-    if row: return row
+    if row:
+        return row
+    weekday = datetime.strptime(d, '%Y-%m-%d').weekday()
+    wrow = con.execute("SELECT * FROM employee_weekly_schedule WHERE user_id=? AND weekday=?", (uid, weekday)).fetchone()
+    if wrow:
+        return wrow
     return {'start_time':'09:00','end_time':'20:00','is_day_off':0}
 
 def slot_free(con, uid, d, start, end):
@@ -241,6 +339,11 @@ def send_push_to_user(user_id, title, body, url='/'):
             )
         except WebPushException:
             pass
+
+def notify_employee_appointment(employee_id, ap_date, start_time, client_name, service_name, car=''):
+    car_part = f' · {car}' if car else ''
+    body = f'{ap_date} {start_time} — {client_name}{car_part} · {service_name}'
+    send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
@@ -303,6 +406,8 @@ def inject():
         'booking_url': booking_public_url(),
         'vapid_public_key': vapid_public_key(),
         'request': request,
+        'service_price_label': service_price_label,
+        'weekdays': WEEKDAYS,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -355,20 +460,10 @@ def dashboard():
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
         con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
 
-    stats = {
-        'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
-        'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
-        'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'certificate_paid': con.execute("SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'material_m2': con.execute("SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'material_cost': con.execute("SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'salary': con.execute("SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'profit': con.execute("SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
-    }
+    stats, stats_updated = dashboard_stats()
     rows = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id ORDER BY appointment_date DESC,start_time DESC LIMIT 20").fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, rows=rows, requests=requests)
+    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, requests=requests)
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():
@@ -384,9 +479,12 @@ def booking():
             flash('Это окно уже занято'); return redirect(url_for('booking'))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
+        price = float(request.form.get('price') or service['base_price'] or 0)
         con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,service['base_price'],request.form.get('comment',''),now()))
-        con.commit(); con.close()
+                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
+        con.commit()
+        notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
+        con.close()
         return render_template('booking_success.html', service=service, emp=emp, d=d, start=start, end=end)
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     con.close(); return render_template('booking.html', services=services)
@@ -415,9 +513,12 @@ def calendar_view():
             flash('Время занято'); return redirect(url_for('calendar_view', date=d))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
+        price = float(request.form.get('price') or service['base_price'] or 0)
         con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,service['base_price'],request.form.get('comment',''),now()))
-        con.commit(); flash('Запись добавлена вручную')
+                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
+        con.commit()
+        notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
+        flash('Запись добавлена вручную')
         return redirect(url_for('calendar_view', date=d))
 
     selected = request.args.get('date') or today(); q = request.args.get('q','').strip()
@@ -475,6 +576,122 @@ def delete_extra(aid, eid):
         con.commit(); flash('Допуслуга удалена')
     con.close(); return redirect(url_for('close_appointment', aid=aid))
 
+def reset_appointment_close_data(con, aid, ap):
+    restore_appointment_materials(con, aid, ap)
+    con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
+    con.execute("UPDATE appointments SET material_id=NULL,material_length_m=0,material_width_cm=0,material_m2=0,material_cost=0,salary_amount=0,profit=0,closed_at=NULL WHERE id=?", (aid,))
+
+def process_materials_from_form(con, aid, uid, form):
+    material_cost = 0
+    total_m2 = 0
+    first_film_id = None
+    first_len = first_w = 0
+    item_ids = form.getlist('material_item_id')
+    lengths = form.getlist('material_length_m')
+    widths = form.getlist('material_width_cm')
+    qtys = form.getlist('material_qty')
+    for i, item_id in enumerate(item_ids):
+        if not item_id:
+            continue
+        item = con.execute("SELECT * FROM stock_items WHERE id=? AND active=1", (item_id,)).fetchone()
+        if not item:
+            return None, 'Материал не найден'
+        if item['category'] == 'film':
+            length = float(lengths[i] if i < len(lengths) else 0 or 0)
+            width = float(widths[i] if i < len(widths) else 0 or 0)
+            qty = length * (width / 100)
+            comment = f'{length} м × {width} см = {qty:.2f} м²'
+            if not first_film_id:
+                first_film_id = item_id
+                first_len, first_w = length, width
+        else:
+            length = width = 0
+            qty = float(qtys[i] if i < len(qtys) else 0 or 0)
+            comment = f'{qty} {item["unit"]}'
+        if qty <= 0:
+            continue
+        cost, err = write_off_material(con, aid, uid, int(item_id), qty, length, width, comment)
+        if err:
+            return None, err
+        material_cost += cost
+        if item['category'] == 'film':
+            total_m2 += qty
+    return {
+        'material_cost': material_cost,
+        'total_m2': total_m2,
+        'first_film_id': first_film_id,
+        'first_len': first_len,
+        'first_w': first_w,
+    }, ''
+
+@app.route('/appointment/<int:aid>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_appointment(aid):
+    con = db(); u = current_user()
+    ap = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?", (aid,)).fetchone()
+    if not ap:
+        con.close(); flash('Запись не найдена'); return redirect(url_for('calendar_view'))
+    is_closed = ap['status'] == 'Закрыт'
+    if is_closed:
+        if not has_perm('edit_closed_appointments'):
+            con.close(); flash('Нет права редактировать закрытые заказы'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
+    elif not has_perm('calendar'):
+        con.close(); flash('Нет доступа'); return redirect(url_for('dashboard'))
+    if u['role'] == 'master' and ap['employee_id'] != u['id'] and not is_closed:
+        con.close(); flash('Можно редактировать только свои записи'); return redirect(url_for('calendar_view'))
+    if request.method == 'POST':
+        if is_closed:
+            reset_appointment_close_data(con, aid, ap)
+            ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+            price = float(request.form.get('price') or 0)
+            salary_amount = float(request.form.get('salary_amount') or 0)
+            mat, err = process_materials_from_form(con, aid, u['id'], request.form)
+            if err:
+                con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
+            material_cost = mat['material_cost']
+            cert_number = request.form.get('cert_number', '')
+            cert_amount = request.form.get('cert_amount') or 0
+            ok, cert_msg = pay_certificate_for_appointment(con, aid, cert_number, cert_amount, request.form.get('cert_comment', ''))
+            if not ok:
+                con.rollback(); con.close(); flash(cert_msg); return redirect(url_for('edit_appointment', aid=aid))
+            cert_paid = float(ap['certificate_paid'] or 0) + float(cert_amount or 0)
+            profit = price - cert_paid - material_cost - salary_amount
+            con.execute(
+                "UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
+                (price, mat['first_film_id'], mat['first_len'], mat['first_w'], mat['total_m2'], material_cost, salary_amount, profit, request.form.get('comment', ap['comment'] or ''), now(), aid)
+            )
+            if salary_amount > 0:
+                con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)",
+                            (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment', '') or 'ЗП из закрытой записи', now()))
+            con.commit(); con.close(); flash('Закрытый заказ обновлён')
+            return redirect(url_for('calendar_view', date=ap['appointment_date']))
+        sid = request.form['service_id']; uid = int(request.form['employee_id']); d = request.form['appointment_date']; start = request.form['start_time']
+        service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
+        end = m2hm(hm2m(start) + int(service['duration_min']))
+        others = con.execute("SELECT id,start_time,end_time FROM appointments WHERE employee_id=? AND appointment_date=? AND status!='Отменен' AND id!=?", (uid, d, aid)).fetchall()
+        s, e = hm2m(start), hm2m(end)
+        for r in others:
+            if s < hm2m(r['end_time']) and e > hm2m(r['start_time']):
+                con.close(); flash('Время занято'); return redirect(url_for('edit_appointment', aid=aid))
+        name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car', ''); plate = request.form.get('plate_number', '').upper().replace(' ', '')
+        price = float(request.form.get('price') or service['base_price'] or 0)
+        con.execute(
+            "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
+            (name, phone, car, plate, sid, service['name'], d, start, end, service['duration_min'], uid, price, request.form.get('comment', ''), aid)
+        )
+        con.commit(); con.close(); flash('Запись обновлена')
+        return redirect(url_for('calendar_view', date=d))
+    materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
+    extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
+    used_materials = con.execute(
+        "SELECT am.*, si.name, si.category, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
+        (aid,)
+    ).fetchall()
+    services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
+    employees = con.execute("SELECT * FROM users WHERE active=1 AND role!='director' ORDER BY full_name").fetchall()
+    con.close()
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, is_closed=is_closed, is_master=(u['role'] == 'master'))
+
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
 @perm_required('calendar')
@@ -488,40 +705,12 @@ def close_appointment(aid):
     if request.method == 'POST':
         price = float(request.form.get('price') or 0)
         salary_amount = float(request.form.get('salary_amount') or 0)
-        material_cost = 0
-        total_m2 = 0
-        first_film_id = None
-        item_ids = request.form.getlist('material_item_id')
-        lengths = request.form.getlist('material_length_m')
-        widths = request.form.getlist('material_width_cm')
-        qtys = request.form.getlist('material_qty')
-        for i, item_id in enumerate(item_ids):
-            if not item_id:
-                continue
-            item = con.execute("SELECT * FROM stock_items WHERE id=? AND active=1", (item_id,)).fetchone()
-            if not item:
-                flash('Материал не найден')
-                return redirect(url_for('close_appointment', aid=aid))
-            if item['category'] == 'film':
-                length = float(lengths[i] if i < len(lengths) else 0 or 0)
-                width = float(widths[i] if i < len(widths) else 0 or 0)
-                qty = length * (width / 100)
-                comment = f'{length} м × {width} см = {qty:.2f} м²'
-                if not first_film_id:
-                    first_film_id = item_id
-            else:
-                length = width = 0
-                qty = float(qtys[i] if i < len(qtys) else 0 or 0)
-                comment = f'{qty} {item["unit"]}'
-            if qty <= 0:
-                continue
-            cost, err = write_off_material(con, aid, u['id'], int(item_id), qty, length, width, comment)
-            if err:
-                flash(err)
-                return redirect(url_for('close_appointment', aid=aid))
-            material_cost += cost
-            if item['category'] == 'film':
-                total_m2 += qty
+        mat, err = process_materials_from_form(con, aid, u['id'], request.form)
+        if err:
+            con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid))
+        material_cost = mat['material_cost']
+        total_m2 = mat['total_m2']
+        first_film_id = mat['first_film_id']
         cert_number = request.form.get('cert_number','')
         cert_amount = request.form.get('cert_amount') or 0
         ok, cert_msg = pay_certificate_for_appointment(con, aid, cert_number, cert_amount, request.form.get('cert_comment',''))
@@ -530,10 +719,8 @@ def close_appointment(aid):
             return redirect(url_for('close_appointment', aid=aid))
         cert_paid = float(ap['certificate_paid'] or 0) + float(cert_amount or 0)
         profit = price - cert_paid - material_cost - salary_amount
-        first_len = float(lengths[0] or 0) if lengths else 0
-        first_w = float(widths[0] or 0) if widths else 0
         con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
-                    (price, first_film_id, first_len, first_w, total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
+                    (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
         if salary_amount > 0:
             con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
         con.commit(); con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
@@ -721,6 +908,15 @@ def employees():
         if request.form.get('form_type') == 'schedule':
             con.execute("INSERT INTO schedules(user_id,work_date,start_time,end_time,is_day_off,comment) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,work_date) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off,comment=excluded.comment", (request.form['user_id'],request.form['work_date'],request.form.get('start_time') or '09:00',request.form.get('end_time') or '20:00',1 if request.form.get('is_day_off') else 0,request.form.get('comment','')))
             con.commit(); flash('График сохранен'); return redirect(url_for('employees'))
+        if request.form.get('form_type') == 'weekly':
+            uid = int(request.form['user_id'])
+            for wd in range(7):
+                con.execute(
+                    "INSERT INTO employee_weekly_schedule(user_id,weekday,start_time,end_time,is_day_off) VALUES(?,?,?,?,?) "
+                    "ON CONFLICT(user_id,weekday) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off",
+                    (uid, wd, request.form.get(f'start_{wd}') or '09:00', request.form.get(f'end_{wd}') or '20:00', 1 if request.form.get(f'off_{wd}') else 0)
+                )
+            con.commit(); flash('Недельный график сохранён'); return redirect(url_for('employees', user_id=uid))
         role = request.form.get('role','master')
         password = request.form.get('password', '').strip()
         if not password:
@@ -746,7 +942,11 @@ def employees():
         perms.setdefault(r['user_id'], {})[r['permission']] = r['allowed']
     for r in con.execute("SELECT * FROM user_services").fetchall():
         user_services.setdefault(r['user_id'], {})[r['service_id']] = r['allowed']
-    con.close(); return render_template('employees.html', rows=rows, services=services, user_perms=perms, user_services=user_services, schedules=schedules)
+    weekly = {}
+    for r in con.execute("SELECT * FROM employee_weekly_schedule").fetchall():
+        weekly.setdefault(r['user_id'], {})[r['weekday']] = r
+    selected_user = request.args.get('user_id', type=int) or (rows[0]['id'] if rows else None)
+    con.close(); return render_template('employees.html', rows=rows, services=services, user_perms=perms, user_services=user_services, schedules=schedules, weekly=weekly, selected_user=selected_user)
 
 @app.route('/employees/<int:uid>/update', methods=['POST'])
 @login_required
@@ -779,12 +979,18 @@ def stock():
             category = request.form.get('category','film')
             if category == 'film':
                 unit = 'm2'; w = float(request.form.get('width_m') or 1.52); l = float(request.form.get('length_m') or 0); bal = float(request.form.get('balance') or w*l)
+                cost_mode = request.form.get('cost_mode', 'per_roll')
+                cost_per_meter = float(request.form.get('cost_per_meter') or 0) if is_director else 0
+                cost = float(request.form.get('cost_total') or 0) if is_director else 0
+                cpm = film_cost_per_unit(w, l, bal, cost_mode, cost, cost_per_meter)
             else:
                 unit = 'шт'; w = 0; l = 0; bal = float(request.form.get('balance') or 0)
-            cost = float(request.form.get('cost_total') or 0) if is_director else 0
-            cpm = cost / bal if cost and bal > 0 else 0
+                cost_mode = 'per_unit'; cost_per_meter = 0
+                cost = float(request.form.get('cost_total') or 0) if is_director else 0
+                cpm = cost / bal if cost and bal > 0 else 0
             visible = 1 if request.form.get('visible_to_staff') else 0
-            con.execute("INSERT INTO stock_items(name,category,unit,width_m,length_m,balance,cost_total,cost_per_unit,visible_to_staff,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (request.form['name'],category,unit,w,l,bal,cost,cpm,visible,request.form.get('comment',''),now()))
+            con.execute("INSERT INTO stock_items(name,category,unit,width_m,length_m,balance,cost_total,cost_per_unit,cost_mode,cost_per_meter,visible_to_staff,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (request.form['name'],category,unit,w,l,bal,cost,cpm,cost_mode,cost_per_meter,visible,request.form.get('comment',''),now()))
             item_id = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
             con.execute("INSERT INTO stock_moves(item_id,user_id,change_qty,move_type,comment,created_at) VALUES(?,?,?,?,?,?)", (item_id,u['id'],bal,'Поступление','Добавлено на склад',now()))
             con.commit(); flash('Позиция добавлена')
@@ -797,6 +1003,16 @@ def stock():
                 con.commit(); flash('Списано со склада')
             else:
                 flash('Недостаточно остатка или ошибка')
+        elif action == 'delete' and is_director:
+            item_id = request.form.get('item_id')
+            used = con.execute("SELECT COUNT(*) c FROM stock_moves WHERE item_id=? AND move_type='Списание по заказу'", (item_id,)).fetchone()['c']
+            if used:
+                con.execute("UPDATE stock_items SET active=0 WHERE id=?", (item_id,))
+                con.commit(); flash('Позиция скрыта — есть история списаний')
+            else:
+                con.execute("DELETE FROM stock_moves WHERE item_id=?", (item_id,))
+                con.execute("DELETE FROM stock_items WHERE id=?", (item_id,))
+                con.commit(); flash('Позиция удалена')
         return redirect(url_for('stock'))
     film = con.execute("SELECT * FROM stock_items WHERE category='film' ORDER BY active DESC,name").fetchall()
     tools = con.execute("SELECT * FROM stock_items WHERE category!='film' ORDER BY active DESC,name").fetchall()
@@ -808,6 +1024,9 @@ def stock():
 @perm_required('salary')
 def salary():
     con = db(); u = current_user()
+    employee_id = request.args.get('employee_id', type=int)
+    if u['role'] == 'master':
+        employee_id = u['id']
     if u['role'] == 'master':
         rows = con.execute(
             """SELECT s.*, a.client_name, a.plate_number, a.car, a.service_name, a.appointment_date,
@@ -830,16 +1049,20 @@ def salary():
                 }
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
         con.close()
-        return render_template('master_salary.html', rows=rows, total=total, details=details)
-    rows = con.execute(
-        """SELECT s.*, u.full_name employee_name, a.client_name, a.plate_number, a.car, a.service_name,
+        return render_template('master_salary.html', rows=rows, total=total, details=details, employees=[], employee_id=u['id'])
+    sql = """SELECT s.*, u.full_name employee_name, a.client_name, a.plate_number, a.car, a.service_name,
                   a.appointment_date, a.start_time, a.end_time, a.comment visit_comment, a.closed_at,
                   a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid
            FROM salary s
            LEFT JOIN users u ON u.id=s.employee_id
            LEFT JOIN appointments a ON a.id=s.appointment_id
-           ORDER BY s.id DESC"""
-    ).fetchall()
+           WHERE 1=1"""
+    params = []
+    if employee_id:
+        sql += " AND s.employee_id=?"
+        params.append(employee_id)
+    sql += " ORDER BY s.id DESC"
+    rows = con.execute(sql, params).fetchall()
     details = {}
     for r in rows:
         if r['appointment_id']:
@@ -850,21 +1073,28 @@ def salary():
                 ).fetchall(),
                 'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
             }
-    totals = con.execute("SELECT u.full_name,COALESCE(SUM(s.amount),0) total FROM users u LEFT JOIN salary s ON s.employee_id=u.id GROUP BY u.id").fetchall()
+    totals = con.execute("SELECT u.id,u.full_name,COALESCE(SUM(s.amount),0) total FROM users u LEFT JOIN salary s ON s.employee_id=u.id GROUP BY u.id").fetchall()
+    employees = con.execute("SELECT id,full_name FROM users WHERE active=1 ORDER BY full_name").fetchall()
     con.close()
-    return render_template('salary.html', rows=rows, totals=totals, details=details)
+    return render_template('salary.html', rows=rows, totals=totals, details=details, employees=employees, employee_id=employee_id)
 
 @app.route('/analytics')
 @login_required
 @perm_required('analytics')
 def analytics():
-    con = db(); start = request.args.get('start') or today(); end = request.args.get('end') or today()
+    con = db()
+    month_start = date.today().replace(day=1).isoformat()
+    start = request.args.get('start') or month_start
+    end = request.args.get('end') or today()
     stats = {
         'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'profit': con.execute("SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'mat': con.execute("SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'salary': con.execute("SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'm2': con.execute("SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
+        'certificate_paid': con.execute("SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
+        'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
+        'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['c'],
     }
     by_day = con.execute("SELECT appointment_date, COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(profit),0) profit, COALESCE(SUM(material_m2),0) m2 FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ? GROUP BY appointment_date ORDER BY appointment_date DESC", (start,end)).fetchall()
     by_employee = con.execute("SELECT u.full_name,COUNT(a.id) cnt,COALESCE(SUM(a.price),0) revenue,COALESCE(SUM(a.salary_amount),0) salary,COALESCE(SUM(a.material_m2),0) m2,COALESCE(SUM(a.profit),0) profit FROM users u LEFT JOIN appointments a ON a.employee_id=u.id AND a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? GROUP BY u.id", (start,end)).fetchall()
@@ -927,6 +1157,19 @@ def client_card(cid):
 def profile():
     u = current_user()
     if request.method == 'POST':
+        form_type = request.form.get('form_type', 'password')
+        if form_type == 'weekly':
+            con = db()
+            for wd in range(7):
+                con.execute(
+                    "INSERT INTO employee_weekly_schedule(user_id,weekday,start_time,end_time,is_day_off) VALUES(?,?,?,?,?) "
+                    "ON CONFLICT(user_id,weekday) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off",
+                    (u['id'], wd, request.form.get(f'start_{wd}') or '09:00', request.form.get(f'end_{wd}') or '20:00', 1 if request.form.get(f'off_{wd}') else 0)
+                )
+            con.commit()
+            con.close()
+            flash('Ваш график работы сохранён')
+            return redirect(url_for('profile'))
         current_pw = request.form.get('current_password', '')
         new_pw = request.form.get('new_password', '').strip()
         confirm_pw = request.form.get('confirm_password', '').strip()
@@ -949,7 +1192,38 @@ def profile():
         con.close()
         flash('Пароль изменён')
         return redirect(url_for('profile'))
-    return render_template('profile.html')
+    con = db()
+    weekly_rows = {r['weekday']: r for r in con.execute("SELECT * FROM employee_weekly_schedule WHERE user_id=?", (u['id'],)).fetchall()}
+    con.close()
+    return render_template('profile.html', weekly=weekly_rows)
+
+
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    u = current_user()
+    if u['role'] != 'director':
+        flash('Только директор может менять настройки')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        action = request.form.get('action', 'stats')
+        if action == 'stats':
+            set_setting('stats_refresh', request.form.get('stats_refresh', 'daily'))
+            con = db()
+            stats = compute_dashboard_stats(con)
+            con.close()
+            set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
+            flash('Настройки статистики сохранены')
+        elif action == 'refresh_stats':
+            con = db()
+            stats = compute_dashboard_stats(con)
+            con.close()
+            set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
+            flash('Статистика на главной обновлена')
+        return redirect(url_for('settings'))
+    stats_refresh = get_setting('stats_refresh', 'daily')
+    stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
+    return render_template('settings.html', stats_refresh=stats_refresh, stats_updated=stats_updated, db_path=DB)
 
 
 @app.route('/finance', methods=['GET', 'POST'])

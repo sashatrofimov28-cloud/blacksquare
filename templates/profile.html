@@ -1,6 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
 <header class="top"><h1>Профиль</h1><p>{{ user.full_name }} · {{ user.username }}</p></header>
+
+<div class="panel profile-card">
+  <h2>Мой график работы</h2>
+  <p style="color:#666;font-size:14px">Укажите рабочие дни и время — онлайн-запись не покажет слоты в выходные.</p>
+  <form method="post">
+    <input type="hidden" name="form_type" value="weekly">
+    <table>
+      <tr><th>День</th><th>Начало</th><th>Конец</th><th>Выходной</th></tr>
+      {% for wd in range(7) %}
+      {% set w = weekly.get(wd) %}
+      <tr>
+        <td>{{ weekdays[wd] }}</td>
+        <td><input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}"></td>
+        <td><input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}"></td>
+        <td><label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}></label></td>
+      </tr>
+      {% endfor %}
+    </table>
+    <button style="margin-top:12px">Сохранить график</button>
+  </form>
+</div>
+
 <div class="panel profile-card">
   <h2>Сменить пароль</h2>
   <form method="post" class="form-grid" style="grid-template-columns:1fr">
@@ -10,12 +32,10 @@
     <button>Сохранить пароль</button>
   </form>
 </div>
-<div class="notice">
-  <span>Директор и все сотрудники могут менять свой пароль здесь. Для смены пароля другого сотрудника используйте раздел «Сотрудники».</span>
-</div>
+
 {% if vapid_public_key %}
 <div class="notice">
-  <span>Уведомления: при добавлении на главный экран телефона разрешите push — вы будете получать напоминания о платежах (финансы).</span>
+  <span>Уведомления: добавьте сайт на главный экран и разрешите push — вы будете получать уведомления о новых записях и напоминания о финансах.</span>
 </div>
 {% endif %}
 {% endblock %}

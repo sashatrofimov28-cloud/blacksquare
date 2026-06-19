@@ -1,0 +1,17 @@
+$ORIGIN blacksquare72.ru.
+$TTL 600
+
+; BlackSquare CRM Mobile (Timeweb App Platform)
+; IP: 147.45.230.158
+; Без CNAME для www — только A-записи, чтобы не было конфликта
+
+@       IN      A       147.45.230.158
+www     IN      A       147.45.230.158
+
+; Почта Timeweb (удалите MX, если почта на домене не нужна)
+@       IN      MX      10 mx1.timeweb.ru.
+@       IN      MX      20 mx2.timeweb.ru.
+
+; Служебные TXT только на основном домене
+@       IN      TXT     "v=spf1 include:_spf.timeweb.ru ~all"
+@       IN      TXT     "_globalsign-domain-verification=qTioymtxbSf0el0Kr1dIlpIrXlVGZk-QzZNBnaaS5c"

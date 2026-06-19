@@ -30,6 +30,7 @@
       {% if has_perm('finance') %}<a href="{{ url_for('finance') }}" class="{% if request.endpoint=='finance' %}active{% endif %}">Финансы</a>{% endif %}
       {% if has_perm('analytics') %}<a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">Статистика</a>{% endif %}
       {% if has_perm('employees') %}<a href="{{ url_for('employees') }}" class="{% if request.endpoint=='employees' %}active{% endif %}">Сотрудники</a>{% endif %}
+      {% if user.role=='director' %}<a href="{{ url_for('settings') }}" class="{% if request.endpoint=='settings' %}active{% endif %}">Настройки</a>{% endif %}
       <a href="{{ url_for('profile') }}" class="{% if request.endpoint=='profile' %}active{% endif %}">Профиль</a>
       <a href="{{ url_for('logout') }}">Выход</a>
     </nav>
@@ -40,6 +41,18 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
       <div class="wordmark">BlackSquare</div>
     </header>
+    <nav class="mobile-tabs scrollable-x" id="mobileTabs">
+      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Главная</a>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Календарь</a>{% endif %}
+      {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
+      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
+      {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}
+      {% if has_perm('salary') %}<a href="{{ url_for('salary') }}" class="{% if request.endpoint=='salary' %}active{% endif %}">Зарплата</a>{% endif %}
+      {% if has_perm('analytics') %}<a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">Статистика</a>{% endif %}
+      {% if has_perm('finance') %}<a href="{{ url_for('finance') }}" class="{% if request.endpoint=='finance' %}active{% endif %}">Финансы</a>{% endif %}
+      {% if has_perm('employees') %}<a href="{{ url_for('employees') }}" class="{% if request.endpoint=='employees' %}active{% endif %}">Сотрудники</a>{% endif %}
+      <a href="{{ url_for('profile') }}" class="{% if request.endpoint=='profile' %}active{% endif %}">Профиль</a>
+    </nav>
     <main class="main scrollable">
 {% else %}
 <main class="auth-main">
