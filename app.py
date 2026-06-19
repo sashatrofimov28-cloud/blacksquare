@@ -262,6 +262,15 @@ def user_on_appointment(con, aid, uid, primary_id=None):
 def master_appointment_filter_sql():
     return "(a.employee_id=? OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=?))"
 
+def can_manage_open_appointment(u, con, ap):
+    if not ap or ap['status'] in ('Закрыт', 'Отменен'):
+        return False
+    if has_perm('calendar'):
+        return True
+    if u['role'] == 'master' and user_on_appointment(con, ap['id'], u['id'], ap['employee_id']):
+        return True
+    return False
+
 def init_db():
     con = db(); c = con.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password_hash TEXT, role TEXT, full_name TEXT, active INTEGER DEFAULT 1, hired_at TEXT, fired_at TEXT, created_at TEXT)")
@@ -792,6 +801,9 @@ def calendar_view():
         if not ok:
             flash(err)
             master_error = True
+        elif not request.form.get('service_id'):
+            flash('Выберите услугу')
+            master_error = False
         else:
             sid = request.form['service_id']; d = request.form['appointment_date']; start = request.form['start_time']
             service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
@@ -836,8 +848,9 @@ def calendar_view():
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     employees = list_masters(con)
+    masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     con.close()
-    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, master_error=master_error, form_data=form_data)
+    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, masters_json=masters_json, master_error=master_error, form_data=form_data)
 
 @app.route('/appointment/<int:aid>/extra', methods=['POST'])
 @login_required
@@ -982,8 +995,9 @@ def edit_appointment(aid):
     employees = list_masters(con)
     selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
     master_error = request.args.get('master_error') == '1'
+    masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, masters_json=masters_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -1120,10 +1134,47 @@ def api_certificate_balance():
 
 @app.route('/appointment/<int:aid>/cancel', methods=['POST'])
 @login_required
-@perm_required('calendar')
 def cancel(aid):
-    con = db(); con.execute("UPDATE appointments SET status='Отменен' WHERE id=?", (aid,)); con.commit(); con.close()
-    flash('Запись отменена'); return redirect(url_for('calendar_view', date=request.form.get('date') or today()))
+    con = db(); u = current_user()
+    ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+    if not ap:
+        con.close(); flash('Запись не найдена'); return redirect(url_for('calendar_view'))
+    if not can_manage_open_appointment(u, con, ap):
+        con.close(); flash('Нет доступа или запись уже закрыта'); return redirect(url_for('calendar_view', date=request.form.get('date') or ap['appointment_date']))
+    reason = (request.form.get('cancel_reason') or 'Не приехал').strip()
+    note = f'Отмена: {reason}'
+    comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
+    con.execute("UPDATE appointments SET status='Отменен', comment=? WHERE id=?", (comment, aid))
+    con.commit(); con.close()
+    flash('Запись отменена'); return redirect(url_for('calendar_view', date=request.form.get('date') or ap['appointment_date']))
+
+@app.route('/appointment/<int:aid>/reschedule', methods=['POST'])
+@login_required
+def reschedule_appointment(aid):
+    con = db(); u = current_user()
+    ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+    if not ap:
+        con.close(); flash('Запись не найдена'); return redirect(url_for('calendar_view'))
+    if not can_manage_open_appointment(u, con, ap):
+        con.close(); flash('Нет доступа или запись уже закрыта'); return redirect(url_for('calendar_view', date=request.form.get('date') or ap['appointment_date']))
+    d = request.form.get('appointment_date', '').strip()
+    start = request.form.get('start_time', '').strip()
+    if not d or not start:
+        con.close(); flash('Укажите дату и время'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
+    service = con.execute("SELECT * FROM services WHERE id=?", (ap['service_id'],)).fetchone()
+    duration = int(service['duration_min']) if service else int(ap['duration_min'] or 60)
+    end = m2hm(hm2m(start) + duration)
+    note = f'Перенос: {ap["appointment_date"]} {ap["start_time"]} → {d} {start}'
+    comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
+    con.execute(
+        "UPDATE appointments SET appointment_date=?, start_time=?, end_time=?, duration_min=?, comment=? WHERE id=?",
+        (d, start, end, duration, comment, aid),
+    )
+    con.commit()
+    employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+    con.close()
+    notify_employee_appointment(employee_ids, d, start, ap['client_name'], ap['service_name'], ap['car'] or ap['plate_number'])
+    flash('Запись перенесена'); return redirect(url_for('calendar_view', date=d))
 
 @app.route('/certificates', methods=['GET','POST'])
 @login_required

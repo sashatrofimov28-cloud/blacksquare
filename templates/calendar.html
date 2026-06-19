@@ -14,26 +14,30 @@
 </div>
 <div class="panel">
   <h2>Записать клиента вручную</h2>
-  <p style="color:#666;font-size:14px;margin-top:0">Любое время — ограничения графика действуют только для онлайн-записи клиентов.</p>
-  <form method="post" class="form-grid" id="manualBookingForm">
+  <p style="color:#666;font-size:14px;margin-top:0">Любое время — ограничения графика действуют только для онлайн-записи клиентов. Мастера выбираются вручную — по умолчанию никто не назначен.</p>
+  <form method="post" class="form-grid" id="manualBookingForm" autocomplete="off">
     <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
     <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
     <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
     <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
     <select name="service_id">
+      <option value="">— Выберите услугу —</option>
       {% for s in services %}
       <option value="{{ s.id }}" {% if form_data and form_data.get('service_id')|string == s.id|string %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>
       {% endfor %}
     </select>
-    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker">
+    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
       <label class="master-picker-label">Мастера *</label>
-      {% if master_error %}<span class="field-hint">Укажите хотя бы одного мастера</span>{% endif %}
-      <div class="master-options">
-        {% set selected_ids = form_data.getlist('employee_ids') if form_data else [] %}
-        {% for e in employees %}
-        <label class="check"><input type="checkbox" name="employee_ids" value="{{ e.id }}" {% if e.id|string in selected_ids %}checked{% endif %}> {{ e.full_name }}</label>
-        {% endfor %}
+      <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
+      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить»</p>
+      <div class="master-add-row">
+        <select id="masterSelect" class="master-select">
+          <option value="">— Выберите мастера —</option>
+        </select>
+        <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
       </div>
+      <div id="masterChips" class="master-chips"></div>
+      <div id="masterHiddenInputs"></div>
     </div>
     <input type="date" name="appointment_date" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
     <input type="time" name="start_time" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
@@ -47,12 +51,13 @@
   <h2>Записи на {{ selected }}</h2>
   <div class="appt-list">
     {% for r in rows %}
-    <details class="appt-card">
+    <details class="appt-card {% if r.status == 'Отменен' %}appt-cancelled{% endif %}">
       <summary>
         <span class="appt-time">{{ r.start_time }}–{{ r.end_time }}</span>
         <span class="appt-service">{{ r.service_name }}</span>
         <span class="appt-car">{{ r.car or r.plate_number or '—' }}</span>
-        <span class="appt-master">{{ r.employee_name }}</span>
+        <span class="appt-master">{{ r.employee_name or '—' }}</span>
+        {% if r.status == 'Отменен' %}<span class="appt-badge cancelled">Отменена</span>{% endif %}
       </summary>
       <div class="appt-details">
         <div><b>Клиент:</b> {{ r.client_name }}</div>
@@ -62,69 +67,36 @@
         <div><b>Цена:</b> {{ "%.0f"|format(r.price or 0) }} ₽</div>
         <div><b>Статус:</b> {{ r.status }}</div>
         <div class="appt-actions">
-          {% if r.status not in ['Закрыт','Отменен'] %}
-          <a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a>
-          <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Изменить</a>
-          <form method="post" action="{{ url_for('cancel', aid=r.id) }}" class="inline"><input type="hidden" name="date" value="{{ selected }}"><button class="ghost">Отменить</button></form>
-          {% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}
-          <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Редактировать</a>
-          {% endif %}
-          {% if has_perm('delete_appointments') %}
-          <form method="post" action="{{ url_for('delete_appointment', aid=r.id) }}" class="inline"><input type="hidden" name="date" value="{{ selected }}"><button class="danger">Удалить</button></form>
-          {% endif %}
+          {% include '_appointment_actions.html' %}
         </div>
       </div>
     </details>
     {% endfor %}
   </div>
-  <table class="desktop-only">
-    <tr><th>Время</th><th>Клиент</th><th>Телефон</th><th>Госномер</th><th>Авто</th><th>Услуга</th><th>Мастер</th><th>Цена</th><th>Статус</th><th></th></tr>
+  <table class="desktop-only appt-table">
+    <tr><th>Время</th><th>Клиент</th><th>Телефон</th><th>Госномер</th><th>Авто</th><th>Услуга</th><th>Мастер</th><th>Цена</th><th>Статус</th><th>Действия</th></tr>
     {% for r in rows %}
-    <tr>
+    <tr class="{% if r.status == 'Отменен' %}row-cancelled{% endif %}">
       <td><b>{{ r.start_time }}–{{ r.end_time }}</b></td>
       <td>{{ r.client_name }}</td>
       <td>{{ visible_phone(r) }}</td>
       <td>{{ r.plate_number }}</td>
       <td>{{ r.car }}</td>
       <td>{{ r.service_name }}</td>
-      <td>{{ r.employee_name }}</td>
+      <td>{{ r.employee_name or '—' }}</td>
       <td>{{ "%.0f"|format(r.price or 0) }} ₽</td>
       <td>{{ r.status }}</td>
-      <td>
-        {% if r.status not in ['Закрыт','Отменен'] %}
-        <a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a>
-        <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Изменить</a>
-        {% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}
-        <a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Редактировать</a>
-        {% endif %}
+      <td class="appt-actions-cell">
+        <div class="appt-actions compact">
+          {% include '_appointment_actions.html' %}
+        </div>
       </td>
     </tr>
     {% endfor %}
   </table>
 </div>
 <script>
-document.getElementById('manualBookingForm').addEventListener('submit', function(e) {
-  const checked = this.querySelectorAll('input[name="employee_ids"]:checked');
-  const picker = document.getElementById('masterPicker');
-  if (!checked.length) {
-    e.preventDefault();
-    picker.classList.add('field-error');
-    let hint = picker.querySelector('.field-hint');
-    if (!hint) {
-      hint = document.createElement('span');
-      hint.className = 'field-hint';
-      hint.textContent = 'Укажите хотя бы одного мастера';
-      picker.querySelector('.master-picker-label').after(hint);
-    }
-    picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-});
-document.querySelectorAll('#masterPicker input[name="employee_ids"]').forEach(cb => {
-  cb.addEventListener('change', () => {
-    if (document.querySelectorAll('#masterPicker input[name="employee_ids"]:checked').length) {
-      document.getElementById('masterPicker').classList.remove('field-error');
-    }
-  });
-});
+window.BS_MASTERS = {{ masters_json|safe }};
+window.BS_INITIAL_MASTERS = {{ (form_data.getlist('employee_ids') if form_data else [])|tojson }};
 </script>
 {% endblock %}

@@ -67,6 +67,23 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .master-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
 .master-picker.field-error{border-color:#c62828;background:#fff5f5;box-shadow:0 0 0 2px rgba(198,40,40,.15)}
 .field-hint{display:block;color:#c62828;font-size:13px;margin:-4px 0 8px;font-weight:600}
+.master-empty-hint{color:#888;font-size:13px;margin:0 0 10px}
+.master-add-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.master-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.master-chip{display:inline-flex;align-items:center;gap:6px;background:#111;color:#fff;border-radius:999px;padding:6px 10px 6px 12px;font-size:13px;font-weight:700}
+.master-chip-remove{border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.reschedule-inline{display:inline-block;position:relative}
+.reschedule-inline summary{list-style:none;cursor:pointer}
+.reschedule-inline summary::-webkit-details-marker{display:none}
+.reschedule-form{display:grid;gap:8px;margin-top:10px;padding:12px;border:1px solid #eee;border-radius:12px;background:#fafafa;min-width:220px}
+.reschedule-form label{display:grid;gap:4px;font-size:13px;font-weight:700}
+.cancel-reason{min-width:140px;padding:8px 10px}
+.appt-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.appt-actions.compact{gap:6px}
+.appt-actions-cell{min-width:280px}
+.appt-badge.cancelled{background:#fdecea;color:#b71c1c;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800}
+.appt-card.appt-cancelled,.row-cancelled{opacity:.72}
+.appt-table td.appt-actions-cell{white-space:normal}
 
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
 .day{min-height:110px;padding:12px;display:flex;flex-direction:column;justify-content:space-between}

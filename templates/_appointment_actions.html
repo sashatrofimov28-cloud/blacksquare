@@ -1,0 +1,30 @@
+{% if r.status not in ['Закрыт','Отменен'] %}
+<a class="mini-btn" href="{{ url_for('close_appointment', aid=r.id) }}">Закрыть</a>
+<a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Изменить</a>
+<details class="reschedule-inline">
+  <summary class="mini-btn ghost">Перенести</summary>
+  <form method="post" action="{{ url_for('reschedule_appointment', aid=r.id) }}" class="reschedule-form">
+    <input type="hidden" name="date" value="{{ selected }}">
+    <label>Новая дата <input type="date" name="appointment_date" value="{{ r.appointment_date }}" required></label>
+    <label>Новое время <input type="time" name="start_time" value="{{ r.start_time }}" required></label>
+    <button class="ghost">Сохранить перенос</button>
+  </form>
+</details>
+<form method="post" action="{{ url_for('cancel', aid=r.id) }}" class="inline cancel-form" onsubmit="return confirm('Отменить запись?')">
+  <input type="hidden" name="date" value="{{ selected }}">
+  <select name="cancel_reason" class="cancel-reason" title="Причина отмены">
+    <option value="Не приехал">Не приехал</option>
+    <option value="Клиент отказался">Клиент отказался</option>
+    <option value="Перенёс на другой день">Перенёс (отмена)</option>
+  </select>
+  <button class="ghost">Отменить</button>
+</form>
+{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}
+<a class="mini-btn ghost" href="{{ url_for('edit_appointment', aid=r.id) }}">Редактировать</a>
+{% endif %}
+{% if has_perm('delete_appointments') %}
+<form method="post" action="{{ url_for('delete_appointment', aid=r.id) }}" class="inline" onsubmit="return confirm('Удалить запись навсегда?')">
+  <input type="hidden" name="date" value="{{ selected }}">
+  <button class="danger">Удалить</button>
+</form>
+{% endif %}

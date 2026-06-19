@@ -193,6 +193,91 @@
     }
   }
 
+  function initMasterPicker() {
+    const picker = document.getElementById('masterPicker');
+    if (!picker) return;
+    const masters = window.BS_MASTERS || [];
+    const initial = (window.BS_INITIAL_MASTERS || []).map(String);
+    const select = document.getElementById('masterSelect');
+    const addBtn = document.getElementById('addMasterBtn');
+    const chips = document.getElementById('masterChips');
+    const hidden = document.getElementById('masterHiddenInputs');
+    const emptyHint = document.getElementById('masterEmptyHint');
+    const formId = picker.dataset.formId;
+    const form = formId ? document.getElementById(formId) : picker.closest('form');
+    const selected = new Set();
+
+    masters.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = String(m.id);
+      opt.textContent = m.name;
+      select.appendChild(opt);
+    });
+
+    function syncEmptyHint() {
+      if (emptyHint) emptyHint.hidden = selected.size > 0;
+    }
+
+    function showMasterError(show) {
+      picker.classList.toggle('field-error', !!show);
+      const hint = picker.querySelector('.master-required-hint');
+      if (hint) hint.hidden = !show;
+    }
+
+    function addMaster(id) {
+      const sid = String(id);
+      if (!sid || selected.has(sid)) return;
+      const master = masters.find(function (m) { return String(m.id) === sid; });
+      if (!master) return;
+      selected.add(sid);
+      const chip = document.createElement('span');
+      chip.className = 'master-chip';
+      chip.dataset.id = sid;
+      chip.innerHTML = master.name + ' <button type="button" class="master-chip-remove" aria-label="Убрать">×</button>';
+      chip.querySelector('.master-chip-remove').addEventListener('click', function () {
+        selected.delete(sid);
+        chip.remove();
+        const input = hidden.querySelector('input[data-id="' + sid + '"]');
+        if (input) input.remove();
+        syncEmptyHint();
+        showMasterError(false);
+      });
+      chips.appendChild(chip);
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'employee_ids';
+      input.value = sid;
+      input.dataset.id = sid;
+      hidden.appendChild(input);
+      select.value = '';
+      syncEmptyHint();
+      showMasterError(false);
+    }
+
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        if (!select.value) {
+          showMasterError(true);
+          select.focus();
+          return;
+        }
+        addMaster(select.value);
+      });
+    }
+
+    initial.forEach(addMaster);
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!selected.size) {
+          e.preventDefault();
+          showMasterError(true);
+          picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+  }
+
   if (pushEnableBtn) pushEnableBtn.addEventListener('click', enablePush);
   if (pushDisableBtn) pushDisableBtn.addEventListener('click', disablePush);
   if (pushTestBtn) pushTestBtn.addEventListener('click', testPush);
@@ -201,6 +286,7 @@
     window.addEventListener('load', function () {
       closeSidebar();
       refreshPushStatus();
+      initMasterPicker();
       const tabs = document.getElementById('mobileTabs');
       if (tabs) {
         const active = tabs.querySelector('a.active');

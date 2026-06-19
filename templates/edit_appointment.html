@@ -37,20 +37,24 @@
 </div>
 {% else %}
 <div class="panel">
-  <form method="post" class="form-grid">
+  <form method="post" class="form-grid" id="editApptForm">
     <input name="client_name" value="{{ ap.client_name }}" required>
     <input name="phone" value="{{ ap.phone }}" required>
     <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
     <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
     <select name="service_id">{% for s in services %}<option value="{{ s.id }}" {% if s.id==ap.service_id %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>{% endfor %}</select>
-    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker">
+    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="editApptForm">
       <label class="master-picker-label">Мастера *</label>
-      {% if master_error %}<span class="field-hint">Укажите хотя бы одного мастера</span>{% endif %}
-      <div class="master-options">
-        {% for e in employees %}
-        <label class="check"><input type="checkbox" name="employee_ids" value="{{ e.id }}" {% if e.id in selected_employee_ids %}checked{% endif %}> {{ e.full_name }}</label>
-        {% endfor %}
+      <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
+      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить»</p>
+      <div class="master-add-row">
+        <select id="masterSelect" class="master-select">
+          <option value="">— Выберите мастера —</option>
+        </select>
+        <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
       </div>
+      <div id="masterChips" class="master-chips"></div>
+      <div id="masterHiddenInputs"></div>
     </div>
     <input type="date" name="appointment_date" value="{{ ap.appointment_date }}">
     <input type="time" name="start_time" value="{{ ap.start_time }}" required>
@@ -60,21 +64,8 @@
   </form>
 </div>
 <script>
-document.querySelector('.form-grid')?.addEventListener('submit', function(e) {
-  const picker = document.getElementById('masterPicker');
-  if (!picker) return;
-  if (!picker.querySelectorAll('input[name="employee_ids"]:checked').length) {
-    e.preventDefault();
-    picker.classList.add('field-error');
-    if (!picker.querySelector('.field-hint')) {
-      const hint = document.createElement('span');
-      hint.className = 'field-hint';
-      hint.textContent = 'Укажите хотя бы одного мастера';
-      picker.querySelector('.master-picker-label').after(hint);
-    }
-    picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-});
+window.BS_MASTERS = {{ masters_json|safe }};
+window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 </script>
 {% endif %}
 
