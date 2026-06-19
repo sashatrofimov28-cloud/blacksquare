@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="top"><h1>Профиль</h1><p>{{ user.full_name }} · {{ user.username }}</p></header>
+<div class="panel profile-card">
+  <h2>Сменить пароль</h2>
+  <form method="post" class="form-grid" style="grid-template-columns:1fr">
+    <input type="password" name="current_password" placeholder="Текущий пароль" required autocomplete="current-password">
+    <input type="password" name="new_password" placeholder="Новый пароль" required autocomplete="new-password">
+    <input type="password" name="confirm_password" placeholder="Повторите новый пароль" required autocomplete="new-password">
+    <button>Сохранить пароль</button>
+  </form>
+</div>
+<div class="notice">
+  <span>Директор и все сотрудники могут менять свой пароль здесь. Для смены пароля другого сотрудника используйте раздел «Сотрудники».</span>
+</div>
+{% if vapid_public_key %}
+<div class="notice">
+  <span>Уведомления: при добавлении на главный экран телефона разрешите push — вы будете получать напоминания о платежах (финансы).</span>
+</div>
+{% endif %}
+{% endblock %}

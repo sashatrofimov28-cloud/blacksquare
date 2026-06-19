@@ -1,22 +1,125 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Закрыть запись</h1><p>{{ ap.client_name }} · {{ ap.plate_number }} · {{ ap.service_name }}</p></header>{% if has_perm('extra_services') %}<div class="panel"><h2>Дополнительные услуги</h2><form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="form-grid"><input name="extra_name" placeholder="Что добавили клиенту"><input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽"><button>Добавить допуслугу</button></form><table><tr><th>Услуга</th><th>Сумма</th><th></th></tr>{% for e in extras %}<tr><td>{{ e.name }}</td><td>{{ "%.0f"|format(e.price) }} ₽</td><td><form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}"><button class="danger">Удалить</button></form></td></tr>{% endfor %}</table></div>{% endif %}<div class="panel"><form method="post" class="form-grid"><input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽" required><select name="material_id"><option value="">Пленку не списывать</option>{% for m in materials %}<option value="{{ m.id }}">{{ m.name }}{% if not is_master %} — {{ "%.2f"|format(m.balance) }} м²{% endif %}</option>{% endfor %}</select><input name="material_length_m" type="number" step="0.01" placeholder="Длина, м"><input name="material_width_cm" type="number" step="0.01" placeholder="Ширина, см"><input name="salary_amount" type="number" step="0.01" placeholder="ЗП за заказ ₽"><input name="cert_number" id="certNumber" placeholder="Номер сертификата"><div id="certBalance" class="hint">Введите номер сертификата — баланс появится здесь</div><input name="cert_amount" type="number" step="0.01" placeholder="Списать с сертификата ₽"><input name="cert_comment" placeholder="Комментарий к сертификату"><input name="comment" placeholder="Комментарий"><button>Закрыть</button></form></div><div class="notice"><b>Материал:</b><span>2 м × 50 см = 1 м². Себестоимость считается внутри, но мастер ее не видит.</span></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top">
+  <h1>Закрыть запись</h1>
+  <p>{{ ap.client_name }} · {{ ap.plate_number }} · {{ ap.service_name }}</p>
+</header>
+
+{% if has_perm('extra_services') %}
+<div class="panel">
+  <h2>Дополнительные услуги</h2>
+  <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="form-grid">
+    <input name="extra_name" placeholder="Что добавили клиенту">
+    <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
+    <button>Добавить допуслугу</button>
+  </form>
+  <table>
+    <tr><th>Услуга</th><th>Сумма</th><th></th></tr>
+    {% for e in extras %}
+    <tr>
+      <td>{{ e.name }}</td>
+      <td>{{ "%.0f"|format(e.price) }} ₽</td>
+      <td><form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}"><button class="danger">Удалить</button></form></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="panel">
+  <form method="post" id="closeForm">
+    <h2>Материалы со склада</h2>
+    <p style="color:#666;font-size:14px;margin-top:0">Добавьте плёнку, расходники — столько позиций, сколько использовали.</p>
+    <div id="materialRows" class="material-rows"></div>
+    <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
+
+    <div class="form-grid" style="margin-top:20px">
+      <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽" required>
+      <input name="salary_amount" type="number" step="0.01" placeholder="ЗП за заказ ₽">
+      <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
+      <div id="certBalance" class="hint span4">Введите номер сертификата — баланс появится здесь</div>
+      <input name="cert_amount" type="number" step="0.01" placeholder="Списать с сертификата ₽">
+      <input name="cert_comment" placeholder="Комментарий к сертификату">
+      <textarea name="comment" placeholder="Комментарий к визиту (видит директор в зарплате)" class="span4"></textarea>
+      <button>Закрыть запись</button>
+    </div>
+  </form>
+</div>
+
+<div class="notice">
+  <b>Плёнка:</b><span>длина (м) × ширина (см) = м². Расходники — количество в штуках.</span>
+</div>
 
 <script>
+const STOCK = {{ materials|map(attribute='id')|list|tojson }};
+const STOCK_DATA = {
+  {% for m in materials %}
+  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }} },
+  {% endfor %}
+};
+const IS_MASTER = {{ 'true' if is_master else 'false' }};
+
+function buildMaterialRow() {
+  const wrap = document.createElement('div');
+  wrap.className = 'material-row';
+  let opts = '<option value="">Выберите материал</option>';
+  Object.keys(STOCK_DATA).forEach(id => {
+    const m = STOCK_DATA[id];
+    const bal = IS_MASTER ? '' : ` — ${m.balance} ${m.unit}`;
+    opts += `<option value="${id}">${m.name}${bal}</option>`;
+  });
+  wrap.innerHTML = `
+    <select name="material_item_id" class="mat-select">${opts}</select>
+    <input name="material_length_m" type="number" step="0.01" class="film-only" placeholder="Длина, м">
+    <input name="material_width_cm" type="number" step="0.01" class="film-only" placeholder="Ширина, см">
+    <input name="material_qty" type="number" step="0.01" class="cons-only" placeholder="Кол-во" style="display:none">
+    <button type="button" class="danger remove-mat">×</button>
+  `;
+  const sel = wrap.querySelector('.mat-select');
+  sel.addEventListener('change', () => toggleRowType(wrap));
+  wrap.querySelector('.remove-mat').addEventListener('click', () => wrap.remove());
+  toggleRowType(wrap);
+  return wrap;
+}
+
+function toggleRowType(row) {
+  const id = row.querySelector('.mat-select').value;
+  const item = STOCK_DATA[id];
+  const isFilm = item && item.category === 'film';
+  row.classList.toggle('consumable', !isFilm);
+  row.querySelectorAll('.film-only').forEach(el => el.style.display = isFilm ? '' : 'none');
+  const q = row.querySelector('.cons-only');
+  if (q) q.style.display = isFilm ? 'none' : '';
+}
+
+document.getElementById('addMaterialBtn').addEventListener('click', () => {
+  document.getElementById('materialRows').appendChild(buildMaterialRow());
+});
+document.getElementById('materialRows').appendChild(buildMaterialRow());
+
+document.getElementById('closeForm').addEventListener('submit', function () {
+  document.querySelectorAll('#materialRows .material-row').forEach(row => {
+    const id = row.querySelector('.mat-select').value;
+    const item = STOCK_DATA[id];
+    if (item && item.category !== 'film') {
+      row.querySelectorAll('.film-only').forEach(el => el.removeAttribute('name'));
+    } else {
+      const q = row.querySelector('.cons-only');
+      if (q) q.removeAttribute('name');
+    }
+  });
+});
+
 const certInput = document.getElementById('certNumber');
 const certBalance = document.getElementById('certBalance');
 if (certInput && certBalance) {
   certInput.addEventListener('input', async () => {
     const n = certInput.value.trim();
-    if (!n) {
-      certBalance.textContent = 'Введите номер сертификата — баланс появится здесь';
-      return;
-    }
+    if (!n) { certBalance.textContent = 'Введите номер сертификата — баланс появится здесь'; return; }
     const r = await fetch('/api/certificate_balance?number=' + encodeURIComponent(n));
     const d = await r.json();
-    if (!d.ok) {
-      certBalance.textContent = d.message;
-    } else {
-      certBalance.textContent = 'Баланс сертификата: ' + Math.round(d.balance) + ' ₽ · ' + d.status;
-    }
+    certBalance.textContent = d.ok ? ('Баланс: ' + Math.round(d.balance) + ' ₽ · ' + d.status) : d.message;
   });
 }
 </script>
+{% endblock %}

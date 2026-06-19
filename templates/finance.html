@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="top">
+  <h1>Финансы</h1>
+  <p>Аренда и коммунальные платежи · только для директора (доступ админу — через права в «Сотрудники»)</p>
+</header>
+
+<section class="cards">
+  <div class="card"><span>К оплате</span><strong>{{ "%.0f"|format(pending) }} ₽</strong></div>
+  <div class="card"><span>Просрочено</span><strong class="status-overdue">{{ "%.0f"|format(overdue) }} ₽</strong></div>
+</section>
+
+<div class="panel">
+  <h2>Добавить платёж</h2>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="add">
+    <input type="hidden" name="month" value="{{ month }}">
+    <select name="category" required>
+      <option value="rent">Аренда</option>
+      <option value="utilities">Коммунальные</option>
+    </select>
+    <input name="title" placeholder="Название (например, аренда помещения)">
+    <input name="amount" type="number" step="0.01" placeholder="Сумма ₽" required>
+    <input type="date" name="due_date" required>
+    <input name="comment" placeholder="Комментарий" class="span4">
+    <button>Добавить</button>
+  </form>
+</div>
+
+<div class="panel">
+  <div class="inline" style="justify-content:space-between;margin-bottom:12px">
+    <h2 style="margin:0">Календарь платежей — {{ month }}</h2>
+    <div class="inline">
+      <a class="btn ghost" href="{{ url_for('finance', month=prev_month) }}">←</a>
+      <a class="btn ghost" href="{{ url_for('finance', month=next_month) }}">→</a>
+    </div>
+  </div>
+  <div class="calendar-grid">
+    {% for c in cells %}
+      {% if c %}
+      <a class="day {% if c.date==selected %}active{% endif %} {% if c.payments %}has-due{% endif %}" href="{{ url_for('finance', month=month, date=c.date) }}">
+        <b>{{ c.day }}</b>
+        {% if c.payments %}
+          <small>{{ c.payments|length }} плат.</small>
+          <span>{{ "%.0f"|format(c.total) }} ₽</span>
+        {% else %}
+          <small>—</small>
+        {% endif %}
+      </a>
+      {% else %}
+      <div class="day empty"></div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="finance-cols">
+  <div class="panel finance-col">
+    <h2>Аренда</h2>
+    <table>
+      <tr><th>Название</th><th>Сумма</th><th>Срок</th><th>Статус</th><th></th></tr>
+      {% for p in rent_rows %}
+      <tr>
+        <td>{{ p.title }}</td>
+        <td>{{ "%.0f"|format(p.amount) }} ₽</td>
+        <td>{{ p.due_date }}</td>
+        <td class="{% if p.status=='Просрочен' %}status-overdue{% elif p.status=='Оплачен' %}status-paid{% else %}status-pending{% endif %}">{{ p.status }}</td>
+        <td>
+          {% if p.status != 'Оплачен' %}
+          <form method="post" class="inline">
+            <input type="hidden" name="action" value="pay">
+            <input type="hidden" name="payment_id" value="{{ p.id }}">
+            <input type="hidden" name="paid_amount" value="{{ p.amount }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button class="mini-btn">Оплачен</button>
+          </form>
+          {% endif %}
+          <form method="post" style="display:inline" onsubmit="return confirm('Удалить?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="payment_id" value="{{ p.id }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button class="mini-btn danger">×</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Платежей по аренде пока нет</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="panel finance-col">
+    <h2>Коммунальные</h2>
+    <table>
+      <tr><th>Название</th><th>Сумма</th><th>Срок</th><th>Статус</th><th></th></tr>
+      {% for p in util_rows %}
+      <tr>
+        <td>{{ p.title }}</td>
+        <td>{{ "%.0f"|format(p.amount) }} ₽</td>
+        <td>{{ p.due_date }}</td>
+        <td class="{% if p.status=='Просрочен' %}status-overdue{% elif p.status=='Оплачен' %}status-paid{% else %}status-pending{% endif %}">{{ p.status }}</td>
+        <td>
+          {% if p.status != 'Оплачен' %}
+          <form method="post" class="inline">
+            <input type="hidden" name="action" value="pay">
+            <input type="hidden" name="payment_id" value="{{ p.id }}">
+            <input type="hidden" name="paid_amount" value="{{ p.amount }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button class="mini-btn">Оплачен</button>
+          </form>
+          {% endif %}
+          <form method="post" style="display:inline" onsubmit="return confirm('Удалить?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="payment_id" value="{{ p.id }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button class="mini-btn danger">×</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Коммунальных платежей пока нет</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

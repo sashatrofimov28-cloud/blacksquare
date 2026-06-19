@@ -1,1 +1,34 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Моя зарплата</h1></header><section class="cards simple"><div class="card"><span>Всего</span><strong>{{ "%.0f"|format(total) }} ₽</strong></div></section><div class="panel"><table><tr><th>Период</th><th>Сумма</th><th>Комментарий</th><th>Дата</th></tr>{% for r in rows %}<tr><td>{{ r.period }}</td><td>{{ "%.0f"|format(r.amount) }} ₽</td><td>{{ r.comment }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top"><h1>Моя зарплата</h1></header>
+
+<section class="cards simple">
+  <div class="card"><span>Всего</span><strong>{{ "%.0f"|format(total) }} ₽</strong></div>
+</section>
+
+<div class="panel">
+  {% for r in rows %}
+  <div class="employee-card" style="margin-bottom:14px">
+    <h3>{{ "%.0f"|format(r.amount) }} ₽ · {{ r.period }}</h3>
+    <div class="meta">Записано: {{ r.created_at }}{% if r.closed_at %} · Закрыто: {{ r.closed_at }}{% endif %}</div>
+    {% if r.appointment_date %}
+    <p><b>{{ r.appointment_date }}</b> {{ r.start_time }}–{{ r.end_time }}<br>{{ r.client_name }} · {{ r.plate_number }}<br>{{ r.service_name }}</p>
+    {% endif %}
+    {% set d = details.get(r.id, {}) %}
+    <div class="salary-detail">
+      <dl>
+        <dt>Комментарий</dt><dd>{{ r.visit_comment or r.comment or '—' }}</dd>
+        <dt>Материалы</dt>
+        <dd>
+          {% if d.materials %}
+            {% for m in d.materials %}{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}<br>{% endfor %}
+          {% elif r.material_m2 %}{{ "%.2f"|format(r.material_m2) }} м²{% else %}—{% endif %}
+        </dd>
+        <dt>Допуслуги</dt>
+        <dd>{% if d.extras %}{% for e in d.extras %}{{ e.name }} — {{ "%.0f"|format(e.price) }} ₽<br>{% endfor %}{% else %}—{% endif %}</dd>
+      </dl>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

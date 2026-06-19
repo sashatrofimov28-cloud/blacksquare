@@ -1,1 +1,65 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Зарплаты</h1></header><section class="cards">{% for t in totals %}<div class="card"><span>{{ t.full_name }}</span><strong>{{ "%.0f"|format(t.total) }} ₽</strong></div>{% endfor %}</section><div class="panel"><table><tr><th>Сотрудник</th><th>Период</th><th>Сумма</th><th>Комментарий</th><th>Дата</th></tr>{% for r in rows %}<tr><td>{{ r.employee_name }}</td><td>{{ r.period }}</td><td>{{ "%.0f"|format(r.amount) }} ₽</td><td>{{ r.comment }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top"><h1>Зарплаты</h1><p>Полная информация по каждому визиту</p></header>
+
+<section class="cards">
+  {% for t in totals %}
+  <div class="card"><span>{{ t.full_name }}</span><strong>{{ "%.0f"|format(t.total) }} ₽</strong></div>
+  {% endfor %}
+</section>
+
+<div class="panel">
+  <table>
+    <tr>
+      <th>Сотрудник</th>
+      <th>Визит</th>
+      <th>ЗП</th>
+      <th>Записано</th>
+      <th>Закрыто</th>
+      <th>Детали</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.employee_name }}</td>
+      <td>
+        {% if r.appointment_date %}
+        <b>{{ r.appointment_date }}</b> {{ r.start_time }}–{{ r.end_time }}<br>
+        {{ r.client_name }} · {{ r.plate_number }}<br>
+        {{ r.service_name }}
+        {% else %}—{% endif %}
+      </td>
+      <td><b>{{ "%.0f"|format(r.amount) }} ₽</b><br><small>{{ r.period }}</small></td>
+      <td>{{ r.created_at }}</td>
+      <td>{{ r.closed_at or '—' }}</td>
+      <td>
+        {% set d = details.get(r.id, {}) %}
+        <div class="salary-detail">
+          <dl>
+            <dt>Комментарий</dt><dd>{{ r.visit_comment or r.comment or '—' }}</dd>
+            <dt>Сумма заказа</dt><dd>{{ "%.0f"|format(r.price or 0) }} ₽</dd>
+            <dt>Допуслуги</dt><dd>{{ "%.0f"|format(r.extras_total or 0) }} ₽</dd>
+            <dt>Сертификат</dt><dd>{{ "%.0f"|format(r.certificate_paid or 0) }} ₽</dd>
+            <dt>Материалы</dt>
+            <dd>
+              {% if d.materials %}
+                {% for m in d.materials %}
+                  {{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}{% if m.length_m %} ({{ m.length_m }}м×{{ m.width_cm }}см){% endif %}<br>
+                {% endfor %}
+              {% elif r.material_m2 %}
+                {{ "%.2f"|format(r.material_m2) }} м²
+              {% else %}—{% endif %}
+            </dd>
+            <dt>Доп. услуги</dt>
+            <dd>
+              {% if d.extras %}
+                {% for e in d.extras %}{{ e.name }} — {{ "%.0f"|format(e.price) }} ₽<br>{% endfor %}
+              {% else %}—{% endif %}
+            </dd>
+          </dl>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

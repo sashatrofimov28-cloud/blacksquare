@@ -1,1 +1,67 @@
-{% extends "base.html" %}{% block content %}<header class="top"><h1>Сертификаты</h1><p>Создание сертификатов и расчет по сертификату в одной вкладке.</p></header><div class="panel"><h2>Расчет по сертификату</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="pay"><input name="cert_number" placeholder="Номер сертификата" required><input name="amount" type="number" step="0.01" placeholder="Сумма списания ₽" required><select name="appointment_id"><option value="">Не привязывать к записи</option>{% for a in appointments %}<option value="{{ a.id }}">{{ a.appointment_date }} {{ a.start_time }} — {{ a.client_name }} {{ a.plate_number }} — {{ a.service_name }}</option>{% endfor %}</select><input name="comment" placeholder="Комментарий"><button>Списать</button></form></div><div class="panel"><h2>Создать сертификат</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="create"><input name="cert_number" placeholder="Номер сертификата" required><input name="nominal" type="number" step="0.01" placeholder="Номинал ₽" required><input name="client_name" placeholder="Клиент"><input name="phone" placeholder="Телефон"><input name="comment" placeholder="Комментарий"><button>Создать сертификат</button></form></div><div class="panel"><table><tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th></tr>{% for r in rows %}<tr><td>{{ r.cert_number }}</td><td>{{ "%.0f"|format(r.nominal) }} ₽</td><td><b>{{ "%.0f"|format(r.balance) }} ₽</b></td><td>{{ r.status }}</td><td>{{ r.client_name }}</td><td>{{ r.phone }}</td></tr>{% endfor %}</table></div><div class="panel"><h2>Движение</h2><table><tr><th>Дата</th><th>Сертификат</th><th>Сумма</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>{% for m in moves %}<tr><td>{{ m.created_at }}</td><td>{{ m.cert_number }}</td><td>{{ "%.0f"|format(m.amount) }} ₽</td><td>{{ m.move_type }}</td><td>{{ m.user_name }}</td><td>{{ m.comment }}</td></tr>{% endfor %}</table></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<header class="top"><h1>Сертификаты</h1><p>Создание и списание сертификатов</p></header>
+
+<div class="panel">
+  <h2>Создать сертификат</h2>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="create">
+    <input name="cert_number" placeholder="Номер сертификата" required>
+    <input name="nominal" type="number" step="0.01" placeholder="Номинал ₽" required>
+    <input name="client_name" placeholder="Клиент">
+    <input name="phone" placeholder="Телефон">
+    <input name="comment" placeholder="Комментарий" class="span4">
+    <button>Создать сертификат</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Расчёт по сертификату</h2>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="pay">
+    <input name="cert_number" placeholder="Номер сертификата" required>
+    <input name="amount" type="number" step="0.01" placeholder="Сумма списания ₽" required>
+    <select name="appointment_id">
+      <option value="">Не привязывать к записи</option>
+      {% for a in appointments %}
+      <option value="{{ a.id }}">{{ a.appointment_date }} {{ a.start_time }} — {{ a.client_name }} {{ a.plate_number }} — {{ a.service_name }}</option>
+      {% endfor %}
+    </select>
+    <input name="comment" placeholder="Комментарий">
+    <button>Списать</button>
+  </form>
+</div>
+
+<div class="panel">
+  <table>
+    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.cert_number }}</td>
+      <td>{{ "%.0f"|format(r.nominal) }} ₽</td>
+      <td><b>{{ "%.0f"|format(r.balance) }} ₽</b></td>
+      <td>{{ r.status }}</td>
+      <td>{{ r.client_name }}</td>
+      <td>{{ r.phone }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="panel">
+  <h2>Движение</h2>
+  <table>
+    <tr><th>Дата</th><th>Сертификат</th><th>Сумма</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>
+    {% for m in moves %}
+    <tr>
+      <td>{{ m.created_at }}</td>
+      <td>{{ m.cert_number }}</td>
+      <td>{{ "%.0f"|format(m.amount) }} ₽</td>
+      <td>{{ m.move_type }}</td>
+      <td>{{ m.user_name }}</td>
+      <td>{{ m.comment }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

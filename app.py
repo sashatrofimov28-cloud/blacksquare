@@ -1,10 +1,16 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal
+import sqlite3, calendar as pycal, json
 import os
+
+try:
+    from pywebpush import webpush, WebPushException
+except ImportError:
+    webpush = None
+    WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
 app = Flask(
@@ -29,6 +35,7 @@ PERMS = {
     'certificates': 'Сертификаты',
     'extra_services': 'Допуслуги в заказе',
     'phone_access': 'Доступ к телефонам',
+    'finance': 'Финансы',
 }
 
 def db():
@@ -61,6 +68,9 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS certificates(id INTEGER PRIMARY KEY AUTOINCREMENT, cert_number TEXT UNIQUE, nominal REAL, balance REAL, status TEXT DEFAULT 'Активен', client_name TEXT, phone TEXT, comment TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS certificate_moves(id INTEGER PRIMARY KEY AUTOINCREMENT, certificate_id INTEGER, appointment_id INTEGER, user_id INTEGER, amount REAL, move_type TEXT, comment TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS phone_access_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, appointment_id INTEGER, client_id INTEGER, phone TEXT, reason TEXT, status TEXT DEFAULT 'Ожидает', approved_until TEXT, created_at TEXT, decided_at TEXT, decided_by INTEGER)")
+    c.execute("CREATE TABLE IF NOT EXISTS appointment_materials(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, item_id INTEGER, qty REAL DEFAULT 0, length_m REAL DEFAULT 0, width_cm REAL DEFAULT 0, cost REAL DEFAULT 0, comment TEXT, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS finance_payments(id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT, amount REAL DEFAULT 0, due_date TEXT, paid_amount REAL DEFAULT 0, paid_date TEXT, status TEXT DEFAULT 'Ожидает', comment TEXT, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS push_subscriptions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, endpoint TEXT UNIQUE, p256dh TEXT, auth TEXT, created_at TEXT)")
     con.commit()
 
     default_users = [('director','director','Директор'),('admin','admin','Администратор'),('katya','master','Катя'),('stas','master','Стас')]
@@ -70,6 +80,7 @@ def init_db():
         for p in PERMS:
             if role == 'director': allowed = 1
             elif role == 'admin': allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access'] else 0
+            elif p == 'finance': allowed = 0
             else: allowed = 1 if p in ['calendar','salary','extra_services'] else 0
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (uid,p,allowed))
 
@@ -82,6 +93,17 @@ def init_db():
     for u in masters:
         for s in services:
             c.execute("INSERT OR IGNORE INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (u['id'],s['id']))
+    for u in c.execute("SELECT id, role FROM users").fetchall():
+        for p in PERMS:
+            if p == 'finance':
+                allowed = 1 if u['role'] == 'director' else 0
+            elif u['role'] == 'director':
+                allowed = 1
+            elif u['role'] == 'admin':
+                allowed = 1 if p in ['calendar','services','crm','employees','delete_appointments','extra_services','certificates','phone_access'] else 0
+            else:
+                allowed = 1 if p in ['calendar','salary','extra_services'] else 0
+            c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
     con.commit(); con.close()
 
 def current_user():
@@ -195,6 +217,81 @@ def booking_public_url():
         return f'{explicit}/booking'
     return url_for('booking', _external=True)
 
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_CLAIMS = {'sub': 'mailto:director@blacksquare72.ru'}
+
+def vapid_public_key():
+    return VAPID_PUBLIC_KEY
+
+def send_push_to_user(user_id, title, body, url='/'):
+    if not webpush or not VAPID_PRIVATE_KEY:
+        return
+    con = db()
+    subs = con.execute("SELECT * FROM push_subscriptions WHERE user_id=?", (user_id,)).fetchall()
+    con.close()
+    payload = json.dumps({'title': title, 'body': body, 'url': url})
+    for s in subs:
+        try:
+            webpush(
+                subscription_info={'endpoint': s['endpoint'], 'keys': {'p256dh': s['p256dh'], 'auth': s['auth']}},
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims=VAPID_CLAIMS,
+            )
+        except WebPushException:
+            pass
+
+def check_finance_reminders(user):
+    if user['role'] != 'director' and not has_perm('finance'):
+        return
+    key = f'finance_remind_{today()}'
+    if session.get(key):
+        return
+    session[key] = True
+    con = db()
+    today_s = today()
+    rows = con.execute(
+        "SELECT * FROM finance_payments WHERE status!='Оплачен' AND due_date<=date(?, '+3 day') ORDER BY due_date",
+        (today_s,)
+    ).fetchall()
+    con.close()
+    for r in rows:
+        days = (datetime.strptime(r['due_date'], '%Y-%m-%d').date() - date.today()).days
+        if days < 0:
+            msg = f'Просрочено: {r["title"]} — {r["amount"]:.0f} ₽'
+        elif days == 0:
+            msg = f'Сегодня оплатить: {r["title"]} — {r["amount"]:.0f} ₽'
+        else:
+            msg = f'Через {days} дн.: {r["title"]} — {r["amount"]:.0f} ₽'
+        send_push_to_user(user['id'], 'Финансы BlackSquare', msg, url_for('finance'))
+
+def write_off_material(con, aid, uid, item_id, qty, length_m, width_cm, comment=''):
+    item = con.execute("SELECT * FROM stock_items WHERE id=? AND active=1", (item_id,)).fetchone()
+    if not item or qty <= 0:
+        return 0, 'Некорректный материал'
+    if item['balance'] < qty:
+        return 0, f'На складе не хватает: {item["name"]}'
+    cost = qty * float(item['cost_per_unit'] or 0)
+    con.execute("UPDATE stock_items SET balance=balance-? WHERE id=?", (qty, item_id))
+    con.execute(
+        "INSERT INTO stock_moves(item_id,appointment_id,user_id,change_qty,move_type,comment,created_at) VALUES(?,?,?,?,?,?,?)",
+        (item_id, aid, uid, -qty, 'Списание по заказу', comment or f'{qty} {item["unit"]}', now())
+    )
+    con.execute(
+        "INSERT INTO appointment_materials(appointment_id,item_id,qty,length_m,width_cm,cost,comment,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        (aid, item_id, qty, length_m, width_cm, cost, comment, now())
+    )
+    return cost, ''
+
+def restore_appointment_materials(con, aid, ap=None):
+    mats = con.execute("SELECT * FROM appointment_materials WHERE appointment_id=?", (aid,)).fetchall()
+    for m in mats:
+        con.execute("UPDATE stock_items SET balance=balance+? WHERE id=?", (m['qty'], m['item_id']))
+    con.execute("DELETE FROM appointment_materials WHERE appointment_id=?", (aid,))
+    if ap and ap['material_id'] and ap['material_m2'] > 0:
+        con.execute("UPDATE stock_items SET balance=balance+? WHERE id=?", (ap['material_m2'], ap['material_id']))
+
 @app.context_processor
 def inject():
     return {
@@ -204,6 +301,8 @@ def inject():
         'visible_phone': visible_phone,
         'mask_phone': mask_phone,
         'booking_url': booking_public_url(),
+        'vapid_public_key': vapid_public_key(),
+        'request': request,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -249,6 +348,7 @@ def logout():
 @login_required
 def dashboard():
     con = db(); u = current_user()
+    check_finance_reminders(u)
     if u['role'] == 'master':
         upcoming = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE employee_id=? AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'],)).fetchall()
         completed = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE employee_id=? AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12", (u['id'],)).fetchall()
@@ -386,16 +486,42 @@ def close_appointment(aid):
     if u['role'] == 'master' and ap['employee_id'] != u['id']:
         con.close(); flash('Можно закрывать только свои записи'); return redirect(url_for('calendar_view'))
     if request.method == 'POST':
-        price = float(request.form.get('price') or 0); mid = request.form.get('material_id') or None
-        length = float(request.form.get('material_length_m') or 0); width_cm = float(request.form.get('material_width_cm') or 0)
-        m2 = length * (width_cm/100); salary_amount = float(request.form.get('salary_amount') or 0); material_cost = 0
-        if mid and m2 > 0:
-            mat = con.execute("SELECT * FROM stock_items WHERE id=?", (mid,)).fetchone()
-            if not mat or mat['balance'] < m2:
-                flash('На складе не хватает материала'); return redirect(url_for('close_appointment', aid=aid))
-            material_cost = m2 * float(mat['cost_per_unit'])
-            con.execute("UPDATE stock_items SET balance=balance-? WHERE id=?", (m2,mid))
-            con.execute("INSERT INTO stock_moves(item_id,appointment_id,user_id,change_qty,move_type,comment,created_at) VALUES(?,?,?,?,?,?,?)", (mid,aid,u['id'],-m2,'Списание по заказу',f'{length} м × {width_cm} см = {m2:.2f} м²',now()))
+        price = float(request.form.get('price') or 0)
+        salary_amount = float(request.form.get('salary_amount') or 0)
+        material_cost = 0
+        total_m2 = 0
+        first_film_id = None
+        item_ids = request.form.getlist('material_item_id')
+        lengths = request.form.getlist('material_length_m')
+        widths = request.form.getlist('material_width_cm')
+        qtys = request.form.getlist('material_qty')
+        for i, item_id in enumerate(item_ids):
+            if not item_id:
+                continue
+            item = con.execute("SELECT * FROM stock_items WHERE id=? AND active=1", (item_id,)).fetchone()
+            if not item:
+                flash('Материал не найден')
+                return redirect(url_for('close_appointment', aid=aid))
+            if item['category'] == 'film':
+                length = float(lengths[i] if i < len(lengths) else 0 or 0)
+                width = float(widths[i] if i < len(widths) else 0 or 0)
+                qty = length * (width / 100)
+                comment = f'{length} м × {width} см = {qty:.2f} м²'
+                if not first_film_id:
+                    first_film_id = item_id
+            else:
+                length = width = 0
+                qty = float(qtys[i] if i < len(qtys) else 0 or 0)
+                comment = f'{qty} {item["unit"]}'
+            if qty <= 0:
+                continue
+            cost, err = write_off_material(con, aid, u['id'], int(item_id), qty, length, width, comment)
+            if err:
+                flash(err)
+                return redirect(url_for('close_appointment', aid=aid))
+            material_cost += cost
+            if item['category'] == 'film':
+                total_m2 += qty
         cert_number = request.form.get('cert_number','')
         cert_amount = request.form.get('cert_amount') or 0
         ok, cert_msg = pay_certificate_for_appointment(con, aid, cert_number, cert_amount, request.form.get('cert_comment',''))
@@ -404,12 +530,14 @@ def close_appointment(aid):
             return redirect(url_for('close_appointment', aid=aid))
         cert_paid = float(ap['certificate_paid'] or 0) + float(cert_amount or 0)
         profit = price - cert_paid - material_cost - salary_amount
+        first_len = float(lengths[0] or 0) if lengths else 0
+        first_w = float(widths[0] or 0) if widths else 0
         con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
-                    (price,mid,length,width_cm,m2,material_cost,salary_amount,profit,request.form.get('comment',''),now(),aid))
+                    (price, first_film_id, first_len, first_w, total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
         if salary_amount > 0:
-            con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'],aid,datetime.now().strftime('%m.%Y'),salary_amount,'ЗП из закрытой записи',now()))
+            con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
         con.commit(); con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
-    materials = con.execute("SELECT id,name,balance,cost_per_unit FROM stock_items WHERE active=1 AND category='film' AND (visible_to_staff=1 OR ?='director') ORDER BY name", (u['role'],)).fetchall()
+    materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     con.close(); return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'))
 
@@ -420,8 +548,7 @@ def delete_appointment(aid):
     con = db()
     ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
     if ap:
-        if ap['material_id'] and ap['material_m2'] > 0:
-            con.execute("UPDATE stock_items SET balance=balance+? WHERE id=?", (ap['material_m2'], ap['material_id']))
+        restore_appointment_materials(con, aid, ap)
         con.execute("DELETE FROM appointment_extras WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM appointments WHERE id=?", (aid,))
@@ -682,12 +809,50 @@ def stock():
 def salary():
     con = db(); u = current_user()
     if u['role'] == 'master':
-        rows = con.execute("SELECT * FROM salary WHERE employee_id=? ORDER BY id DESC", (u['id'],)).fetchall()
+        rows = con.execute(
+            """SELECT s.*, a.client_name, a.plate_number, a.car, a.service_name, a.appointment_date,
+                      a.start_time, a.end_time, a.comment visit_comment, a.closed_at, a.price, a.material_m2,
+                      a.material_cost, a.extras_total, a.certificate_paid
+               FROM salary s
+               LEFT JOIN appointments a ON a.id=s.appointment_id
+               WHERE s.employee_id=? ORDER BY s.id DESC""",
+            (u['id'],)
+        ).fetchall()
+        details = {}
+        for r in rows:
+            if r['appointment_id']:
+                details[r['id']] = {
+                    'materials': con.execute(
+                        "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
+                        (r['appointment_id'],)
+                    ).fetchall(),
+                    'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
+                }
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
-        con.close(); return render_template('master_salary.html', rows=rows, total=total)
-    rows = con.execute("SELECT s.*,u.full_name employee_name FROM salary s LEFT JOIN users u ON u.id=s.employee_id ORDER BY s.id DESC").fetchall()
+        con.close()
+        return render_template('master_salary.html', rows=rows, total=total, details=details)
+    rows = con.execute(
+        """SELECT s.*, u.full_name employee_name, a.client_name, a.plate_number, a.car, a.service_name,
+                  a.appointment_date, a.start_time, a.end_time, a.comment visit_comment, a.closed_at,
+                  a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid
+           FROM salary s
+           LEFT JOIN users u ON u.id=s.employee_id
+           LEFT JOIN appointments a ON a.id=s.appointment_id
+           ORDER BY s.id DESC"""
+    ).fetchall()
+    details = {}
+    for r in rows:
+        if r['appointment_id']:
+            details[r['id']] = {
+                'materials': con.execute(
+                    "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
+                    (r['appointment_id'],)
+                ).fetchall(),
+                'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
+            }
     totals = con.execute("SELECT u.full_name,COALESCE(SUM(s.amount),0) total FROM users u LEFT JOIN salary s ON s.employee_id=u.id GROUP BY u.id").fetchall()
-    con.close(); return render_template('salary.html', rows=rows, totals=totals)
+    con.close()
+    return render_template('salary.html', rows=rows, totals=totals, details=details)
 
 @app.route('/analytics')
 @login_required
@@ -755,6 +920,159 @@ def client_card(cid):
     cars = con.execute("SELECT * FROM cars WHERE client_id=? ORDER BY id DESC", (cid,)).fetchall()
     visits = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE client_id=? ORDER BY appointment_date DESC,start_time DESC", (cid,)).fetchall()
     con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
+
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    u = current_user()
+    if request.method == 'POST':
+        current_pw = request.form.get('current_password', '')
+        new_pw = request.form.get('new_password', '').strip()
+        confirm_pw = request.form.get('confirm_password', '').strip()
+        con = db()
+        row = con.execute("SELECT password_hash FROM users WHERE id=?", (u['id'],)).fetchone()
+        if not check_password_hash(row['password_hash'], current_pw):
+            con.close()
+            flash('Неверный текущий пароль')
+            return redirect(url_for('profile'))
+        if len(new_pw) < 4:
+            con.close()
+            flash('Новый пароль слишком короткий')
+            return redirect(url_for('profile'))
+        if new_pw != confirm_pw:
+            con.close()
+            flash('Пароли не совпадают')
+            return redirect(url_for('profile'))
+        con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_pw), u['id']))
+        con.commit()
+        con.close()
+        flash('Пароль изменён')
+        return redirect(url_for('profile'))
+    return render_template('profile.html')
+
+
+@app.route('/finance', methods=['GET', 'POST'])
+@login_required
+@perm_required('finance')
+def finance():
+    con = db()
+    u = current_user()
+    if request.method == 'POST':
+        action = request.form.get('action', 'add')
+        if action == 'add':
+            con.execute(
+                "INSERT INTO finance_payments(category,title,amount,due_date,paid_amount,status,comment,created_at) VALUES(?,?,?,?,0,'Ожидает',?,?)",
+                (
+                    request.form.get('category', 'rent'),
+                    request.form.get('title', '').strip() or ('Аренда' if request.form.get('category') == 'rent' else 'Коммунальные'),
+                    float(request.form.get('amount') or 0),
+                    request.form.get('due_date'),
+                    request.form.get('comment', ''),
+                    now(),
+                ),
+            )
+            con.commit()
+            flash('Платёж добавлен')
+        elif action == 'pay':
+            pid = request.form.get('payment_id')
+            paid = float(request.form.get('paid_amount') or 0)
+            con.execute(
+                "UPDATE finance_payments SET paid_amount=?, paid_date=?, status='Оплачен' WHERE id=?",
+                (paid, today(), pid),
+            )
+            con.commit()
+            flash('Отмечено как оплачено')
+        elif action == 'delete':
+            con.execute("DELETE FROM finance_payments WHERE id=?", (request.form.get('payment_id'),))
+            con.commit()
+            flash('Платёж удалён')
+        con.close()
+        return redirect(url_for('finance', month=request.form.get('month') or request.args.get('month')))
+
+    month_s = request.args.get('month') or date.today().strftime('%Y-%m')
+    month = datetime.strptime(month_s + '-01', '%Y-%m-%d').date()
+    first, days = pycal.monthrange(month.year, month.month)
+    cells = [None] * first
+    payments = con.execute("SELECT * FROM finance_payments ORDER BY due_date DESC").fetchall()
+    by_date = {}
+    for p in payments:
+        by_date.setdefault(p['due_date'], []).append(p)
+    for day in range(1, days + 1):
+        ds = date(month.year, month.month, day).isoformat()
+        day_payments = by_date.get(ds, [])
+        cells.append({'day': day, 'date': ds, 'payments': day_payments, 'total': sum(float(x['amount'] or 0) for x in day_payments)})
+    while len(cells) % 7:
+        cells.append(None)
+
+    today_s = today()
+    con.execute("UPDATE finance_payments SET status='Просрочен' WHERE status='Ожидает' AND due_date<?", (today_s,))
+    con.commit()
+    rent_rows = [p for p in payments if p['category'] == 'rent']
+    util_rows = [p for p in payments if p['category'] == 'utilities']
+    pending = con.execute("SELECT COALESCE(SUM(amount - paid_amount),0) s FROM finance_payments WHERE status!='Оплачен'").fetchone()['s']
+    overdue = con.execute("SELECT COALESCE(SUM(amount - paid_amount),0) s FROM finance_payments WHERE status='Просрочен'").fetchone()['s']
+    con.close()
+    prev_month = (month.replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
+    next_month = (month.replace(day=28) + timedelta(days=4)).replace(day=1).strftime('%Y-%m')
+    return render_template(
+        'finance.html',
+        cells=cells,
+        month=month_s,
+        rent_rows=rent_rows,
+        util_rows=util_rows,
+        pending=pending,
+        overdue=overdue,
+        prev_month=prev_month,
+        next_month=next_month,
+        selected=request.args.get('date') or today_s,
+    )
+
+
+@app.route('/manifest.webmanifest')
+def manifest():
+    return app.send_static_file('manifest.webmanifest')
+
+
+@app.route('/sw.js')
+def service_worker():
+    resp = app.send_static_file('sw.js')
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
+
+
+@app.route('/api/push-subscribe', methods=['POST'])
+@login_required
+def push_subscribe():
+    data = request.get_json(silent=True) or {}
+    sub = data.get('subscription')
+    if not sub:
+        return jsonify({'ok': False}), 400
+    con = db()
+    u = current_user()
+    con.execute(
+        "INSERT INTO push_subscriptions(user_id,endpoint,p256dh,auth,created_at) VALUES(?,?,?,?,?) "
+        "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth",
+        (u['id'], sub['endpoint'], sub['keys']['p256dh'], sub['keys']['auth'], now()),
+    )
+    con.commit()
+    con.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/push-unsubscribe', methods=['POST'])
+@login_required
+def push_unsubscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get('endpoint')
+    if endpoint:
+        con = db()
+        con.execute("DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?", (endpoint, current_user()['id']))
+        con.commit()
+        con.close()
+    return jsonify({'ok': True})
+
 
 if __name__ == '__main__':
     port = 8000
