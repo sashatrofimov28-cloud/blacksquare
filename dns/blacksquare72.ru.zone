@@ -1,0 +1,14 @@
+$ORIGIN blacksquare72.ru.
+$TTL 600
+
+; BlackSquare CRM on Timeweb App Platform
+@       IN      A       185.166.197.165
+www     IN      CNAME   blacksquare72.ru.
+
+; Timeweb mail (удали эти MX, если почта на домене не нужна)
+@       IN      MX      10 mx1.timeweb.ru.
+@       IN      MX      20 mx2.timeweb.ru.
+
+; Существующие TXT-записи домена
+@       IN      TXT     "v=spf1 include:_spf.timeweb.ru ~all"
+@       IN      TXT     "_globalsign-domain-verification=qTioymtxbSf0el0Kr1dIlpIrXlVGZk-QzZNBnaaS5c"
