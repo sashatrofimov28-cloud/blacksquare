@@ -137,9 +137,18 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 
 @media(min-width:1025px){
   .mobile-top,.mobile-tabs,.sidebar-backdrop{display:none!important}
-  .app-shell{display:flex;flex-direction:row}
-  .sidebar{display:flex!important;flex-direction:column;position:relative;transform:none}
-  .main-wrap{flex:1;min-width:0}
+  .app-shell{
+    display:grid!important;
+    grid-template-columns:240px minmax(0,1fr);
+    grid-template-rows:1fr;
+  }
+  .sidebar{
+    grid-column:1;grid-row:1;
+    display:flex!important;flex-direction:column;
+    position:relative;transform:none;
+    width:240px;
+  }
+  .main-wrap{grid-column:2;grid-row:1;min-width:0}
 }
 
 @media(max-width:1024px){
