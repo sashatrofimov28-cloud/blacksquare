@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date
 from pathlib import Path
 import sqlite3, calendar as pycal
@@ -11,6 +12,7 @@ app = Flask(
     template_folder=str(BASE_DIR / 'templates'),
     static_folder=str(BASE_DIR / 'static'),
 )
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
 DB = os.environ.get('DATABASE_PATH', str(BASE_DIR / 'blacksquare_stock_crm_v2.db'))
 DEFAULT_PASSWORD = 'blacksquare'
@@ -187,9 +189,22 @@ def available_slots(con, uid, sid, d):
         t += 30
     return out
 
+def booking_public_url():
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if explicit:
+        return f'{explicit}/booking'
+    return url_for('booking', _external=True)
+
 @app.context_processor
 def inject():
-    return {'user':current_user(),'has_perm':has_perm,'perms':PERMS,'visible_phone':visible_phone,'mask_phone':mask_phone}
+    return {
+        'user': current_user(),
+        'has_perm': has_perm,
+        'perms': PERMS,
+        'visible_phone': visible_phone,
+        'mask_phone': mask_phone,
+        'booking_url': booking_public_url(),
+    }
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -580,8 +595,13 @@ def employees():
             con.execute("INSERT INTO schedules(user_id,work_date,start_time,end_time,is_day_off,comment) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,work_date) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off,comment=excluded.comment", (request.form['user_id'],request.form['work_date'],request.form.get('start_time') or '09:00',request.form.get('end_time') or '20:00',1 if request.form.get('is_day_off') else 0,request.form.get('comment','')))
             con.commit(); flash('График сохранен'); return redirect(url_for('employees'))
         role = request.form.get('role','master')
+        password = request.form.get('password', '').strip()
+        if not password:
+            flash('Укажите пароль для нового сотрудника')
+            con.close()
+            return redirect(url_for('employees'))
         try:
-            con.execute("INSERT INTO users(username,password_hash,role,full_name,active,hired_at,created_at) VALUES(?,?,?,?,1,?,?)", (request.form['username'].strip(),generate_password_hash(request.form.get('password') or DEFAULT_PASSWORD),role,request.form['full_name'],today(),now()))
+            con.execute("INSERT INTO users(username,password_hash,role,full_name,active,hired_at,created_at) VALUES(?,?,?,?,1,?,?)", (request.form['username'].strip(),generate_password_hash(password),role,request.form['full_name'],today(),now()))
             uid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
             for p in PERMS:
                 con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
@@ -605,7 +625,14 @@ def employees():
 @login_required
 @perm_required('employees')
 def employee_update(uid):
-    con = db(); role = request.form.get('role'); active = 1 if request.form.get('active') else 0
+    con = db(); u = current_user(); role = request.form.get('role'); active = 1 if request.form.get('active') else 0
+    new_password = request.form.get('password', '').strip()
+    if new_password:
+        if u['role'] != 'director' and u['id'] != uid:
+            con.close()
+            flash('Пароль другого пользователя может менять только директор')
+            return redirect(url_for('employees'))
+        con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_password), uid))
     con.execute("UPDATE users SET role=?,active=?,fired_at=? WHERE id=?", (role,active,None if active else today(),uid))
     for p in PERMS:
         con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
