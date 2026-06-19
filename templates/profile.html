@@ -3,8 +3,8 @@
 <header class="top"><h1>Профиль</h1><p>{{ user.full_name }} · {{ user.username }}</p></header>
 
 <div class="panel profile-card" id="pushPanel">
-  <h2>Уведомления</h2>
-  <p style="color:#666;font-size:14px;margin-top:0">Получайте push о новых записях на ваше имя (мастерам) и напоминания о финансах (директору).</p>
+  <h2>Уведомления (push)</h2>
+  <p style="color:#666;font-size:14px;margin-top:0">Включите push на этом устройстве. Директору — о записях, закрытиях и отчёте за день (настройки ниже).</p>
   <div id="pushStatus" class="hint push-status">Проверка…</div>
   <div class="push-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
     <button type="button" id="pushEnableBtn">Включить уведомления</button>
@@ -13,6 +13,31 @@
   </div>
   <p style="color:#888;font-size:12px;margin-top:12px">На iPhone: добавьте сайт на главный экран (Поделиться → На экран Домой), затем включите уведомления здесь.</p>
 </div>
+
+{% if user.role == 'director' %}
+<div class="panel profile-card">
+  <h2>Уведомления директора</h2>
+  <p style="color:#666;font-size:14px;margin-top:0">Выберите, о чём получать push (нужно включить уведомления выше).</p>
+  <form method="post">
+    <input type="hidden" name="form_type" value="notifications">
+    <div class="perm-list" style="margin-bottom:16px">
+      <label class="check"><input type="checkbox" name="notify_new" {% if notify_prefs.notify_new %}checked{% endif %}> Новые записи</label>
+      <label class="check"><input type="checkbox" name="notify_closed" {% if notify_prefs.notify_closed %}checked{% endif %}> Закрытие записей</label>
+      <label class="check"><input type="checkbox" name="notify_daily" {% if notify_prefs.notify_daily %}checked{% endif %}> Отчёт в конце дня (23:59)</label>
+    </div>
+    <h4 style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase">Новые записи — от каких мастеров</h4>
+    <div class="perm-list">
+      {% for m in masters %}
+      <label class="check">
+        <input type="checkbox" name="notify_employee_ids" value="{{ m.id }}" {% if notify_employees.get(m.id, 1) %}checked{% endif %}>
+        {{ m.full_name }}
+      </label>
+      {% endfor %}
+    </div>
+    <button style="margin-top:16px">Сохранить настройки</button>
+  </form>
+</div>
+{% endif %}
 
 <div class="panel profile-card">
   <h2>Мой график работы</h2>

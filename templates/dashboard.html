@@ -2,15 +2,15 @@
 {% block content %}
 <header class="top">
   <h1>Главная</h1>
-  <p>Записи и ключевые показатели{% if stats_updated %} · обновлено {{ stats_updated }}{% endif %}</p>
+  <p>Записи и касса за сегодня ({{ stats.today }}){% if stats_updated %} · обновлено {{ stats_updated }}{% endif %}</p>
 </header>
 
 <section class="cards">
   <div class="card"><span>Всего записей</span><strong>{{ stats.appointments }}</strong></div>
   <div class="card"><span>Активные</span><strong>{{ stats.active }}</strong></div>
-  <div class="card"><span>Общая касса</span><strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong></div>
-  <div class="card"><span>Сертификатами</span><strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong></div>
-  <div class="card"><span>Зарплаты</span><strong>{{ "%.0f"|format(stats.salary) }} ₽</strong></div>
+  <div class="card"><span>Касса сегодня</span><strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong></div>
+  <div class="card"><span>ЗП сегодня</span><strong>{{ "%.0f"|format(stats.salary) }} ₽</strong></div>
+  <div class="card"><span>Сертификатами сегодня</span><strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong></div>
 </section>
 
 {% if requests %}

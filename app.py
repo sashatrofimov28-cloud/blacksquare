@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json, shutil
+import sqlite3, calendar as pycal, json, shutil, threading, time
 import os
 
 try:
@@ -294,6 +294,9 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS employee_weekly_schedule(user_id INTEGER, weekday INTEGER, start_time TEXT, end_time TEXT, is_day_off INTEGER DEFAULT 0, UNIQUE(user_id, weekday))")
     c.execute("CREATE TABLE IF NOT EXISTS appointment_employees(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, employee_id INTEGER, created_at TEXT, UNIQUE(appointment_id, employee_id))")
+    c.execute("CREATE TABLE IF NOT EXISTS director_notification_prefs(user_id INTEGER PRIMARY KEY, notify_new INTEGER DEFAULT 1, notify_closed INTEGER DEFAULT 1, notify_daily INTEGER DEFAULT 1)")
+    c.execute("CREATE TABLE IF NOT EXISTS director_employee_notify(director_id INTEGER, employee_id INTEGER, enabled INTEGER DEFAULT 1, UNIQUE(director_id, employee_id))")
+    c.execute("CREATE TABLE IF NOT EXISTS daily_reports(report_date TEXT PRIMARY KEY, revenue REAL DEFAULT 0, salary REAL DEFAULT 0, profit REAL DEFAULT 0, certificate_paid REAL DEFAULT 0, material_cost REAL DEFAULT 0, m2 REAL DEFAULT 0, appointments_count INTEGER DEFAULT 0, by_employee_json TEXT, created_at TEXT, notified INTEGER DEFAULT 0)")
     con.commit()
     migrate_db(c)
 
@@ -374,6 +377,17 @@ def migrate_db(c):
             "INSERT OR IGNORE INTO appointment_employees(appointment_id,employee_id,created_at) VALUES(?,?,?)",
             (row['id'], row['employee_id'], now()),
         )
+    for d in c.execute("SELECT id FROM users WHERE role='director'").fetchall():
+        c.execute(
+            "INSERT OR IGNORE INTO director_notification_prefs(user_id,notify_new,notify_closed,notify_daily) VALUES(?,?,?,?)",
+            (d['id'], 1, 1, 1),
+        )
+        for m in c.execute("SELECT id FROM users WHERE role='master' AND active=1").fetchall():
+            c.execute(
+                "INSERT OR IGNORE INTO director_employee_notify(director_id,employee_id,enabled) VALUES(?,?,?)",
+                (d['id'], m['id'], 1),
+            )
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('last_daily_report_date','')")
 
 def get_setting(key, default=''):
     con = db()
@@ -399,16 +413,49 @@ def film_cost_per_unit(width_m, length_m, balance, cost_mode, cost_total, cost_p
     return 0
 
 def compute_dashboard_stats(con):
+    today_s = today()
+    closed_today = "status='Закрыт' AND appointment_date=?"
     return {
         'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
         'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
-        'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'certificate_paid': con.execute("SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'material_m2': con.execute("SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'material_cost': con.execute("SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'salary': con.execute("SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
-        'profit': con.execute("SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE status='Закрыт'").fetchone()['s'],
+        'revenue': con.execute(f"SELECT COALESCE(SUM(price),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'certificate_paid': con.execute(f"SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'material_m2': con.execute(f"SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'material_cost': con.execute(f"SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'salary': con.execute(f"SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'profit': con.execute(f"SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
         'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
+        'today': today_s,
+    }
+
+def compute_day_stats(con, day):
+    row = con.execute(
+        "SELECT COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(salary_amount),0) salary, "
+        "COALESCE(SUM(profit),0) profit, COALESCE(SUM(certificate_paid),0) certificate_paid, "
+        "COALESCE(SUM(material_cost),0) material_cost, COALESCE(SUM(material_m2),0) m2 "
+        "FROM appointments WHERE status='Закрыт' AND appointment_date=?",
+        (day,),
+    ).fetchone()
+    by_employee = con.execute(
+        "SELECT u.id, u.full_name, COUNT(a.id) cnt, COALESCE(SUM(a.price),0) revenue, COALESCE(SUM(a.salary_amount),0) salary "
+        "FROM users u LEFT JOIN appointments a ON a.employee_id=u.id AND a.status='Закрыт' AND a.appointment_date=? "
+        "WHERE u.role='master' AND u.active=1 GROUP BY u.id ORDER BY u.full_name",
+        (day,),
+    ).fetchall()
+    employees = []
+    for e in by_employee:
+        if e['cnt']:
+            employees.append({'id': e['id'], 'name': e['full_name'], 'cnt': e['cnt'], 'revenue': e['revenue'], 'salary': e['salary']})
+    return {
+        'date': day,
+        'appointments': row['cnt'],
+        'revenue': row['revenue'],
+        'salary': row['salary'],
+        'profit': row['profit'],
+        'certificate_paid': row['certificate_paid'],
+        'material_cost': row['material_cost'],
+        'm2': row['m2'],
+        'by_employee': employees,
     }
 
 def refresh_dashboard_stats():
@@ -639,6 +686,130 @@ def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, 
     body = f'{ap_date} {start_time} — {client_name}{car_part} · {service_name}'
     for employee_id in employee_ids:
         send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
+    con = db()
+    notify_directors_new_appointment(con, employee_ids, ap_date, start_time, client_name, service_name, car)
+    con.close()
+
+def get_directors(con):
+    return con.execute("SELECT id, full_name FROM users WHERE role='director' AND active=1").fetchall()
+
+def get_director_notification_prefs(con, director_id):
+    row = con.execute("SELECT * FROM director_notification_prefs WHERE user_id=?", (director_id,)).fetchone()
+    if not row:
+        return {'notify_new': 1, 'notify_closed': 1, 'notify_daily': 1}
+    return dict(row)
+
+def director_wants_employee(con, director_id, employee_id):
+    row = con.execute(
+        "SELECT enabled FROM director_employee_notify WHERE director_id=? AND employee_id=?",
+        (director_id, employee_id),
+    ).fetchone()
+    return bool(row['enabled']) if row else True
+
+def notify_directors_new_appointment(con, employee_ids, ap_date, start_time, client_name, service_name, car=''):
+    if not isinstance(employee_ids, (list, tuple)):
+        employee_ids = [employee_ids]
+    names = []
+    for eid in employee_ids:
+        u = con.execute("SELECT full_name FROM users WHERE id=?", (eid,)).fetchone()
+        if u:
+            names.append(u['full_name'])
+    masters_str = ', '.join(names) if names else '—'
+    car_part = f' · {car}' if car else ''
+    body = f'{masters_str}: {ap_date} {start_time} — {client_name}{car_part} · {service_name}'
+    for d in get_directors(con):
+        prefs = get_director_notification_prefs(con, d['id'])
+        if not prefs.get('notify_new'):
+            continue
+        if not any(director_wants_employee(con, d['id'], int(eid)) for eid in employee_ids):
+            continue
+        send_push_to_user(d['id'], 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
+
+def notify_directors_appointment_closed(con, ap, price):
+    body = f'{ap["client_name"]} · {ap["service_name"]} — {price:.0f} ₽'
+    for d in get_directors(con):
+        prefs = get_director_notification_prefs(con, d['id'])
+        if not prefs.get('notify_closed'):
+            continue
+        send_push_to_user(
+            d['id'], 'Запись закрыта BlackSquare', body,
+            url_for('analytics', start=ap['appointment_date'], end=ap['appointment_date']),
+        )
+
+def build_daily_report_message(stats):
+    lines = [
+        f"Касса: {stats['revenue']:.0f} ₽",
+        f"ЗП всего: {stats['salary']:.0f} ₽",
+        f"Закрыто записей: {stats['appointments']}",
+    ]
+    for e in stats['by_employee']:
+        lines.append(f"{e['name']}: {e['revenue']:.0f} ₽ / ЗП {e['salary']:.0f} ₽")
+    return '\n'.join(lines)
+
+def save_and_notify_daily_report(con, report_date):
+    if con.execute("SELECT 1 FROM daily_reports WHERE report_date=?", (report_date,)).fetchone():
+        return False
+    stats = compute_day_stats(con, report_date)
+    con.execute(
+        "INSERT INTO daily_reports(report_date,revenue,salary,profit,certificate_paid,material_cost,m2,appointments_count,by_employee_json,created_at,notified) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,1)",
+        (
+            report_date, stats['revenue'], stats['salary'], stats['profit'], stats['certificate_paid'],
+            stats['material_cost'], stats['m2'], stats['appointments'],
+            json.dumps(stats['by_employee'], ensure_ascii=False), now(),
+        ),
+    )
+    con.commit()
+    body = build_daily_report_message(stats)
+    title = f'Отчёт за {report_date} готов'
+    day_url = url_for('analytics', start=report_date, end=report_date)
+    for d in get_directors(con):
+        prefs = get_director_notification_prefs(con, d['id'])
+        if prefs.get('notify_daily'):
+            send_push_to_user(d['id'], title, body, day_url)
+    return True
+
+def daily_report_target_date():
+    now_dt = datetime.now()
+    if now_dt.hour == 23 and now_dt.minute >= 59:
+        return today()
+    if now_dt.hour == 0 and now_dt.minute < 10:
+        return (date.today() - timedelta(days=1)).isoformat()
+    return None
+
+def maybe_run_daily_report():
+    report_date = daily_report_target_date()
+    if not report_date:
+        return
+    if get_setting('last_daily_report_date', '') == report_date:
+        return
+    con = db()
+    if con.execute("SELECT 1 FROM daily_reports WHERE report_date=?", (report_date,)).fetchone():
+        set_setting('last_daily_report_date', report_date)
+        con.close()
+        return
+    if save_and_notify_daily_report(con, report_date):
+        set_setting('last_daily_report_date', report_date)
+    con.close()
+
+def _daily_report_loop():
+    while True:
+        try:
+            maybe_run_daily_report()
+        except Exception:
+            pass
+        time.sleep(30)
+
+_scheduler_started = False
+_scheduler_lock = threading.Lock()
+
+def start_scheduler():
+    global _scheduler_started
+    with _scheduler_lock:
+        if _scheduler_started:
+            return
+        _scheduler_started = True
+    threading.Thread(target=_daily_report_loop, daemon=True, name='daily-report').start()
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
@@ -703,6 +874,7 @@ def inject():
         'request': request,
         'service_price_label': service_price_label,
         'weekdays': WEEKDAYS,
+        'today': today(),
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -726,6 +898,7 @@ def ensure_db():
         remote_restore_database()
         restore_database_if_needed()
         init_db()
+        start_scheduler()
         _db_initialized = True
 
 @app.before_request
@@ -1047,6 +1220,8 @@ def close_appointment(aid):
             con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
         con.commit()
         refresh_dashboard_stats()
+        ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+        notify_directors_appointment_closed(con, ap_closed, price)
         con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
@@ -1459,11 +1634,18 @@ def analytics():
         'm2': con.execute("SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'certificate_paid': con.execute("SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
-        'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['c'],
+        'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Закрыт'", (start,end)).fetchone()['c'],
     }
-    by_day = con.execute("SELECT appointment_date, COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(profit),0) profit, COALESCE(SUM(material_m2),0) m2 FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ? GROUP BY appointment_date ORDER BY appointment_date DESC", (start,end)).fetchall()
+    by_day = con.execute("SELECT appointment_date, COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(profit),0) profit, COALESCE(SUM(material_m2),0) m2, COALESCE(SUM(salary_amount),0) salary FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ? GROUP BY appointment_date ORDER BY appointment_date DESC", (start,end)).fetchall()
     by_employee = con.execute("SELECT u.full_name,COUNT(a.id) cnt,COALESCE(SUM(a.price),0) revenue,COALESCE(SUM(a.salary_amount),0) salary,COALESCE(SUM(a.material_m2),0) m2,COALESCE(SUM(a.profit),0) profit FROM users u LEFT JOIN appointments a ON a.employee_id=u.id AND a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? GROUP BY u.id", (start,end)).fetchall()
-    con.close(); return render_template('analytics.html', stats=stats, by_day=by_day, by_employee=by_employee, start=start, end=end)
+    archived_days = {r['report_date']: r for r in con.execute("SELECT * FROM daily_reports WHERE report_date BETWEEN ? AND ? ORDER BY report_date DESC", (start, end)).fetchall()}
+    day_detail = None
+    day_archived = None
+    if start == end:
+        day_detail = compute_day_stats(con, start)
+        day_archived = archived_days.get(start)
+    con.close()
+    return render_template('analytics.html', stats=stats, by_day=by_day, by_employee=by_employee, start=start, end=end, day_detail=day_detail, day_archived=day_archived, archived_days=archived_days)
 
 @app.route('/crm', methods=['GET','POST'])
 @login_required
@@ -1523,6 +1705,29 @@ def profile():
     u = current_user()
     if request.method == 'POST':
         form_type = request.form.get('form_type', 'password')
+        if form_type == 'notifications' and u['role'] == 'director':
+            con = db()
+            con.execute(
+                "INSERT INTO director_notification_prefs(user_id,notify_new,notify_closed,notify_daily) VALUES(?,?,?,?) "
+                "ON CONFLICT(user_id) DO UPDATE SET notify_new=excluded.notify_new,notify_closed=excluded.notify_closed,notify_daily=excluded.notify_daily",
+                (
+                    u['id'],
+                    1 if request.form.get('notify_new') else 0,
+                    1 if request.form.get('notify_closed') else 0,
+                    1 if request.form.get('notify_daily') else 0,
+                ),
+            )
+            selected = {int(x) for x in request.form.getlist('notify_employee_ids')}
+            for m in con.execute("SELECT id FROM users WHERE role='master' AND active=1").fetchall():
+                con.execute(
+                    "INSERT INTO director_employee_notify(director_id,employee_id,enabled) VALUES(?,?,?) "
+                    "ON CONFLICT(director_id,employee_id) DO UPDATE SET enabled=excluded.enabled",
+                    (u['id'], m['id'], 1 if m['id'] in selected else 0),
+                )
+            con.commit()
+            con.close()
+            flash('Настройки уведомлений сохранены')
+            return redirect(url_for('profile'))
         if form_type == 'weekly':
             con = db()
             for wd in range(7):
@@ -1559,8 +1764,15 @@ def profile():
         return redirect(url_for('profile'))
     con = db()
     weekly_rows = {r['weekday']: r for r in con.execute("SELECT * FROM employee_weekly_schedule WHERE user_id=?", (u['id'],)).fetchall()}
+    notify_prefs = get_director_notification_prefs(con, u['id']) if u['role'] == 'director' else None
+    notify_employees = {}
+    masters = []
+    if u['role'] == 'director':
+        masters = con.execute("SELECT id, full_name FROM users WHERE role='master' AND active=1 ORDER BY full_name").fetchall()
+        for r in con.execute("SELECT employee_id, enabled FROM director_employee_notify WHERE director_id=?", (u['id'],)).fetchall():
+            notify_employees[r['employee_id']] = r['enabled']
     con.close()
-    return render_template('profile.html', weekly=weekly_rows)
+    return render_template('profile.html', weekly=weekly_rows, notify_prefs=notify_prefs, masters=masters, notify_employees=notify_employees)
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -1741,6 +1953,20 @@ def push_unsubscribe():
         con.commit()
         con.close()
     return jsonify({'ok': True})
+
+
+@app.route('/api/cron/daily-report')
+def cron_daily_report():
+    token = request.args.get('token') or request.headers.get('X-Cron-Token', '')
+    if token != os.environ.get('CRON_SECRET', 'blacksquare-cron'):
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    report_date = request.args.get('date') or daily_report_target_date() or today()
+    con = db()
+    created = save_and_notify_daily_report(con, report_date)
+    if created:
+        set_setting('last_daily_report_date', report_date)
+    con.close()
+    return jsonify({'ok': True, 'date': report_date, 'created': created})
 
 
 if __name__ == '__main__':
