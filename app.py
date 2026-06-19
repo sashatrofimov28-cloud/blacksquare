@@ -640,8 +640,37 @@ def booking_public_url():
         return f'{explicit}/booking'
     return url_for('booking', _external=True)
 
-VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
-VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+def _derive_vapid_public_key(private_key):
+    if not private_key:
+        return ''
+    try:
+        from py_vapid import Vapid
+        from cryptography.hazmat.primitives import serialization
+        import base64
+        raw = private_key.strip()
+        if raw.startswith('-----BEGIN'):
+            vapid = Vapid.from_pem(raw.encode())
+        else:
+            vapid = Vapid.from_string(private_key=raw)
+        pub_bytes = vapid.public_key.public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint,
+        )
+        return base64.urlsafe_b64encode(pub_bytes).decode().rstrip('=')
+    except Exception:
+        return ''
+
+def load_vapid_keys():
+    private = os.environ.get('VAPID_PRIVATE_KEY', '').strip()
+    public = os.environ.get('VAPID_PUBLIC_KEY', '').strip()
+    if not private:
+        return '', public
+    derived = _derive_vapid_public_key(private)
+    if derived:
+        return private, derived
+    return private, public
+
+VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY = load_vapid_keys()
 VAPID_CLAIMS = {'sub': 'mailto:director@blacksquare72.ru'}
 
 def vapid_public_key():
@@ -677,6 +706,8 @@ def send_push_to_user(user_id, title, body, url='/'):
     payload = json.dumps({'title': title, 'body': body, 'url': url, 'tag': 'bs-' + str(user_id)})
     sent = False
     last_err = 'Не удалось доставить уведомление'
+    stale = False
+    last_code = None
     for s in subs:
         try:
             webpush(
@@ -688,15 +719,21 @@ def send_push_to_user(user_id, title, body, url='/'):
             )
             sent = True
         except WebPushException as e:
-            last_err = str(e.response.text if getattr(e, 'response', None) is not None else e)[:200]
-            code = getattr(getattr(e, 'response', None), 'status_code', None)
-            if code in (404, 410):
+            resp = getattr(e, 'response', None)
+            last_code = getattr(resp, 'status_code', None)
+            last_err = str(resp.text if resp is not None else e)[:200]
+            if last_code in (401, 403, 404, 410):
+                stale = True
                 con.execute("DELETE FROM push_subscriptions WHERE id=?", (s['id'],))
                 con.commit()
     con.close()
-    if not sent and 'подписк' not in last_err.lower():
-        last_err = 'Подписка устарела. Отключите и снова включите уведомления в профиле.'
-    return sent, None if sent else last_err
+    if sent:
+        return True, None
+    if stale or last_code in (401, 403, 404, 410):
+        return False, 'Подписка устарела. Нажмите «Отключить», затем снова «Включить уведомления» в профиле.'
+    if 'подписк' not in last_err.lower():
+        last_err = 'Не удалось отправить уведомление. Попробуйте отключить и снова включить push в профиле.'
+    return False, last_err
 
 def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, service_name, car=''):
     if not isinstance(employee_ids, (list, tuple)):
@@ -1953,8 +1990,8 @@ def push_subscribe():
         return jsonify({'ok': False, 'error': 'Push не настроен на сервере'}), 503
     u = current_user()
     save_push_subscription(u['id'], sub)
-    test_sent, _ = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
-    return jsonify({'ok': True, 'test_sent': test_sent})
+    test_sent, test_err = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
+    return jsonify({'ok': True, 'test_sent': test_sent, 'test_error': test_err, 'vapid_public_key': VAPID_PUBLIC_KEY})
 
 
 @app.route('/api/push-test', methods=['POST'])
