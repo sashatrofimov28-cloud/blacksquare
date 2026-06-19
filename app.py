@@ -195,7 +195,7 @@ def inject():
 def index():
     if current_user():
         return redirect(url_for('dashboard'))
-    return render_template('login.html')
+    return redirect(url_for('login'))
 
 @app.route('/healthz')
 @app.route('/health')
