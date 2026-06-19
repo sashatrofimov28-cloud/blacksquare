@@ -1,13 +1,56 @@
 (function () {
   const menuBtn = document.getElementById('menuBtn');
   const sidebar = document.getElementById('sidebar');
-  const mainWrap = document.querySelector('.main-wrap');
-  if (menuBtn && sidebar && mainWrap) {
-    menuBtn.addEventListener('click', function () {
-      sidebar.classList.toggle('collapsed');
-      mainWrap.classList.toggle('expanded');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const MOBILE_MQ = window.matchMedia('(max-width: 900px)');
+
+  function isMobile() {
+    return MOBILE_MQ.matches;
+  }
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add('open');
+    if (backdrop) backdrop.classList.add('open');
+    document.body.classList.add('menu-open');
+  }
+
+  function closeSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+    document.body.classList.remove('menu-open');
+  }
+
+  if (menuBtn && sidebar) {
+    menuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (sidebar.classList.contains('open')) closeSidebar();
+      else openSidebar();
     });
   }
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeSidebar);
+  }
+
+  if (sidebar) {
+    sidebar.querySelectorAll('nav a').forEach(function (link) {
+      link.addEventListener('click', function () {
+        if (isMobile()) closeSidebar();
+      });
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeSidebar();
+  });
+
+  MOBILE_MQ.addEventListener('change', function () {
+    if (!isMobile()) closeSidebar();
+  });
+
+  if (isMobile()) closeSidebar();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
@@ -49,6 +92,7 @@
 
   if (document.querySelector('.app-shell')) {
     window.addEventListener('load', function () {
+      closeSidebar();
       setTimeout(subscribePush, 1500);
       const tabs = document.getElementById('mobileTabs');
       if (tabs) {

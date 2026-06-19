@@ -2,12 +2,29 @@
 {% block content %}
 <header class="top">
   <h1>Настройки</h1>
-  <p>Обновление статистики на главной и сохранение базы данных</p>
+  <p>Обновление статистики и сохранность базы данных</p>
 </header>
 
 <div class="panel profile-card">
+  <h2>База данных</h2>
+  <p style="color:#666;font-size:14px">Все записи хранятся на диске сервера. При каждом обновлении приложения автоматически создаётся резервная копия — данные не удаляются.</p>
+  <div class="cards simple" style="margin-top:12px">
+    <div class="card"><span>Записей в CRM</span><strong>{{ db_info.appointments }}</strong></div>
+    <div class="card"><span>Клиентов</span><strong>{{ db_info.clients }}</strong></div>
+  </div>
+  <p style="margin-top:12px"><code>{{ db_path }}</code></p>
+  <form method="post" style="margin-top:12px">
+    <input type="hidden" name="action" value="backup">
+    <button class="ghost">Создать резервную копию сейчас</button>
+  </form>
+  {% if backups %}
+  <p class="hint" style="margin-top:12px">Последние копии: {% for b in backups %}{{ b.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% endif %}
+</div>
+
+<div class="panel profile-card">
   <h2>Статистика на главной</h2>
-  <p style="color:#666;font-size:14px">Подробная статистика всегда доступна во вкладке «Статистика» за выбранный период (по умолчанию — текущий месяц).</p>
+  <p style="color:#666;font-size:14px">Подробная статистика всегда во вкладке «Статистика» (по умолчанию — текущий месяц).</p>
   <form method="post" class="form-grid">
     <input type="hidden" name="action" value="stats">
     <select name="stats_refresh">
@@ -22,12 +39,5 @@
     <input type="hidden" name="action" value="refresh_stats">
     <button class="ghost">Обновить сейчас</button>
   </form>
-</div>
-
-<div class="panel profile-card">
-  <h2>База данных</h2>
-  <p style="color:#666;font-size:14px">Все записи хранятся в файле на диске сервера и сохраняются при обновлениях приложения.</p>
-  <p><code>{{ db_path }}</code></p>
-  <p class="hint">При деплое данные не удаляются — меняется только код приложения.</p>
 </div>
 {% endblock %}

@@ -9,11 +9,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
 </head>
 <body>
 {% if user %}
 <div class="app-shell">
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
   <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="wordmark">BlackSquare</div>
@@ -70,7 +71,7 @@
 <script>
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
 </script>
-<script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=3"></script>
 {% else %}
 </main>
 {% endif %}

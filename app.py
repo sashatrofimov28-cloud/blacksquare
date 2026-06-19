@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json
+import sqlite3, calendar as pycal, json, shutil
 import os
 
 try:
@@ -112,8 +112,24 @@ def init_db():
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
     con.commit(); con.close()
 
+def backup_database():
+    """Копия базы перед обновлениями — данные не теряются при деплое."""
+    db_path = Path(DB)
+    if not db_path.exists() or db_path.stat().st_size == 0:
+        return
+    backup_dir = db_path.parent / 'backups'
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    shutil.copy2(db_path, backup_dir / f'blacksquare_{stamp}.db')
+    shutil.copy2(db_path, backup_dir / f'blacksquare_{today()}.db')
+    shutil.copy2(db_path, str(db_path) + '.latest.bak')
+    old = sorted(backup_dir.glob('blacksquare_2*.db'), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in old[15:]:
+        path.unlink(missing_ok=True)
+
 def migrate_db(c):
     """Добавляет новые колонки и настройки без потери данных."""
+    backup_database()
     cols = {r[1] for r in c.execute("PRAGMA table_info(stock_items)").fetchall()}
     if 'cost_mode' not in cols:
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_mode TEXT DEFAULT 'per_roll'")
@@ -1220,10 +1236,21 @@ def settings():
             con.close()
             set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
             flash('Статистика на главной обновлена')
+        elif action == 'backup':
+            backup_database()
+            flash('Резервная копия базы создана')
         return redirect(url_for('settings'))
     stats_refresh = get_setting('stats_refresh', 'daily')
     stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
-    return render_template('settings.html', stats_refresh=stats_refresh, stats_updated=stats_updated, db_path=DB)
+    con = db()
+    db_info = {
+        'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
+        'clients': con.execute("SELECT COUNT(*) c FROM clients").fetchone()['c'],
+    }
+    con.close()
+    backup_dir = Path(DB).parent / 'backups'
+    backups = sorted(backup_dir.glob('blacksquare_*.db'), key=lambda p: p.stat().st_mtime, reverse=True)[:5] if backup_dir.exists() else []
+    return render_template('settings.html', stats_refresh=stats_refresh, stats_updated=stats_updated, db_path=DB, db_info=db_info, backups=backups)
 
 
 @app.route('/finance', methods=['GET', 'POST'])
