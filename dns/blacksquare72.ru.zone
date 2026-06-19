@@ -1,8 +1,8 @@
 $ORIGIN blacksquare72.ru.
 $TTL 600
 
-; BlackSquare CRM on Timeweb App Platform (BlackSquare CRM Updated)
-@       IN      A       95.140.154.35
+; BlackSquare CRM on Timeweb App Platform (BlackSquare CRM Mobile)
+@       IN      A       147.45.230.158
 www     IN      CNAME   blacksquare72.ru.
 
 ; Timeweb mail (удали эти MX, если почта на домене не нужна)
