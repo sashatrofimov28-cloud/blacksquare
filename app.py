@@ -30,6 +30,7 @@ PERMS = {
 }
 
 def db():
+    Path(DB).parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
     return con
@@ -190,11 +191,13 @@ def available_slots(con, uid, sid, d):
 def inject():
     return {'user':current_user(),'has_perm':has_perm,'perms':PERMS,'visible_phone':visible_phone,'mask_phone':mask_phone}
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
+    if request.method == 'POST':
+        return login()
     if current_user():
         return redirect(url_for('dashboard'))
-    return render_template('login.html')
+    return redirect(url_for('login'))
 
 @app.route('/healthz')
 @app.route('/health')
