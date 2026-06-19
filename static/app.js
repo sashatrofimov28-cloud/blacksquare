@@ -62,6 +62,9 @@
   const vapidKey = window.BS_VAPID_PUBLIC_KEY;
   const pushStatus = document.getElementById('pushStatus');
   const pushEnableBtn = document.getElementById('pushEnableBtn');
+  const pushRetryBtn = document.getElementById('pushRetryBtn');
+  const pushHelpBtn = document.getElementById('pushHelpBtn');
+  const pushHelp = document.getElementById('pushHelp');
   const pushDisableBtn = document.getElementById('pushDisableBtn');
   const pushTestBtn = document.getElementById('pushTestBtn');
 
@@ -79,8 +82,11 @@
     pushStatus.textContent = message;
     pushStatus.className = 'hint push-status push-' + state;
     if (pushEnableBtn) pushEnableBtn.style.display = (state === 'on' || state === 'blocked' || state === 'unsupported') ? 'none' : '';
+    if (pushRetryBtn) pushRetryBtn.style.display = state === 'blocked' ? '' : 'none';
+    if (pushHelpBtn) pushHelpBtn.style.display = state === 'blocked' ? '' : 'none';
     if (pushDisableBtn) pushDisableBtn.style.display = state === 'on' ? '' : 'none';
     if (pushTestBtn) pushTestBtn.style.display = state === 'on' ? '' : 'none';
+    if (state !== 'blocked' && pushHelp) pushHelp.hidden = true;
   }
 
   async function getSwReg() {
@@ -99,7 +105,7 @@
       return;
     }
     if (Notification.permission === 'denied') {
-      setPushUi('blocked', 'Уведомления заблокированы. Разрешите их в настройках браузера / телефона.');
+      setPushUi('blocked', 'Уведомления выключены в браузере. Разрешите их в настройках сайта, затем нажмите «Проверить снова».');
       return;
     }
     const reg = await getSwReg();
@@ -130,7 +136,9 @@
       if (!reg) throw new Error('no sw');
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') {
-        setPushUi('blocked', 'Вы отклонили уведомления. Можно включить в настройках браузера.');
+        setPushUi('blocked', perm === 'denied'
+          ? 'Уведомления выключены в браузере. Нажмите «Как включить» — там пошаговая инструкция.'
+          : 'Разрешение не получено. Попробуйте ещё раз или включите уведомления в настройках браузера.');
         return;
       }
       const oldSub = await reg.pushManager.getSubscription();
@@ -287,6 +295,20 @@
   }
 
   if (pushEnableBtn) pushEnableBtn.addEventListener('click', enablePush);
+  if (pushRetryBtn) pushRetryBtn.addEventListener('click', async function () {
+    await refreshPushStatus();
+    if (Notification.permission === 'granted') {
+      const reg = await getSwReg();
+      const sub = reg && (await reg.pushManager.getSubscription());
+      if (!sub) await enablePush();
+    }
+  });
+  if (pushHelpBtn && pushHelp) {
+    pushHelpBtn.addEventListener('click', function () {
+      pushHelp.hidden = !pushHelp.hidden;
+      pushHelpBtn.textContent = pushHelp.hidden ? 'Как включить' : 'Скрыть инструкцию';
+    });
+  }
   if (pushDisableBtn) pushDisableBtn.addEventListener('click', disablePush);
   if (pushTestBtn) pushTestBtn.addEventListener('click', testPush);
 

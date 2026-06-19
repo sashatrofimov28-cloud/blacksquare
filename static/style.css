@@ -124,6 +124,10 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .push-off{border-color:#bbb}
 .push-blocked{border-color:#8b0000;background:#fff5f5}
 .push-unsupported{border-color:#b8860b;background:#fffaf0}
+.push-help{margin-top:12px;padding:12px 14px;border:1px dashed #ccc;border-radius:12px;font-size:13px;line-height:1.5;color:#444}
+.push-help ol{margin:6px 0 12px 18px;padding:0}
+.push-help p{margin:8px 0 4px}
+.push-help code{font-size:12px}
 
 .mobile-tabs{display:none}
 .scrollable-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}

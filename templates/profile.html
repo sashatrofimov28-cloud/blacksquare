@@ -4,14 +4,33 @@
 
 <div class="panel profile-card" id="pushPanel">
   <h2>Уведомления (push)</h2>
-  <p style="color:#666;font-size:14px;margin-top:0">Включите push на этом устройстве. Директору — о записях, закрытиях и отчёте за день (настройки ниже).</p>
+  {% if user.role == 'director' %}
+  <p style="color:#666;font-size:14px;margin-top:0">Включите push на этом устройстве. Здесь же — настройки о записях, закрытиях и отчёте за день.</p>
+  {% else %}
+  <p style="color:#666;font-size:14px;margin-top:0">Включите push на этом телефоне — будете получать оповещения о <b>новых записях</b> на вас.</p>
+  {% endif %}
   <div id="pushStatus" class="hint push-status">Проверка…</div>
   <div class="push-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
     <button type="button" id="pushEnableBtn">Включить уведомления</button>
+    <button type="button" id="pushRetryBtn" class="ghost" style="display:none">Проверить снова</button>
+    <button type="button" id="pushHelpBtn" class="ghost" style="display:none">Как включить</button>
     <button type="button" id="pushDisableBtn" class="ghost" style="display:none">Отключить</button>
     <button type="button" id="pushTestBtn" class="ghost" style="display:none">Проверить</button>
   </div>
-  <p style="color:#888;font-size:12px;margin-top:12px">На iPhone: добавьте сайт на главный экран (Поделиться → На экран Домой), затем включите уведомления здесь.</p>
+  <div id="pushHelp" class="push-help" hidden>
+    <p><b>Android (Chrome, Яндекс и др.)</b></p>
+    <ol>
+      <li>Нажмите замок или «i» слева от адреса <code>blacksquare72.ru</code></li>
+      <li>Выберите «Разрешения» → «Уведомления» → <b>Разрешить</b></li>
+      <li>Вернитесь сюда и нажмите «Проверить снова»</li>
+    </ol>
+    <p><b>iPhone</b></p>
+    <ol>
+      <li>Safari → Поделиться → «На экран Домой»</li>
+      <li>Откройте сайт с иконки на главном экране</li>
+      <li>Нажмите «Включить уведомления»</li>
+    </ol>
+  </div>
 </div>
 
 {% if user.role == 'director' %}
