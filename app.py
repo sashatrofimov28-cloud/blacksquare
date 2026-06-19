@@ -340,11 +340,18 @@ def vapid_public_key():
 
 def send_push_to_user(user_id, title, body, url='/'):
     if not webpush or not VAPID_PRIVATE_KEY:
-        return
+        return False
     con = db()
     subs = con.execute("SELECT * FROM push_subscriptions WHERE user_id=?", (user_id,)).fetchall()
     con.close()
-    payload = json.dumps({'title': title, 'body': body, 'url': url})
+    if not subs:
+        return False
+    if url.startswith('/'):
+        base = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+        if base:
+            url = base + url
+    payload = json.dumps({'title': title, 'body': body, 'url': url, 'tag': 'bs-' + str(user_id)})
+    sent = False
     for s in subs:
         try:
             webpush(
@@ -353,8 +360,10 @@ def send_push_to_user(user_id, title, body, url='/'):
                 vapid_private_key=VAPID_PRIVATE_KEY,
                 vapid_claims=VAPID_CLAIMS,
             )
+            sent = True
         except WebPushException:
             pass
+    return sent
 
 def notify_employee_appointment(employee_id, ap_date, start_time, client_name, service_name, car=''):
     car_part = f' · {car}' if car else ''
@@ -1340,6 +1349,7 @@ def service_worker():
     resp = app.send_static_file('sw.js')
     resp.headers['Content-Type'] = 'application/javascript'
     resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
 
@@ -1349,7 +1359,9 @@ def push_subscribe():
     data = request.get_json(silent=True) or {}
     sub = data.get('subscription')
     if not sub:
-        return jsonify({'ok': False}), 400
+        return jsonify({'ok': False, 'error': 'Нет данных подписки'}), 400
+    if not VAPID_PRIVATE_KEY:
+        return jsonify({'ok': False, 'error': 'Push не настроен на сервере'}), 503
     con = db()
     u = current_user()
     con.execute(
@@ -1359,7 +1371,20 @@ def push_subscribe():
     )
     con.commit()
     con.close()
-    return jsonify({'ok': True})
+    test_sent = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
+    return jsonify({'ok': True, 'test_sent': test_sent})
+
+
+@app.route('/api/push-test', methods=['POST'])
+@login_required
+def push_test():
+    if not VAPID_PRIVATE_KEY:
+        return jsonify({'ok': False, 'error': 'Push не настроен на сервере'})
+    u = current_user()
+    ok = send_push_to_user(u['id'], 'BlackSquare — тест', 'Если вы видите это — уведомления работают.', url_for('dashboard'))
+    if ok:
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': 'Не удалось отправить. Проверьте подписку в профиле.'})
 
 
 @app.route('/api/push-unsubscribe', methods=['POST'])

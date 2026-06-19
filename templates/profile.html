@@ -2,6 +2,18 @@
 {% block content %}
 <header class="top"><h1>Профиль</h1><p>{{ user.full_name }} · {{ user.username }}</p></header>
 
+<div class="panel profile-card" id="pushPanel">
+  <h2>Уведомления</h2>
+  <p style="color:#666;font-size:14px;margin-top:0">Получайте push о новых записях на ваше имя (мастерам) и напоминания о финансах (директору).</p>
+  <div id="pushStatus" class="hint push-status">Проверка…</div>
+  <div class="push-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+    <button type="button" id="pushEnableBtn">Включить уведомления</button>
+    <button type="button" id="pushDisableBtn" class="ghost" style="display:none">Отключить</button>
+    <button type="button" id="pushTestBtn" class="ghost" style="display:none">Проверить</button>
+  </div>
+  <p style="color:#888;font-size:12px;margin-top:12px">На iPhone: добавьте сайт на главный экран (Поделиться → На экран Домой), затем включите уведомления здесь.</p>
+</div>
+
 <div class="panel profile-card">
   <h2>Мой график работы</h2>
   <p style="color:#666;font-size:14px">Укажите рабочие дни и время — онлайн-запись не покажет слоты в выходные.</p>
@@ -32,10 +44,4 @@
     <button>Сохранить пароль</button>
   </form>
 </div>
-
-{% if vapid_public_key %}
-<div class="notice">
-  <span>Уведомления: добавьте сайт на главный экран и разрешите push — вы будете получать уведомления о новых записях и напоминания о финансах.</span>
-</div>
-{% endif %}
 {% endblock %}
