@@ -15,17 +15,30 @@
 <div class="panel">
   <h2>Записать клиента вручную</h2>
   <p style="color:#666;font-size:14px;margin-top:0">Любое время — ограничения графика действуют только для онлайн-записи клиентов.</p>
-  <form method="post" class="form-grid">
-    <input name="client_name" placeholder="Клиент" required>
-    <input name="phone" placeholder="Телефон" required>
-    <input name="car" placeholder="Авто">
-    <input name="plate_number" placeholder="Госномер">
-    <select name="service_id">{% for s in services %}<option value="{{ s.id }}">{{ s.name }} — {{ service_price_label(s.base_price) }}</option>{% endfor %}</select>
-    <select name="employee_id">{% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}</select>
-    <input type="date" name="appointment_date" value="{{ selected }}">
-    <input type="time" name="start_time" required>
-    <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)">
-    <input name="comment" placeholder="Комментарий">
+  <form method="post" class="form-grid" id="manualBookingForm">
+    <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
+    <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
+    <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
+    <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
+    <select name="service_id">
+      {% for s in services %}
+      <option value="{{ s.id }}" {% if form_data and form_data.get('service_id')|string == s.id|string %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>
+      {% endfor %}
+    </select>
+    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker">
+      <label class="master-picker-label">Мастера *</label>
+      {% if master_error %}<span class="field-hint">Укажите хотя бы одного мастера</span>{% endif %}
+      <div class="master-options">
+        {% set selected_ids = form_data.getlist('employee_ids') if form_data else [] %}
+        {% for e in employees %}
+        <label class="check"><input type="checkbox" name="employee_ids" value="{{ e.id }}" {% if e.id|string in selected_ids %}checked{% endif %}> {{ e.full_name }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    <input type="date" name="appointment_date" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
+    <input type="time" name="start_time" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
+    <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)" value="{{ form_data.get('price', '') if form_data else '' }}">
+    <input name="comment" placeholder="Комментарий" value="{{ form_data.get('comment', '') if form_data else '' }}">
     <button>Добавить запись</button>
   </form>
 </div>
@@ -89,4 +102,29 @@
     {% endfor %}
   </table>
 </div>
+<script>
+document.getElementById('manualBookingForm').addEventListener('submit', function(e) {
+  const checked = this.querySelectorAll('input[name="employee_ids"]:checked');
+  const picker = document.getElementById('masterPicker');
+  if (!checked.length) {
+    e.preventDefault();
+    picker.classList.add('field-error');
+    let hint = picker.querySelector('.field-hint');
+    if (!hint) {
+      hint = document.createElement('span');
+      hint.className = 'field-hint';
+      hint.textContent = 'Укажите хотя бы одного мастера';
+      picker.querySelector('.master-picker-label').after(hint);
+    }
+    picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+document.querySelectorAll('#masterPicker input[name="employee_ids"]').forEach(cb => {
+  cb.addEventListener('change', () => {
+    if (document.querySelectorAll('#masterPicker input[name="employee_ids"]:checked').length) {
+      document.getElementById('masterPicker').classList.remove('field-error');
+    }
+  });
+});
+</script>
 {% endblock %}

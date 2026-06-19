@@ -62,6 +62,11 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .check{display:flex;align-items:center;gap:8px;background:#f7f7f7;border:1px solid #eee;border-radius:12px;padding:10px 12px}
 .check input{width:auto}
 .perm-list{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:8px}
+.master-picker{padding:12px 14px;border:1px solid #ddd;border-radius:12px;background:#fafafa}
+.master-picker-label{display:block;font-weight:700;margin-bottom:8px}
+.master-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.master-picker.field-error{border-color:#c62828;background:#fff5f5;box-shadow:0 0 0 2px rgba(198,40,40,.15)}
+.field-hint{display:block;color:#c62828;font-size:13px;margin:-4px 0 8px;font-weight:600}
 
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
 .day{min-height:110px;padding:12px;display:flex;flex-direction:column;justify-content:space-between}

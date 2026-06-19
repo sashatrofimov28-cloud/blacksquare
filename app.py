@@ -198,6 +198,70 @@ def hm2m(hm):
     return int(parts[0]) * 60 + int(parts[1])
 def m2hm(minutes): return f'{minutes // 60:02d}:{minutes % 60:02d}'
 
+EMPLOYEE_NAME_SQL = """COALESCE(
+    (SELECT GROUP_CONCAT(u2.full_name, ', ')
+     FROM appointment_employees ae
+     JOIN users u2 ON u2.id = ae.employee_id
+     WHERE ae.appointment_id = a.id),
+    u.full_name
+) AS employee_name"""
+
+def list_masters(con):
+    return con.execute("SELECT * FROM users WHERE active=1 AND role='master' ORDER BY full_name").fetchall()
+
+def parse_employee_ids(form):
+    ids = []
+    for raw in form.getlist('employee_ids'):
+        if raw and str(raw).strip():
+            ids.append(int(raw))
+    seen = set()
+    out = []
+    for eid in ids:
+        if eid not in seen:
+            seen.add(eid)
+            out.append(eid)
+    return out
+
+def validate_master_ids(con, employee_ids):
+    if not employee_ids:
+        return False, 'Укажите хотя бы одного мастера'
+    placeholders = ','.join('?' * len(employee_ids))
+    found = con.execute(
+        f"SELECT id FROM users WHERE active=1 AND role='master' AND id IN ({placeholders})",
+        employee_ids,
+    ).fetchall()
+    if len(found) != len(employee_ids):
+        return False, 'Выбран недопустимый мастер'
+    return True, ''
+
+def set_appointment_employees(con, aid, employee_ids):
+    con.execute("DELETE FROM appointment_employees WHERE appointment_id=?", (aid,))
+    for eid in employee_ids:
+        con.execute(
+            "INSERT INTO appointment_employees(appointment_id,employee_id,created_at) VALUES(?,?,?)",
+            (aid, eid, now()),
+        )
+
+def get_appointment_employee_ids(con, aid, primary_id=None):
+    rows = con.execute(
+        "SELECT employee_id FROM appointment_employees WHERE appointment_id=? ORDER BY id",
+        (aid,),
+    ).fetchall()
+    if rows:
+        return [r['employee_id'] for r in rows]
+    return [primary_id] if primary_id else []
+
+def user_on_appointment(con, aid, uid, primary_id=None):
+    if primary_id and int(primary_id) == int(uid):
+        return True
+    return bool(con.execute(
+        "SELECT 1 FROM appointment_employees WHERE appointment_id=? AND employee_id=?",
+        (aid, uid),
+    ).fetchone())
+
+def master_appointment_filter_sql():
+    return "(a.employee_id=? OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=?))"
+
 def init_db():
     con = db(); c = con.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password_hash TEXT, role TEXT, full_name TEXT, active INTEGER DEFAULT 1, hired_at TEXT, fired_at TEXT, created_at TEXT)")
@@ -220,6 +284,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS push_subscriptions(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, endpoint TEXT UNIQUE, p256dh TEXT, auth TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS employee_weekly_schedule(user_id INTEGER, weekday INTEGER, start_time TEXT, end_time TEXT, is_day_off INTEGER DEFAULT 0, UNIQUE(user_id, weekday))")
+    c.execute("CREATE TABLE IF NOT EXISTS appointment_employees(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, employee_id INTEGER, created_at TEXT, UNIQUE(appointment_id, employee_id))")
     con.commit()
     migrate_db(c)
 
@@ -295,6 +360,11 @@ def migrate_db(c):
             else:
                 allowed = 1 if p in ['calendar','salary','extra_services'] else 0
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
+    for row in c.execute("SELECT id, employee_id FROM appointments WHERE employee_id IS NOT NULL").fetchall():
+        c.execute(
+            "INSERT OR IGNORE INTO appointment_employees(appointment_id,employee_id,created_at) VALUES(?,?,?)",
+            (row['id'], row['employee_id'], now()),
+        )
 
 def get_setting(key, default=''):
     con = db()
@@ -540,10 +610,13 @@ def send_push_to_user(user_id, title, body, url='/'):
         last_err = 'Подписка устарела. Отключите и снова включите уведомления в профиле.'
     return sent, None if sent else last_err
 
-def notify_employee_appointment(employee_id, ap_date, start_time, client_name, service_name, car=''):
+def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, service_name, car=''):
+    if not isinstance(employee_ids, (list, tuple)):
+        employee_ids = [employee_ids]
     car_part = f' · {car}' if car else ''
     body = f'{ap_date} {start_time} — {client_name}{car_part} · {service_name}'
-    send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
+    for employee_id in employee_ids:
+        send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
@@ -657,13 +730,14 @@ def dashboard():
     con = db(); u = current_user()
     check_finance_reminders(u)
     if u['role'] == 'master':
-        upcoming = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE employee_id=? AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'],)).fetchall()
-        completed = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE employee_id=? AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12", (u['id'],)).fetchall()
+        mf = master_appointment_filter_sql()
+        upcoming = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'], u['id'])).fetchall()
+        completed = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12", (u['id'], u['id'])).fetchall()
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
         con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
 
     stats, stats_updated = dashboard_stats()
-    rows = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id ORDER BY appointment_date DESC,start_time DESC LIMIT 20").fetchall()
+    rows = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id ORDER BY appointment_date DESC,start_time DESC LIMIT 20").fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
     con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, requests=requests)
 
@@ -684,6 +758,8 @@ def booking():
         price = float(request.form.get('price') or service['base_price'] or 0)
         con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
+        aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+        set_appointment_employees(con, aid, [int(uid)])
         con.commit()
         notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
         con.close()
@@ -707,47 +783,61 @@ def api_slots():
 @perm_required('calendar')
 def calendar_view():
     con = db(); u = current_user()
+    master_error = False
+    form_data = None
     if request.method == 'POST':
-        sid = request.form['service_id']; uid = request.form['employee_id']; d = request.form['appointment_date']; start = request.form['start_time']
-        service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
-        end = m2hm(hm2m(start) + int(service['duration_min']))
-        name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
-        cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
-        price = float(request.form.get('price') or service['base_price'] or 0)
-        con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
-        con.commit()
-        notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
-        flash('Запись добавлена вручную')
-        return redirect(url_for('calendar_view', date=d))
+        form_data = request.form
+        employee_ids = parse_employee_ids(request.form)
+        ok, err = validate_master_ids(con, employee_ids)
+        if not ok:
+            flash(err)
+            master_error = True
+        else:
+            sid = request.form['service_id']; d = request.form['appointment_date']; start = request.form['start_time']
+            service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
+            end = m2hm(hm2m(start) + int(service['duration_min']))
+            name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
+            cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
+            price = float(request.form.get('price') or service['base_price'] or 0)
+            primary = employee_ids[0]
+            con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',primary,price,request.form.get('comment',''),now()))
+            aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+            set_appointment_employees(con, aid, employee_ids)
+            con.commit()
+            notify_employee_appointment(employee_ids, d, start, name, service['name'], car or plate)
+            flash('Запись добавлена вручную')
+            con.close()
+            return redirect(url_for('calendar_view', date=d))
 
     selected = request.args.get('date') or today(); q = request.args.get('q','').strip()
     month = datetime.strptime(selected, '%Y-%m-%d').date().replace(day=1)
     first, days = pycal.monthrange(month.year, month.month)
     cells = [None] * first
+    mf = master_appointment_filter_sql()
     for day in range(1, days+1):
         ds = date(month.year, month.month, day).isoformat()
         if u['role'] == 'master':
-            cnt = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=? AND employee_id=?", (ds,u['id'])).fetchone()['c']
-            closed = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=? AND employee_id=? AND status='Закрыт'", (ds,u['id'])).fetchone()['c']
+            cnt = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf}", (ds,u['id'],u['id'])).fetchone()['c']
+            closed = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf} AND status='Закрыт'", (ds,u['id'],u['id'])).fetchone()['c']
         else:
             cnt = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=?", (ds,)).fetchone()['c']
             closed = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=? AND status='Закрыт'", (ds,)).fetchone()['c']
         cells.append({'day':day,'date':ds,'count':cnt,'closed':closed})
     while len(cells) % 7: cells.append(None)
-    sql = "SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE appointment_date=?"
+    sql = f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE appointment_date=?"
     params = [selected]
     if u['role'] == 'master':
-        sql += " AND employee_id=?"; params.append(u['id'])
+        sql += f" AND {mf}"; params.extend([u['id'], u['id']])
     if q:
         sql += " AND (phone LIKE ? OR plate_number LIKE ? OR client_name LIKE ? OR car LIKE ?)"; params += [f'%{q}%']*4
     sql += " ORDER BY start_time"
     rows = con.execute(sql, params).fetchall()
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    employees = con.execute("SELECT * FROM users WHERE active=1 AND role!='director' ORDER BY full_name").fetchall()
+    employees = list_masters(con)
     con.close()
-    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees)
+    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, master_error=master_error, form_data=form_data)
 
 @app.route('/appointment/<int:aid>/extra', methods=['POST'])
 @login_required
@@ -755,7 +845,7 @@ def calendar_view():
 def add_extra(aid):
     con = db(); u = current_user()
     ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
-    if ap and (u['role'] != 'master' or ap['employee_id'] == u['id']):
+    if ap and (u['role'] != 'master' or user_on_appointment(con, aid, u['id'], ap['employee_id'])):
         name = request.form.get('extra_name','').strip(); price = float(request.form.get('extra_price') or 0)
         if name:
             con.execute("INSERT INTO appointment_extras(appointment_id,name,price,employee_id,created_at) VALUES(?,?,?,?,?)", (aid,name,price,u['id'],now()))
@@ -770,7 +860,7 @@ def delete_extra(aid, eid):
     con = db(); u = current_user()
     ex = con.execute("SELECT * FROM appointment_extras WHERE id=? AND appointment_id=?", (eid,aid)).fetchone()
     ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
-    if ex and ap and (u['role'] != 'master' or ap['employee_id'] == u['id']):
+    if ex and ap and (u['role'] != 'master' or user_on_appointment(con, aid, u['id'], ap['employee_id'])):
         con.execute("DELETE FROM appointment_extras WHERE id=?", (eid,))
         con.execute("UPDATE appointments SET extras_total=extras_total-?, price=price-? WHERE id=?", (ex['price'],ex['price'],aid))
         con.commit(); flash('Допуслуга удалена')
@@ -828,7 +918,7 @@ def process_materials_from_form(con, aid, uid, form):
 @login_required
 def edit_appointment(aid):
     con = db(); u = current_user()
-    ap = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?", (aid,)).fetchone()
+    ap = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?", (aid,)).fetchone()
     if not ap:
         con.close(); flash('Запись не найдена'); return redirect(url_for('calendar_view'))
     is_closed = ap['status'] == 'Закрыт'
@@ -837,8 +927,9 @@ def edit_appointment(aid):
             con.close(); flash('Нет права редактировать закрытые заказы'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
     elif not has_perm('calendar'):
         con.close(); flash('Нет доступа'); return redirect(url_for('dashboard'))
-    if u['role'] == 'master' and ap['employee_id'] != u['id'] and not is_closed:
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']) and not is_closed:
         con.close(); flash('Можно редактировать только свои записи'); return redirect(url_for('calendar_view'))
+    master_error = False
     if request.method == 'POST':
         if is_closed:
             reset_appointment_close_data(con, aid, ap)
@@ -865,15 +956,20 @@ def edit_appointment(aid):
                             (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment', '') or 'ЗП из закрытой записи', now()))
             con.commit(); con.close(); flash('Закрытый заказ обновлён')
             return redirect(url_for('calendar_view', date=ap['appointment_date']))
-        sid = request.form['service_id']; uid = int(request.form['employee_id']); d = request.form['appointment_date']; start = request.form['start_time']
+        employee_ids = parse_employee_ids(request.form)
+        ok, err = validate_master_ids(con, employee_ids)
+        if not ok:
+            con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
+        sid = request.form['service_id']; primary = employee_ids[0]; d = request.form['appointment_date']; start = request.form['start_time']
         service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
         end = m2hm(hm2m(start) + int(service['duration_min']))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car', ''); plate = request.form.get('plate_number', '').upper().replace(' ', '')
         price = float(request.form.get('price') or service['base_price'] or 0)
         con.execute(
             "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
-            (name, phone, car, plate, sid, service['name'], d, start, end, service['duration_min'], uid, price, request.form.get('comment', ''), aid)
+            (name, phone, car, plate, sid, service['name'], d, start, end, service['duration_min'], primary, price, request.form.get('comment', ''), aid)
         )
+        set_appointment_employees(con, aid, employee_ids)
         con.commit(); con.close(); flash('Запись обновлена')
         return redirect(url_for('calendar_view', date=d))
     materials = con.execute("SELECT id,name,balance,cost_per_unit,category,unit FROM stock_items WHERE active=1 AND (visible_to_staff=1 OR ?='director') ORDER BY category,name", (u['role'],)).fetchall()
@@ -883,19 +979,21 @@ def edit_appointment(aid):
         (aid,)
     ).fetchall()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    employees = con.execute("SELECT * FROM users WHERE active=1 AND role!='director' ORDER BY full_name").fetchall()
+    employees = list_masters(con)
+    selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+    master_error = request.args.get('master_error') == '1'
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, is_closed=is_closed, is_master=(u['role'] == 'master'))
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
 @perm_required('calendar')
 def close_appointment(aid):
     con = db(); u = current_user()
-    ap = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?", (aid,)).fetchone()
+    ap = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?", (aid,)).fetchone()
     if not ap:
         con.close(); flash('Запись не найдена'); return redirect(url_for('calendar_view'))
-    if u['role'] == 'master' and ap['employee_id'] != u['id']:
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
         con.close(); flash('Можно закрывать только свои записи'); return redirect(url_for('calendar_view'))
     if request.method == 'POST':
         price = float(request.form.get('price') or 0)
@@ -932,6 +1030,7 @@ def delete_appointment(aid):
     if ap:
         restore_appointment_materials(con, aid, ap)
         con.execute("DELETE FROM appointment_extras WHERE appointment_id=?", (aid,))
+        con.execute("DELETE FROM appointment_employees WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
         con.execute("DELETE FROM appointments WHERE id=?", (aid,))
         con.commit(); flash('Запись удалена')
