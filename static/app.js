@@ -53,13 +53,14 @@
 
   /* --- Service Worker --- */
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=10', { scope: '/' }).then(function (reg) {
+    navigator.serviceWorker.register('/sw.js?v=11', { scope: '/' }).then(function (reg) {
       reg.update();
     }).catch(function () {});
   }
 
   /* --- Push notifications --- */
   const vapidKey = window.BS_VAPID_PUBLIC_KEY;
+  const PUSH_VERSION = window.BS_PUSH_KEY_VERSION || 1;
   const pushStatus = document.getElementById('pushStatus');
   const pushEnableBtn = document.getElementById('pushEnableBtn');
   const pushRetryBtn = document.getElementById('pushRetryBtn');
@@ -94,6 +95,16 @@
     return navigator.serviceWorker.ready;
   }
 
+  async function clearBrowserPushSubscription() {
+    const reg = await getSwReg();
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (sub) {
+      try { await sub.unsubscribe(); } catch (e) {}
+    }
+    localStorage.removeItem('bs_vapid_key');
+    localStorage.removeItem('bs_push_version');
+  }
+
   async function refreshPushStatus() {
     if (!pushStatus) return;
     if (!vapidKey) {
@@ -115,14 +126,35 @@
     }
     const sub = await reg.pushManager.getSubscription();
     const storedKey = localStorage.getItem('bs_vapid_key');
-    if (sub && storedKey && storedKey !== vapidKey) {
-      try { await sub.unsubscribe(); } catch (e) {}
-      setPushUi('off', 'Ключи push обновлены. Нажмите «Включить уведомления» снова.');
+    const storedVersion = parseInt(localStorage.getItem('bs_push_version') || '0', 10);
+    const needsRenew = sub && (
+      storedVersion < PUSH_VERSION ||
+      !storedKey ||
+      storedKey !== vapidKey
+    );
+    if (needsRenew) {
+      await clearBrowserPushSubscription();
+      setPushUi('off', 'Нужно обновить подписку. Нажмите «Включить уведомления».');
       return;
     }
     if (sub) {
-      setPushUi('on', 'Уведомления включены. Вы будете получать оповещения о новых записях.');
-    } else if (Notification.permission === 'granted') {
+      try {
+        await fetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub.toJSON(), sync: true }),
+        });
+        const status = await fetch('/api/push-status').then(function (r) { return r.json(); });
+        if (status.subscribed) {
+          setPushUi('on', 'Уведомления включены. Вы будете получать оповещения о новых записях.');
+          return;
+        }
+      } catch (e) {}
+      await clearBrowserPushSubscription();
+      setPushUi('off', 'Подписка не активна. Нажмите «Включить уведомления».');
+      return;
+    }
+    if (Notification.permission === 'granted') {
       setPushUi('off', 'Разрешение есть, но подписка не активна. Нажмите «Включить».');
     } else {
       setPushUi('off', 'Уведомления выключены. Нажмите кнопку ниже — придут оповещения о новых записях.');
@@ -130,7 +162,10 @@
   }
 
   async function enablePush() {
-    if (!vapidKey) return;
+    if (!vapidKey) {
+      setPushUi('unsupported', 'Push не настроен на сервере. Обратитесь к администратору.');
+      return;
+    }
     try {
       const reg = await getSwReg();
       if (!reg) throw new Error('no sw');
@@ -155,13 +190,13 @@
         body: JSON.stringify({ subscription: sub.toJSON() }),
       });
       const data = await res.json();
-      if (data.ok) {
+      if (data.ok && data.test_sent) {
         localStorage.setItem('bs_vapid_key', vapidKey);
-        setPushUi('on', data.test_sent
-          ? 'Уведомления включены! Тестовое сообщение отправлено.'
-          : 'Уведомления включены! Если тест не пришёл — нажмите «Проверить».');
+        localStorage.setItem('bs_push_version', String(PUSH_VERSION));
+        setPushUi('on', 'Уведомления включены! Тестовое сообщение отправлено.');
       } else {
-        setPushUi('off', data.error || 'Не удалось сохранить подписку.');
+        await clearBrowserPushSubscription();
+        setPushUi('off', data.error || 'Не удалось подключить уведомления. Попробуйте ещё раз.');
       }
     } catch (e) {
       setPushUi('off', 'Ошибка: ' + (e.message || 'не удалось подключить уведомления'));
@@ -181,6 +216,7 @@
         await sub.unsubscribe();
       }
       localStorage.removeItem('bs_vapid_key');
+      localStorage.removeItem('bs_push_version');
       setPushUi('off', 'Уведомления отключены.');
     } catch (e) {
       setPushUi('off', 'Подписка снята.');

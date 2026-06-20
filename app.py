@@ -2002,6 +2002,24 @@ def service_worker():
     return resp
 
 
+@app.route('/api/push-status', methods=['GET'])
+@login_required
+def push_status():
+    if not VAPID_PRIVATE_KEY:
+        return jsonify({'ok': False, 'subscribed': False, 'error': 'Push не настроен на сервере'})
+    u = current_user()
+    con = db()
+    count = con.execute("SELECT COUNT(*) c FROM push_subscriptions WHERE user_id=?", (u['id'],)).fetchone()['c']
+    con.close()
+    return jsonify({
+        'ok': True,
+        'subscribed': count > 0,
+        'count': count,
+        'vapid_public_key': VAPID_PUBLIC_KEY,
+        'push_key_version': 2,
+    })
+
+
 @app.route('/api/push-subscribe', methods=['POST'])
 @login_required
 def push_subscribe():
@@ -2013,8 +2031,16 @@ def push_subscribe():
         return jsonify({'ok': False, 'error': 'Push не настроен на сервере'}), 503
     u = current_user()
     save_push_subscription(u['id'], sub)
+    if data.get('sync'):
+        return jsonify({'ok': True, 'subscribed': True, 'vapid_public_key': VAPID_PUBLIC_KEY})
     test_sent, test_err = send_push_to_user(u['id'], 'BlackSquare', 'Уведомления подключены! Вы будете получать оповещения о записях.', url_for('profile'))
-    return jsonify({'ok': True, 'test_sent': test_sent, 'test_error': test_err, 'vapid_public_key': VAPID_PUBLIC_KEY})
+    if not test_sent:
+        con = db()
+        con.execute("DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?", (sub['endpoint'], u['id']))
+        con.commit()
+        con.close()
+        return jsonify({'ok': False, 'error': test_err or 'Не удалось отправить тестовое уведомление'})
+    return jsonify({'ok': True, 'test_sent': True, 'vapid_public_key': VAPID_PUBLIC_KEY})
 
 
 @app.route('/api/push-test', methods=['POST'])
@@ -2030,7 +2056,12 @@ def push_test():
     ok, err = send_push_to_user(u['id'], 'BlackSquare — тест', 'Если вы видите это — уведомления работают.', url_for('dashboard'))
     if ok:
         return jsonify({'ok': True})
-    return jsonify({'ok': False, 'error': err or 'Не удалось отправить. Проверьте подписку в профиле.'})
+    if sub:
+        con = db()
+        con.execute("DELETE FROM push_subscriptions WHERE endpoint=? AND user_id=?", (sub['endpoint'], u['id']))
+        con.commit()
+        con.close()
+    return jsonify({'ok': False, 'error': err or 'Не удалось отправить. Нажмите «Отключить», затем снова «Включить».'})
 
 
 @app.route('/api/push-unsubscribe', methods=['POST'])
