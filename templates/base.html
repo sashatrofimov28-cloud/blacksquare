@@ -109,9 +109,9 @@
 </div>
 <script>
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
-  window.BS_PUSH_KEY_VERSION = 2;
+  window.BS_PUSH_KEY_VERSION = 3;
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=13"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=14"></script>
 {% else %}
 </main>
 {% endif %}

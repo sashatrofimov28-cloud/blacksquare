@@ -703,29 +703,68 @@ def send_push_to_user(user_id, title, body, url='/'):
         base = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
         if base:
             url = base + url
-    payload = json.dumps({'title': title, 'body': body, 'url': url, 'tag': 'bs-' + str(user_id)})
+    stamp = int(time.time())
+    payload = json.dumps({
+        'title': title,
+        'body': body,
+        'url': url,
+        'tag': f'bs-{user_id}-{stamp}',
+    }, ensure_ascii=False)
     sent = False
     last_err = 'Не удалось доставить уведомление'
     stale = False
     last_code = None
+    push_headers = {'Urgency': 'high', 'Topic': f'bs-{user_id}'}
     for s in subs:
-        try:
-            webpush(
-                subscription_info={'endpoint': s['endpoint'], 'keys': {'p256dh': s['p256dh'], 'auth': s['auth']}},
-                data=payload,
-                vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims=VAPID_CLAIMS,
-                ttl=86400,
-            )
+        subscription_info = {
+            'endpoint': s['endpoint'],
+            'keys': {'p256dh': s['p256dh'], 'auth': s['auth']},
+        }
+        claims = dict(VAPID_CLAIMS)
+        delivered = False
+        for encoding in ('aes128gcm', 'aesgcm'):
+            try:
+                webpush(
+                    subscription_info=subscription_info,
+                    data=payload,
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims=claims,
+                    content_encoding=encoding,
+                    ttl=86400,
+                    headers=push_headers,
+                )
+                delivered = True
+                break
+            except WebPushException as e:
+                resp = getattr(e, 'response', None)
+                last_code = getattr(resp, 'status_code', None)
+                last_err = str(resp.text if resp is not None else e)[:200]
+                if encoding == 'aesgcm':
+                    if last_code in (401, 403, 404, 410):
+                        stale = True
+                        con.execute("DELETE FROM push_subscriptions WHERE id=?", (s['id'],))
+                        con.commit()
+        if not delivered and not stale:
+            try:
+                webpush(
+                    subscription_info=subscription_info,
+                    data=None,
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims=dict(VAPID_CLAIMS),
+                    ttl=86400,
+                    headers=push_headers,
+                )
+                delivered = True
+            except WebPushException as e:
+                resp = getattr(e, 'response', None)
+                last_code = getattr(resp, 'status_code', None)
+                last_err = str(resp.text if resp is not None else e)[:200]
+                if last_code in (401, 403, 404, 410):
+                    stale = True
+                    con.execute("DELETE FROM push_subscriptions WHERE id=?", (s['id'],))
+                    con.commit()
+        if delivered:
             sent = True
-        except WebPushException as e:
-            resp = getattr(e, 'response', None)
-            last_code = getattr(resp, 'status_code', None)
-            last_err = str(resp.text if resp is not None else e)[:200]
-            if last_code in (401, 403, 404, 410):
-                stale = True
-                con.execute("DELETE FROM push_subscriptions WHERE id=?", (s['id'],))
-                con.commit()
     con.close()
     if sent:
         return True, None
@@ -2016,7 +2055,7 @@ def push_status():
         'subscribed': count > 0,
         'count': count,
         'vapid_public_key': VAPID_PUBLIC_KEY,
-        'push_key_version': 2,
+        'push_key_version': 3,
     })
 
 

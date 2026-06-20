@@ -53,9 +53,50 @@
 
   /* --- Service Worker --- */
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js?v=11', { scope: '/' }).then(function (reg) {
+    navigator.serviceWorker.register('/sw.js?v=12', { scope: '/' }).then(function (reg) {
       reg.update();
     }).catch(function () {});
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (!e.data) return;
+      if (e.data.type === 'bs-push') {
+        if (e.data.data && e.data.data.type === 'resubscribe') {
+          if (pushStatus) setPushUi('off', 'Подписка устарела. Нажмите «Включить уведомления».');
+          return;
+        }
+        showInAppPush(e.data.data);
+      }
+    });
+  }
+
+  function showInAppPush(data) {
+    if (!data) return;
+    showLocalNotification(data.title || 'BlackSquare', data.body || '', data.url);
+    var old = document.getElementById('inAppPush');
+    if (old) old.remove();
+    var el = document.createElement('div');
+    el.id = 'inAppPush';
+    el.className = 'in-app-push';
+    el.innerHTML = '<b>' + (data.title || 'BlackSquare') + '</b>' + (data.body || '');
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 10000);
+  }
+
+  function showLocalNotification(title, body, url) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification(title || 'BlackSquare', {
+        body: body || '',
+        icon: '/static/icon-192.png',
+        badge: '/static/icon-192.png',
+        tag: 'bs-local-' + Date.now(),
+        renotify: true,
+      });
+      n.onclick = function () {
+        window.focus();
+        if (url) window.location.href = url;
+        n.close();
+      };
+    } catch (e) {}
   }
 
   /* --- Push notifications --- */
@@ -193,7 +234,8 @@
       if (data.ok && data.test_sent) {
         localStorage.setItem('bs_vapid_key', vapidKey);
         localStorage.setItem('bs_push_version', String(PUSH_VERSION));
-        setPushUi('on', 'Уведомления включены! Тестовое сообщение отправлено.');
+        showLocalNotification('BlackSquare', 'Уведомления подключены!', '/profile');
+        setPushUi('on', 'Уведомления включены! Проверьте шторку уведомлений или баннер на экране.');
       } else {
         await clearBrowserPushSubscription();
         setPushUi('off', data.error || 'Не удалось подключить уведомления. Попробуйте ещё раз.');
@@ -235,7 +277,8 @@
       const data = await res.json();
       if (pushStatus) {
         if (data.ok) {
-          setPushUi('on', 'Тестовое уведомление отправлено. Проверьте экран телефона.');
+          showLocalNotification('BlackSquare — тест', 'Если вы видите это — уведомления работают.', '/dashboard');
+          setPushUi('on', 'Тест отправлен. Проверьте шторку уведомлений и баннер на экране.');
         } else {
           setPushUi('on', data.error || 'Ошибка отправки');
         }
