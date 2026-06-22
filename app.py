@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json, shutil, threading, time
+import sqlite3, calendar as pycal, json, shutil, threading, time, re
 import os
 
 try:
@@ -483,7 +483,7 @@ def migrate_db(c):
             (row['id'], row['service_id'], now()),
         )
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_enabled','0')")
-    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_update_offset','0')")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -1011,7 +1011,233 @@ def telegram_autoconfigure():
     send_telegram_message('<b>BlackSquare CRM</b>\nУведомления о записях подключены.', force=True)
     return True
 
+TELEGRAM_Z_HELP = (
+    '<b>Запись из чата</b>\n'
+    '<code>/z авто на 14:00 услуга 4000</code>\n'
+    '<code>/z приора 14:00 передняя полусфера</code>\n'
+    '<code>/z завтра камри на 10:00 тонировка 3500</code>\n\n'
+    'Авто · время · услуга · цена (необязательно)\n'
+    'Дата: сегодня, или <code>завтра</code>, или <code>22.06</code>'
+)
+
+def telegram_reply(chat_id, text, reply_to=None):
+    token = telegram_bot_token()
+    if not token or not chat_id:
+        return False, 'Telegram не настроен'
+    import urllib.request
+    import urllib.parse
+    payload = {'chat_id': chat_id, 'text': text[:4096], 'parse_mode': 'HTML', 'disable_web_page_preview': 'true'}
+    if reply_to:
+        payload['reply_to_message_id'] = reply_to
+    data = urllib.parse.urlencode(payload).encode()
+    req = urllib.request.Request(f'https://api.telegram.org/bot{token}/sendMessage', data=data, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            body = json.loads(resp.read().decode())
+            if body.get('ok'):
+                return True, None
+            return False, str(body.get('description', 'Ошибка Telegram'))
+    except Exception as e:
+        return False, str(e)[:200]
+
+def parse_telegram_z_command(text):
+    raw = (text or '').strip()
+    if not raw.lower().startswith('/z'):
+        return None, None
+    body = re.sub(r'^/z(?:@\w+)?\s*', '', raw, flags=re.IGNORECASE).strip()
+    if not body:
+        return None, TELEGRAM_Z_HELP
+    m = re.match(
+        r'^(?:(сегодня|завтра|\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?)\s+)?'
+        r'(.+?)\s+(?:на\s+)?(\d{1,2}[:.]\d{2})\s+(.+)$',
+        body,
+        flags=re.IGNORECASE,
+    )
+    if not m:
+        return None, (
+            'Не понял команду.\n'
+            'Пример: <code>/z приора на 14:00 передняя полусфера 4000</code>'
+        )
+    date_token, car, start_raw, rest = m.group(1), m.group(2).strip(), m.group(3), m.group(4).strip()
+    start = normalize_hm(start_raw.replace('.', ':'))
+    if not start:
+        return None, 'Укажите время в формате 14:00'
+    ap_date = parse_telegram_booking_date(date_token)
+    service_text, price = split_telegram_service_price(rest)
+    return {
+        'date': ap_date,
+        'car': car,
+        'start': start,
+        'service_text': service_text,
+        'price': price,
+    }, None
+
+def parse_telegram_booking_date(token):
+    if not token or str(token).lower() == 'сегодня':
+        return today()
+    if str(token).lower() == 'завтра':
+        return (date.today() + timedelta(days=1)).isoformat()
+    token = str(token).replace('/', '.')
+    parts = token.split('.')
+    try:
+        if len(parts) == 2:
+            d, m = int(parts[0]), int(parts[1])
+            y = date.today().year
+        else:
+            d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+            if y < 100:
+                y += 2000
+        return date(y, m, d).isoformat()
+    except (ValueError, TypeError):
+        return today()
+
+def split_telegram_service_price(rest):
+    m = re.match(r'^(.+?)\s+(\d{3,7})$', rest.strip())
+    if m:
+        return m.group(1).strip(), float(m.group(2))
+    return rest.strip(), None
+
+def find_services_by_text(con, text):
+    text_l = text.lower().strip()
+    rows = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
+    if not rows:
+        return None, 'В CRM нет активных услуг'
+    words = set(re.findall(r'[a-zа-яё0-9]+', text_l, flags=re.IGNORECASE))
+    scored = []
+    for s in rows:
+        name_l = s['name'].lower()
+        if text_l in name_l or name_l in text_l:
+            scored.append((100, s))
+            continue
+        name_words = set(re.findall(r'[a-zа-яё0-9]+', name_l, flags=re.IGNORECASE))
+        overlap = len(words & name_words)
+        if overlap:
+            scored.append((overlap, s))
+    if not scored:
+        names = ', '.join(r['name'] for r in rows[:8])
+        return None, f'Услуга не найдена: «{text}». Примеры: {names}'
+    scored.sort(key=lambda x: (-x[0], x[1]['name']))
+    return [scored[0][1]], ''
+
+def create_telegram_z_appointment(con, parsed, author=''):
+    services, err = find_services_by_text(con, parsed['service_text'])
+    if err:
+        return None, err
+    bundle = resolve_services_bundle(con, [s['id'] for s in services])
+    if not bundle:
+        return None, 'Не удалось подобрать услугу'
+    start = parsed['start']
+    end = m2hm(hm2m(start) + int(bundle['duration_min']))
+    price = float(parsed['price'] if parsed['price'] is not None else bundle['base_price'] or 0)
+    car = parsed['car']
+    phone = f"TG:{re.sub(r'\\s+', '', car.lower())[:24]}"
+    name = car.title()
+    cid = get_client(con, name, phone)
+    carid = get_car(con, cid, car, '')
+    comment = f'Telegram /z{(": " + author) if author else ""}'
+    con.execute(
+        "INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (cid, carid, name, phone, car, '', bundle['primary_id'], bundle['name'], parsed['date'], start, end, bundle['duration_min'], 'Записан', None, price, comment, now()),
+    )
+    aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+    set_appointment_services(con, aid, bundle['ids'])
+    con.commit()
+    remote_backup_database()
+    return {
+        'id': aid,
+        'date': parsed['date'],
+        'start': start,
+        'end': end,
+        'car': car,
+        'service_name': bundle['name'],
+        'price': price,
+    }, None
+
+def handle_telegram_message(msg):
+    chat = msg.get('chat') or {}
+    chat_id = str(chat.get('id', ''))
+    allowed = telegram_chat_id()
+    if allowed and chat_id != str(allowed):
+        return
+    text = (msg.get('text') or '').strip()
+    if not text:
+        return
+    low = text.lower()
+    if low.startswith('/help'):
+        telegram_reply(chat_id, TELEGRAM_Z_HELP, msg.get('message_id'))
+        return
+    if low == '/z' or re.match(r'^/z@\w+$', low):
+        telegram_reply(chat_id, TELEGRAM_Z_HELP, msg.get('message_id'))
+        return
+    if not low.startswith('/z'):
+        return
+    parsed, err = parse_telegram_z_command(text)
+    if err:
+        telegram_reply(chat_id, err, msg.get('message_id'))
+        return
+    author = ''
+    frm = msg.get('from') or {}
+    if frm.get('username'):
+        author = '@' + frm['username']
+    elif frm.get('first_name'):
+        author = frm['first_name']
+    con = db()
+    try:
+        ap, err = create_telegram_z_appointment(con, parsed, author)
+    finally:
+        con.close()
+    if err:
+        telegram_reply(chat_id, f'❌ {err}', msg.get('message_id'))
+        return
+    telegram_reply(
+        chat_id,
+        (
+            f'<b>✅ Записано #{ap["id"]}</b>\n'
+            f'📅 {ap["date"]} {ap["start"]}–{ap["end"]}\n'
+            f'🚗 {ap["car"]}\n'
+            f'✂️ {ap["service_name"]}\n'
+            f'💰 {ap["price"]:.0f} ₽'
+        ),
+        msg.get('message_id'),
+    )
+
+def process_telegram_updates():
+    token = telegram_bot_token()
+    if not token:
+        return
+    offset = int(get_setting('telegram_update_offset', '0') or 0)
+    import urllib.request
+    url = f'https://api.telegram.org/bot{token}/getUpdates?timeout=20&limit=20'
+    if offset:
+        url += f'&offset={offset + 1}'
+    try:
+        with urllib.request.urlopen(url, timeout=25) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return
+    if not data.get('ok'):
+        return
+    last_id = offset
+    for item in data.get('result', []):
+        last_id = max(last_id, int(item.get('update_id', 0)))
+        msg = item.get('message') or item.get('edited_message')
+        if msg:
+            handle_telegram_message(msg)
+    if last_id > offset:
+        set_setting('telegram_update_offset', str(last_id))
+
+def telegram_poll_loop():
+    time.sleep(5)
+    while True:
+        try:
+            process_telegram_updates()
+        except Exception:
+            pass
+        time.sleep(2)
+
 def notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, masters_str, car='', source=''):
+    if source == 'Telegram /z':
+        return
     telegram_autoconfigure()
     if not telegram_enabled():
         return
@@ -1184,6 +1410,7 @@ def start_scheduler():
             return
         _scheduler_started = True
     threading.Thread(target=_daily_report_loop, daemon=True, name='daily-report').start()
+    threading.Thread(target=telegram_poll_loop, daemon=True, name='telegram-bot').start()
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
