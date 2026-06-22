@@ -1252,16 +1252,29 @@ def notify_telegram_new_appointment(ap_date, start_time, client_name, service_na
     )
     send_telegram_message(text)
 
-def notify_telegram_appointment_closed(ap, price):
+def appointment_master_names(con, ap):
+    ids = get_appointment_employee_ids(con, ap['id'], ap['employee_id'])
+    if not ids:
+        return '—'
+    placeholders = ','.join('?' * len(ids))
+    rows = con.execute(
+        f"SELECT full_name FROM users WHERE id IN ({placeholders}) ORDER BY full_name",
+        ids,
+    ).fetchall()
+    return ', '.join(r['full_name'] for r in rows) or '—'
+
+def notify_telegram_appointment_closed(con, ap, price=None):
     telegram_autoconfigure()
     if not telegram_enabled():
         return
-    text = (
-        f'<b>Запись закрыта</b>\n'
-        f'👤 {ap["client_name"]}\n'
-        f'✂️ {ap["service_name"]}\n'
-        f'💰 {price:.0f} ₽'
-    )
+    master = appointment_master_names(con, ap)
+    car = (ap['car'] or ap['plate_number'] or '').strip()
+    bits = [ap['client_name']]
+    if master and master != '—':
+        bits.append(f'мастер {master}')
+    if car:
+        bits.append(car)
+    text = f"<b>Запись закрыта</b>\n{' · '.join(bits)}"
     send_telegram_message(text)
 
 def notify_telegram_daily_report(report_date, stats):
