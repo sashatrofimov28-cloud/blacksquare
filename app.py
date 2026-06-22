@@ -483,7 +483,9 @@ def migrate_db(c):
             (row['id'], row['service_id'], now()),
         )
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_enabled','0')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_update_offset','0')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_wake_name','сквер')")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -905,6 +907,32 @@ def telegram_enabled():
         return False
     return get_setting('telegram_enabled', '0') == '1'
 
+def telegram_wake_name():
+    return os.environ.get('TELEGRAM_WAKE_NAME', '').strip() or get_setting('telegram_wake_name', 'сквер').strip()
+
+def openai_api_key():
+    return os.environ.get('OPENAI_API_KEY', '').strip()
+
+_telegram_bot_id = None
+
+def telegram_bot_id():
+    global _telegram_bot_id
+    if _telegram_bot_id:
+        return _telegram_bot_id
+    token = telegram_bot_token()
+    if not token:
+        return None
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getMe', timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get('ok'):
+                _telegram_bot_id = data['result']['id']
+                return _telegram_bot_id
+    except Exception:
+        pass
+    return None
+
 def _post_telegram_message(token, chat_id, text):
     import urllib.request
     import urllib.parse
@@ -1014,10 +1042,11 @@ def telegram_autoconfigure():
 TELEGRAM_Z_HELP = (
     '<b>Запись из чата</b>\n'
     '<code>/z авто на 14:00 услуга 4000</code>\n'
-    '<code>/z приора 14:00 передняя полусфера</code>\n'
-    '<code>/z завтра камри на 10:00 тонировка 3500</code>\n\n'
-    'Авто · время · услуга · цена (необязательно)\n'
-    'Дата: сегодня, или <code>завтра</code>, или <code>22.06</code>'
+    '<code>/z приора 14:00 передняя полусфера</code>\n\n'
+    '<b>Голосом</b> (начните с имени бота):\n'
+    '«Сквер, приора на 14:00 передняя полусфера 4000»\n'
+    'Или голосовое <b>ответом</b> на сообщение бота.\n\n'
+    'Дата: сегодня, <code>завтра</code> или <code>22.06</code>'
 )
 
 def telegram_reply(chat_id, text, reply_to=None):
@@ -1040,11 +1069,8 @@ def telegram_reply(chat_id, text, reply_to=None):
     except Exception as e:
         return False, str(e)[:200]
 
-def parse_telegram_z_command(text):
-    raw = (text or '').strip()
-    if not raw.lower().startswith('/z'):
-        return None, None
-    body = re.sub(r'^/z(?:@\w+)?\s*', '', raw, flags=re.IGNORECASE).strip()
+def parse_booking_body(body):
+    body = (body or '').strip()
     if not body:
         return None, TELEGRAM_Z_HELP
     m = re.match(
@@ -1055,8 +1081,8 @@ def parse_telegram_z_command(text):
     )
     if not m:
         return None, (
-            'Не понял команду.\n'
-            'Пример: <code>/z приора на 14:00 передняя полусфера 4000</code>'
+            'Не понял запись.\n'
+            'Пример: <code>приора на 14:00 передняя полусфера 4000</code>'
         )
     date_token, car, start_raw, rest = m.group(1), m.group(2).strip(), m.group(3), m.group(4).strip()
     start = normalize_hm(start_raw.replace('.', ':'))
@@ -1071,6 +1097,13 @@ def parse_telegram_z_command(text):
         'service_text': service_text,
         'price': price,
     }, None
+
+def parse_telegram_z_command(text):
+    raw = (text or '').strip()
+    if not raw.lower().startswith('/z'):
+        return None, None
+    body = re.sub(r'^/z(?:@\w+)?\s*', '', raw, flags=re.IGNORECASE).strip()
+    return parse_booking_body(body)
 
 def parse_telegram_booking_date(token):
     if not token or str(token).lower() == 'сегодня':
@@ -1097,6 +1130,167 @@ def split_telegram_service_price(rest):
         return m.group(1).strip(), float(m.group(2))
     return rest.strip(), None
 
+def normalize_voice_transcript(text):
+    t = (text or '').strip()
+    t = re.sub(r'\s+', ' ', t)
+    t = re.sub(
+        r'(\d+|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+тысяч[аи]?\b',
+        lambda m: str(_spoken_cardinal_to_int(m.group(1)) * 1000),
+        t,
+        flags=re.IGNORECASE,
+    )
+    t = re.sub(r'\bна\s+час\b', '13:00', t, flags=re.IGNORECASE)
+    return t.strip()
+
+def _spoken_cardinal_to_int(word):
+    if str(word).isdigit():
+        return int(word)
+    table = {
+        'один': 1, 'два': 2, 'три': 3, 'четыре': 4, 'пять': 5,
+        'шесть': 6, 'семь': 7, 'восемь': 8, 'девять': 9, 'десять': 10,
+    }
+    return table.get(str(word).lower(), 0)
+
+def strip_wake_name(text):
+    name = telegram_wake_name().lower()
+    if not name:
+        return text, False
+    raw = (text or '').strip()
+    low = raw.lower()
+    patterns = [
+        rf'^(?:эй\s+|слушай\s+)?{re.escape(name)}[!,.\s—-]+',
+        rf'^{re.escape(name)}$',
+    ]
+    for pattern in patterns:
+        m = re.match(pattern, low, flags=re.IGNORECASE)
+        if m:
+            return raw[m.end():].strip(' ,.—-'), True
+    first = re.split(r'[\s,]+', low, maxsplit=1)[0].strip('.,!:')
+    if first == name:
+        parts = re.split(r'[\s,]+', raw, maxsplit=1)
+        return (parts[1].strip() if len(parts) > 1 else ''), True
+    return raw, False
+
+def telegram_message_to_bot(msg):
+    reply = msg.get('reply_to_message') or {}
+    author = reply.get('from') or {}
+    if not author.get('is_bot'):
+        return False
+    bot_id = telegram_bot_id()
+    return not bot_id or author.get('id') == bot_id
+
+def telegram_download_file(file_id):
+    token = telegram_bot_token()
+    if not token:
+        return None, 'Telegram не настроен'
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getFile?file_id={file_id}', timeout=15) as resp:
+            meta = json.loads(resp.read().decode())
+        if not meta.get('ok'):
+            return None, 'Не удалось получить файл'
+        path = meta['result']['file_path']
+        with urllib.request.urlopen(f'https://api.telegram.org/file/bot{token}/{path}', timeout=30) as resp:
+            return resp.read(), None
+    except Exception as e:
+        return None, str(e)[:160]
+
+def transcribe_voice_bytes(audio_bytes, filename='voice.ogg'):
+    api_key = openai_api_key()
+    if not api_key:
+        return None, 'Голосовые: добавьте OPENAI_API_KEY на сервере Timeweb'
+    boundary = '----BlackSquare' + os.urandom(8).hex()
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n'.encode(),
+        f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nru\r\n'.encode(),
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f'Content-Type: audio/ogg\r\n\r\n'
+        ).encode() + audio_bytes + b'\r\n',
+        f'--{boundary}--\r\n'.encode(),
+    ]
+    body = b''.join(parts)
+    import urllib.request
+    req = urllib.request.Request(
+        'https://api.openai.com/v1/audio/transcriptions',
+        data=body,
+        method='POST',
+        headers={
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode())
+            text = (data.get('text') or '').strip()
+            if text:
+                return text, None
+            return None, 'Пустая расшифровка'
+    except Exception as e:
+        return None, f'Расшифровка: {str(e)[:160]}'
+
+def process_telegram_booking(chat_id, parsed, author='', reply_to=None, source='text'):
+    con = db()
+    try:
+        ap, err = create_telegram_z_appointment(con, parsed, author, source=source)
+    finally:
+        con.close()
+    if err:
+        telegram_reply(chat_id, f'❌ {err}', reply_to)
+        return
+    telegram_reply(
+        chat_id,
+        (
+            f'<b>✅ Записано #{ap["id"]}</b>\n'
+            f'📅 {ap["date"]} {ap["start"]}–{ap["end"]}\n'
+            f'🚗 {ap["car"]}\n'
+            f'✂️ {ap["service_name"]}\n'
+            f'💰 {ap["price"]:.0f} ₽'
+        ),
+        reply_to,
+    )
+
+def handle_telegram_voice(msg):
+    chat = msg.get('chat') or {}
+    chat_id = str(chat.get('id', ''))
+    allowed = telegram_chat_id()
+    if allowed and chat_id != str(allowed):
+        return
+    voice = msg.get('voice') or msg.get('audio')
+    if not voice:
+        return
+    reply_to = msg.get('message_id')
+    replied_to_bot = telegram_message_to_bot(msg)
+    audio, err = telegram_download_file(voice['file_id'])
+    if err:
+        telegram_reply(chat_id, f'❌ {err}', reply_to)
+        return
+    transcript, err = transcribe_voice_bytes(audio)
+    if err:
+        telegram_reply(chat_id, f'❌ {err}', reply_to)
+        return
+    body, woke = strip_wake_name(transcript)
+    if not woke and not replied_to_bot:
+        return
+    body = normalize_voice_transcript(body)
+    parsed, err = parse_booking_body(body)
+    if err:
+        wake = telegram_wake_name()
+        telegram_reply(
+            chat_id,
+            f'🎤 Услышал: <i>{transcript}</i>\n\n{err}\n\nНачните с «{wake}» или ответьте голосом на сообщение бота.',
+            reply_to,
+        )
+        return
+    author = ''
+    frm = msg.get('from') or {}
+    if frm.get('username'):
+        author = '@' + frm['username']
+    elif frm.get('first_name'):
+        author = frm['first_name']
+    process_telegram_booking(chat_id, parsed, author, reply_to, source='голос')
+
 def find_services_by_text(con, text):
     text_l = text.lower().strip()
     rows = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
@@ -1119,7 +1313,7 @@ def find_services_by_text(con, text):
     scored.sort(key=lambda x: (-x[0], x[1]['name']))
     return [scored[0][1]], ''
 
-def create_telegram_z_appointment(con, parsed, author=''):
+def create_telegram_z_appointment(con, parsed, author='', source='text'):
     services, err = find_services_by_text(con, parsed['service_text'])
     if err:
         return None, err
@@ -1134,7 +1328,7 @@ def create_telegram_z_appointment(con, parsed, author=''):
     name = car.title()
     cid = get_client(con, name, phone)
     carid = get_car(con, cid, car, '')
-    comment = f'Telegram /z{(": " + author) if author else ""}'
+    comment = f'Telegram {source}{(": " + author) if author else ""}'
     con.execute(
         "INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (cid, carid, name, phone, car, '', bundle['primary_id'], bundle['name'], parsed['date'], start, end, bundle['duration_min'], 'Записан', None, price, comment, now()),
@@ -1159,6 +1353,9 @@ def handle_telegram_message(msg):
     allowed = telegram_chat_id()
     if allowed and chat_id != str(allowed):
         return
+    if msg.get('voice') or msg.get('audio'):
+        handle_telegram_voice(msg)
+        return
     text = (msg.get('text') or '').strip()
     if not text:
         return
@@ -1181,25 +1378,7 @@ def handle_telegram_message(msg):
         author = '@' + frm['username']
     elif frm.get('first_name'):
         author = frm['first_name']
-    con = db()
-    try:
-        ap, err = create_telegram_z_appointment(con, parsed, author)
-    finally:
-        con.close()
-    if err:
-        telegram_reply(chat_id, f'❌ {err}', msg.get('message_id'))
-        return
-    telegram_reply(
-        chat_id,
-        (
-            f'<b>✅ Записано #{ap["id"]}</b>\n'
-            f'📅 {ap["date"]} {ap["start"]}–{ap["end"]}\n'
-            f'🚗 {ap["car"]}\n'
-            f'✂️ {ap["service_name"]}\n'
-            f'💰 {ap["price"]:.0f} ₽'
-        ),
-        msg.get('message_id'),
-    )
+    process_telegram_booking(chat_id, parsed, author, msg.get('message_id'), source='/z')
 
 def process_telegram_updates():
     token = telegram_bot_token()
@@ -1904,7 +2083,7 @@ def close_appointment(aid):
         refresh_dashboard_stats()
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         notify_directors_appointment_closed(con, ap_closed, price)
-        notify_telegram_appointment_closed(ap_closed, price)
+        notify_telegram_appointment_closed(con, ap_closed, price)
         con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
@@ -2495,6 +2674,9 @@ def settings():
         elif action == 'telegram_save':
             set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
             set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
+            wake = request.form.get('telegram_wake_name', '').strip()
+            if wake:
+                set_setting('telegram_wake_name', wake.lower())
             flash('Настройки Telegram сохранены')
         elif action == 'telegram_test':
             ok, err = send_telegram_message('<b>Тест</b>\nУведомления BlackSquare CRM работают.', force=True)
@@ -2521,6 +2703,8 @@ def settings():
     telegram_on = get_setting('telegram_enabled', '0') == '1'
     telegram_chat = get_setting('telegram_chat_id', '')
     telegram_token_ok = bool(telegram_bot_token())
+    telegram_wake = get_setting('telegram_wake_name', 'сквер')
+    openai_ok = bool(openai_api_key())
     return render_template(
         'settings.html',
         stats_refresh=stats_refresh,
@@ -2531,6 +2715,8 @@ def settings():
         telegram_on=telegram_on,
         telegram_chat=telegram_chat,
         telegram_token_ok=telegram_token_ok,
+        telegram_wake=telegram_wake,
+        openai_ok=openai_ok,
     )
 
 
