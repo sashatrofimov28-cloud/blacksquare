@@ -288,6 +288,91 @@
     }
   }
 
+  function initServicePicker() {
+    const picker = document.getElementById('servicePicker');
+    if (!picker) return;
+    const services = window.BS_SERVICES || [];
+    const initial = (window.BS_INITIAL_SERVICES || []).map(String);
+    const select = document.getElementById('serviceSelect');
+    const addBtn = document.getElementById('addServiceBtn');
+    const chips = document.getElementById('serviceChips');
+    const hidden = document.getElementById('serviceHiddenInputs');
+    const emptyHint = document.getElementById('serviceEmptyHint');
+    const formId = picker.dataset.formId;
+    const form = formId ? document.getElementById(formId) : picker.closest('form');
+    const selected = new Set();
+
+    services.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = String(s.id);
+      opt.textContent = s.name + (s.price ? ' — ' + s.price + ' ₽' : '');
+      select.appendChild(opt);
+    });
+
+    function syncEmptyHint() {
+      if (emptyHint) emptyHint.hidden = selected.size > 0;
+    }
+
+    function showServiceError(show) {
+      picker.classList.toggle('field-error', !!show);
+      const hint = picker.querySelector('.service-required-hint');
+      if (hint) hint.hidden = !show;
+    }
+
+    function addService(id) {
+      const sid = String(id);
+      if (!sid || selected.has(sid)) return;
+      const service = services.find(function (s) { return String(s.id) === sid; });
+      if (!service) return;
+      selected.add(sid);
+      const chip = document.createElement('span');
+      chip.className = 'master-chip';
+      chip.dataset.id = sid;
+      chip.innerHTML = service.name + ' <button type="button" class="master-chip-remove" aria-label="Убрать">×</button>';
+      chip.querySelector('.master-chip-remove').addEventListener('click', function () {
+        selected.delete(sid);
+        chip.remove();
+        const input = hidden.querySelector('input[data-id="' + sid + '"]');
+        if (input) input.remove();
+        syncEmptyHint();
+        showServiceError(false);
+      });
+      chips.appendChild(chip);
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'service_ids';
+      input.value = sid;
+      input.dataset.id = sid;
+      hidden.appendChild(input);
+      select.value = '';
+      syncEmptyHint();
+      showServiceError(false);
+    }
+
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        if (!select.value) {
+          showServiceError(true);
+          select.focus();
+          return;
+        }
+        addService(select.value);
+      });
+    }
+
+    initial.forEach(addService);
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        if (!selected.size) {
+          e.preventDefault();
+          showServiceError(true);
+          picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+  }
+
   function initMasterPicker() {
     const picker = document.getElementById('masterPicker');
     if (!picker) return;
@@ -396,6 +481,7 @@
       closeSidebar();
       refreshPushStatus();
       initMasterPicker();
+      initServicePicker();
       const tabs = document.getElementById('mobileTabs');
       if (tabs) {
         const active = tabs.querySelector('a.active');

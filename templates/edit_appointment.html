@@ -42,7 +42,19 @@
     <input name="phone" value="{{ ap.phone }}" required>
     <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
     <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
-    <select name="service_id">{% for s in services %}<option value="{{ s.id }}" {% if s.id==ap.service_id %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>{% endfor %}</select>
+    <div class="span4 master-picker" id="servicePicker" data-form-id="editApptForm">
+      <label class="master-picker-label">Услуги *</label>
+      <span class="field-hint service-required-hint" hidden>Выберите хотя бы одну услугу</span>
+      <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
+      <div class="master-add-row">
+        <select id="serviceSelect" class="master-select">
+          <option value="">— Выберите услугу —</option>
+        </select>
+        <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+      </div>
+      <div id="serviceChips" class="master-chips"></div>
+      <div id="serviceHiddenInputs"></div>
+    </div>
     <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="editApptForm">
       <label class="master-picker-label">Мастера *</label>
       <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
@@ -66,6 +78,8 @@
 <script>
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
+window.BS_SERVICES = {{ services_json|safe }};
+window.BS_INITIAL_SERVICES = {{ selected_service_ids|tojson }};
 </script>
 {% endif %}
 

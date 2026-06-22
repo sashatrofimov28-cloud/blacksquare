@@ -252,6 +252,94 @@ def set_appointment_employees(con, aid, employee_ids):
             (aid, eid, now()),
         )
 
+def parse_service_ids(form):
+    ids = []
+    for raw in form.getlist('service_ids'):
+        if raw and str(raw).strip():
+            ids.append(int(raw))
+    if not ids and form.get('service_id'):
+        ids.append(int(form.get('service_id')))
+    seen = set()
+    out = []
+    for sid in ids:
+        if sid not in seen:
+            seen.add(sid)
+            out.append(sid)
+    return out
+
+def validate_service_ids(con, service_ids):
+    if not service_ids:
+        return False, 'Выберите хотя бы одну услугу'
+    placeholders = ','.join('?' * len(service_ids))
+    found = con.execute(
+        f"SELECT id FROM services WHERE active=1 AND id IN ({placeholders})",
+        service_ids,
+    ).fetchall()
+    if len(found) != len(service_ids):
+        return False, 'Выбрана недоступная услуга'
+    return True, ''
+
+def set_appointment_services(con, aid, service_ids):
+    con.execute("DELETE FROM appointment_services WHERE appointment_id=?", (aid,))
+    for sid in service_ids:
+        con.execute(
+            "INSERT INTO appointment_services(appointment_id,service_id,created_at) VALUES(?,?,?)",
+            (aid, sid, now()),
+        )
+
+def get_appointment_service_ids(con, aid, primary_id=None):
+    rows = con.execute(
+        "SELECT service_id FROM appointment_services WHERE appointment_id=? ORDER BY id",
+        (aid,),
+    ).fetchall()
+    if rows:
+        return [r['service_id'] for r in rows]
+    return [primary_id] if primary_id else []
+
+def resolve_services_bundle(con, service_ids):
+    if not service_ids:
+        return None
+    placeholders = ','.join('?' * len(service_ids))
+    rows = con.execute(
+        f"SELECT * FROM services WHERE active=1 AND id IN ({placeholders})",
+        service_ids,
+    ).fetchall()
+    if len(rows) != len(service_ids):
+        return None
+    order = {sid: i for i, sid in enumerate(service_ids)}
+    rows = sorted(rows, key=lambda r: order.get(r['id'], 999))
+    return {
+        'ids': service_ids,
+        'rows': rows,
+        'name': ' + '.join(r['name'] for r in rows),
+        'duration_min': sum(int(r['duration_min'] or 0) for r in rows),
+        'base_price': sum(float(r['base_price'] or 0) for r in rows),
+        'primary_id': service_ids[0],
+    }
+
+def employee_can_all_services(con, uid, service_ids):
+    return all(employee_can_service(con, uid, sid) for sid in service_ids)
+
+def parse_service_ids_from_request(args):
+    ids = []
+    for raw in args.getlist('service_ids') if hasattr(args, 'getlist') else []:
+        if raw and str(raw).strip():
+            ids.append(int(raw))
+    raw_list = args.get('service_ids', '') if hasattr(args, 'get') else ''
+    if not ids and raw_list:
+        for part in str(raw_list).split(','):
+            if part.strip():
+                ids.append(int(part.strip()))
+    if not ids and args.get('service_id'):
+        ids.append(int(args.get('service_id')))
+    seen = set()
+    out = []
+    for sid in ids:
+        if sid not in seen:
+            seen.add(sid)
+            out.append(sid)
+    return out
+
 def get_appointment_employee_ids(con, aid, primary_id=None):
     rows = con.execute(
         "SELECT employee_id FROM appointment_employees WHERE appointment_id=? ORDER BY id",
@@ -304,6 +392,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS app_settings(key TEXT PRIMARY KEY, value TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS employee_weekly_schedule(user_id INTEGER, weekday INTEGER, start_time TEXT, end_time TEXT, is_day_off INTEGER DEFAULT 0, UNIQUE(user_id, weekday))")
     c.execute("CREATE TABLE IF NOT EXISTS appointment_employees(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, employee_id INTEGER, created_at TEXT, UNIQUE(appointment_id, employee_id))")
+    c.execute("CREATE TABLE IF NOT EXISTS appointment_services(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, service_id INTEGER, created_at TEXT, UNIQUE(appointment_id, service_id))")
     c.execute("CREATE TABLE IF NOT EXISTS director_notification_prefs(user_id INTEGER PRIMARY KEY, notify_new INTEGER DEFAULT 1, notify_closed INTEGER DEFAULT 1, notify_daily INTEGER DEFAULT 1)")
     c.execute("CREATE TABLE IF NOT EXISTS director_employee_notify(director_id INTEGER, employee_id INTEGER, enabled INTEGER DEFAULT 1, UNIQUE(director_id, employee_id))")
     c.execute("CREATE TABLE IF NOT EXISTS daily_reports(report_date TEXT PRIMARY KEY, revenue REAL DEFAULT 0, salary REAL DEFAULT 0, profit REAL DEFAULT 0, certificate_paid REAL DEFAULT 0, material_cost REAL DEFAULT 0, m2 REAL DEFAULT 0, appointments_count INTEGER DEFAULT 0, by_employee_json TEXT, created_at TEXT, notified INTEGER DEFAULT 0)")
@@ -387,6 +476,14 @@ def migrate_db(c):
             "INSERT OR IGNORE INTO appointment_employees(appointment_id,employee_id,created_at) VALUES(?,?,?)",
             (row['id'], row['employee_id'], now()),
         )
+    c.execute("CREATE TABLE IF NOT EXISTS appointment_services(id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, service_id INTEGER, created_at TEXT, UNIQUE(appointment_id, service_id))")
+    for row in c.execute("SELECT id, service_id FROM appointments WHERE service_id IS NOT NULL").fetchall():
+        c.execute(
+            "INSERT OR IGNORE INTO appointment_services(appointment_id,service_id,created_at) VALUES(?,?,?)",
+            (row['id'], row['service_id'], now()),
+        )
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_enabled','0')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
     for d in c.execute("SELECT id FROM users WHERE role='director'").fetchall():
         c.execute(
             "INSERT OR IGNORE INTO director_notification_prefs(user_id,notify_new,notify_closed,notify_daily) VALUES(?,?,?,?)",
@@ -615,24 +712,40 @@ def slot_free(con, uid, d, start, end):
             return False
     return True
 
-def available_slots(con, uid, sid, d):
-    service = con.execute("SELECT * FROM services WHERE id=? AND active=1", (sid,)).fetchone()
+def available_slots_for_duration(con, uid, duration_min, d):
     emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role='master'", (uid,)).fetchone()
-    if not service or not emp or not employee_can_service(con, uid, sid): return []
+    if not emp:
+        return []
     sched = get_schedule(con, uid, d)
-    if int(sched['is_day_off']): return []
-    dur = int(service['duration_min']); t = hm2m(sched['start_time']); end_day = hm2m(sched['end_time']); out = []
+    if int(sched['is_day_off']):
+        return []
+    dur = int(duration_min)
+    t = hm2m(sched['start_time'])
+    end_day = hm2m(sched['end_time'])
+    out = []
     while t + dur <= end_day:
-        a = m2hm(t); b = m2hm(t+dur)
-        if slot_free(con, uid, d, a, b): out.append({'start':a,'end':b})
+        a = m2hm(t)
+        b = m2hm(t + dur)
+        if slot_free(con, uid, d, a, b):
+            out.append({'start': a, 'end': b})
         t += 30
     return out
 
-def online_slot_allowed(con, uid, sid, d, start):
+def available_slots(con, uid, sid, d):
+    bundle = resolve_services_bundle(con, [int(sid)] if sid else [])
+    if not bundle or not employee_can_all_services(con, uid, bundle['ids']):
+        return []
+    return available_slots_for_duration(con, uid, bundle['duration_min'], d)
+
+def online_slot_allowed(con, uid, service_ids, d, start):
     start = normalize_hm(start)
-    if not start:
+    bundle = resolve_services_bundle(con, service_ids)
+    if not start or not bundle or not employee_can_all_services(con, uid, service_ids):
         return False
-    return any(normalize_hm(s['start']) == start for s in available_slots(con, uid, sid, d))
+    return any(
+        normalize_hm(s['start']) == start
+        for s in available_slots_for_duration(con, uid, bundle['duration_min'], d)
+    )
 
 def booking_public_url():
     explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
@@ -774,7 +887,100 @@ def send_push_to_user(user_id, title, body, url='/'):
         last_err = 'Не удалось отправить уведомление. Попробуйте отключить и снова включить push в профиле.'
     return False, last_err
 
-def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, service_name, car=''):
+def telegram_bot_token():
+    return os.environ.get('TELEGRAM_BOT_TOKEN', '').strip() or get_setting('telegram_bot_token', '').strip()
+
+def telegram_chat_id():
+    return get_setting('telegram_chat_id', '').strip()
+
+def telegram_enabled():
+    return get_setting('telegram_enabled', '0') == '1'
+
+def send_telegram_message(text, force=False):
+    if not force and not telegram_enabled():
+        return False, 'Telegram выключен'
+    token = telegram_bot_token()
+    chat_id = telegram_chat_id()
+    if not token:
+        return False, 'Укажите TELEGRAM_BOT_TOKEN в настройках сервера'
+    if not chat_id:
+        return False, 'Укажите ID чата в настройках'
+    import urllib.request
+    import urllib.parse
+    payload = urllib.parse.urlencode({
+        'chat_id': chat_id,
+        'text': text[:4096],
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': 'true',
+    }).encode()
+    req = urllib.request.Request(
+        f'https://api.telegram.org/bot{token}/sendMessage',
+        data=payload,
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get('ok'):
+                return True, None
+            return False, str(data.get('description', 'Ошибка Telegram'))
+    except Exception as e:
+        return False, str(e)[:200]
+
+def telegram_discover_chats():
+    token = telegram_bot_token()
+    if not token:
+        return []
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getUpdates?limit=30', timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+            chats = {}
+            for item in data.get('result', []):
+                msg = item.get('message') or item.get('channel_post') or {}
+                chat = msg.get('chat') or {}
+                cid = chat.get('id')
+                if cid is not None:
+                    title = chat.get('title') or chat.get('first_name') or str(cid)
+                    chats[str(cid)] = title
+            return [{'id': k, 'title': v} for k, v in chats.items()]
+    except Exception:
+        return []
+
+def notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, masters_str, car='', source=''):
+    if not telegram_enabled():
+        return
+    car_part = f'\n🚗 {car}' if car else ''
+    src = f'\n📲 {source}' if source else ''
+    text = (
+        f'<b>Новая запись</b>{src}\n'
+        f'📅 {ap_date} {start_time}\n'
+        f'👤 {client_name}{car_part}\n'
+        f'✂️ {service_name}\n'
+        f'👨‍🔧 {masters_str}'
+    )
+    send_telegram_message(text)
+
+def notify_telegram_appointment_closed(ap, price):
+    if not telegram_enabled():
+        return
+    text = (
+        f'<b>Запись закрыта</b>\n'
+        f'👤 {ap["client_name"]}\n'
+        f'✂️ {ap["service_name"]}\n'
+        f'💰 {price:.0f} ₽'
+    )
+    send_telegram_message(text)
+
+def notify_telegram_daily_report(report_date, stats):
+    if not telegram_enabled():
+        return
+    lines = [f'<b>Отчёт за {report_date}</b>', f'💰 Касса: {stats["revenue"]:.0f} ₽', f'📋 Закрыто: {stats["appointments"]}']
+    for e in stats.get('by_employee', []):
+        lines.append(f'{e["name"]}: {e["revenue"]:.0f} ₽')
+    send_telegram_message('\n'.join(lines))
+
+def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, service_name, car='', source=''):
     if not isinstance(employee_ids, (list, tuple)):
         employee_ids = [employee_ids]
     car_part = f' · {car}' if car else ''
@@ -783,6 +989,12 @@ def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, 
         send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
     con = db()
     notify_directors_new_appointment(con, employee_ids, ap_date, start_time, client_name, service_name, car)
+    names = []
+    for eid in employee_ids:
+        u = con.execute("SELECT full_name FROM users WHERE id=?", (eid,)).fetchone()
+        if u:
+            names.append(u['full_name'])
+    notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, ', '.join(names) or '—', car, source)
     con.close()
 
 def get_directors(con):
@@ -862,6 +1074,7 @@ def save_and_notify_daily_report(con, report_date):
         prefs = get_director_notification_prefs(con, d['id'])
         if prefs.get('notify_daily'):
             send_push_to_user(d['id'], title, body, day_url)
+    notify_telegram_daily_report(report_date, stats)
     return True
 
 def daily_report_target_date():
@@ -1058,49 +1271,68 @@ def dashboard():
 def booking():
     con = db()
     if request.method == 'POST':
-        sid = request.form.get('service_id', '').strip()
+        service_ids = parse_service_ids(request.form)
         uid = request.form.get('employee_id', '').strip()
         d = request.form.get('appointment_date', '').strip()
         start = normalize_hm(request.form.get('start_time', ''))
-        if not sid or not uid or not d or not start:
+        ok, err = validate_service_ids(con, service_ids)
+        if not ok or not uid or not d or not start:
             con.close()
-            flash('Заполните все поля и выберите свободное время из списка.')
+            flash(err or 'Заполните все поля и выберите свободное время из списка.')
             return redirect(url_for('booking'))
-        service = con.execute("SELECT * FROM services WHERE id=? AND active=1", (sid,)).fetchone()
+        bundle = resolve_services_bundle(con, service_ids)
         emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role='master'", (uid,)).fetchone()
-        if not service or not emp or not employee_can_service(con, uid, sid):
+        if not bundle or not emp or not employee_can_all_services(con, uid, service_ids):
             con.close()
-            flash('Мастер не выполняет эту услугу')
+            flash('Мастер не выполняет выбранные услуги')
             return redirect(url_for('booking'))
-        end = m2hm(hm2m(start) + int(service['duration_min']))
-        if not online_slot_allowed(con, uid, sid, d, start):
+        end = m2hm(hm2m(start) + int(bundle['duration_min']))
+        if not online_slot_allowed(con, uid, service_ids, d, start):
             con.close()
             flash('Это время недоступно для онлайн-записи. Выберите свободное окно из списка.')
             return redirect(url_for('booking'))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
-        price = float(request.form.get('price') or service['base_price'] or 0)
+        price = float(request.form.get('price') or bundle['base_price'] or 0)
         con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
+                    (cid,carid,name,phone,car,plate,bundle['primary_id'],bundle['name'],d,start,end,bundle['duration_min'],'Записан',uid,price,request.form.get('comment',''),now()))
         aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
         set_appointment_employees(con, aid, [int(uid)])
+        set_appointment_services(con, aid, service_ids)
         con.commit()
         remote_backup_database()
-        notify_employee_appointment(uid, d, start, name, service['name'], car or plate)
+        notify_employee_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
         con.close()
-        return render_template('booking_success.html', service=service, emp=emp, d=d, start=start, end=end)
+        return render_template('booking_success.html', services=bundle['rows'], service_name=bundle['name'], emp=emp, d=d, start=start, end=end)
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     con.close(); return render_template('booking.html', services=services, default_date=today())
 
 @app.route('/api/masters')
 def api_masters():
-    con = db(); sid = request.args.get('service_id')
-    rows = con.execute("SELECT u.id,u.full_name FROM users u JOIN user_services us ON us.user_id=u.id WHERE us.service_id=? AND us.allowed=1 AND u.active=1 AND u.role='master' ORDER BY u.full_name", (sid,)).fetchall()
-    con.close(); return jsonify([{'id':r['id'],'name':r['full_name']} for r in rows])
+    con = db()
+    service_ids = parse_service_ids_from_request(request.args)
+    if not service_ids:
+        con.close()
+        return jsonify([])
+    placeholders = ','.join('?' * len(service_ids))
+    rows = con.execute(
+        f"SELECT u.id,u.full_name FROM users u WHERE u.active=1 AND u.role='master' "
+        f"AND (SELECT COUNT(*) FROM user_services us WHERE us.user_id=u.id AND us.service_id IN ({placeholders}) AND us.allowed=1) = ? "
+        f"ORDER BY u.full_name",
+        service_ids + [len(service_ids)],
+    ).fetchall()
+    con.close()
+    return jsonify([{'id': r['id'], 'name': r['full_name']} for r in rows])
 
 @app.route('/api/slots')
 def api_slots():
-    con = db(); out = available_slots(con, request.args.get('employee_id'), request.args.get('service_id'), request.args.get('date')); con.close()
+    con = db()
+    service_ids = parse_service_ids_from_request(request.args)
+    uid = request.args.get('employee_id')
+    d = request.args.get('date')
+    bundle = resolve_services_bundle(con, service_ids) if service_ids else None
+    out = available_slots_for_duration(con, uid, bundle['duration_min'], d) if bundle else []
+    con.close()
     return jsonify(out)
 
 @app.route('/calendar', methods=['GET','POST'])
@@ -1109,34 +1341,39 @@ def api_slots():
 def calendar_view():
     con = db(); u = current_user()
     master_error = False
+    service_error = False
     form_data = None
     if request.method == 'POST':
         form_data = request.form
         employee_ids = parse_employee_ids(request.form)
+        service_ids = parse_service_ids(request.form)
         ok, err = validate_master_ids(con, employee_ids)
         if not ok:
             flash(err)
             master_error = True
-        elif not request.form.get('service_id'):
-            flash('Выберите услугу')
-            master_error = False
         else:
-            sid = request.form['service_id']; d = request.form['appointment_date']; start = request.form['start_time']
-            service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
-            end = m2hm(hm2m(start) + int(service['duration_min']))
-            name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
-            cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
-            price = float(request.form.get('price') or service['base_price'] or 0)
-            primary = employee_ids[0]
-            con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (cid,carid,name,phone,car,plate,sid,service['name'],d,start,end,service['duration_min'],'Записан',primary,price,request.form.get('comment',''),now()))
-            aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
-            set_appointment_employees(con, aid, employee_ids)
-            con.commit()
-            notify_employee_appointment(employee_ids, d, start, name, service['name'], car or plate)
-            flash('Запись добавлена вручную')
-            con.close()
-            return redirect(url_for('calendar_view', date=d))
+            ok, err = validate_service_ids(con, service_ids)
+            if not ok:
+                flash(err)
+                service_error = True
+            else:
+                bundle = resolve_services_bundle(con, service_ids)
+                d = request.form['appointment_date']; start = request.form['start_time']
+                end = m2hm(hm2m(start) + int(bundle['duration_min']))
+                name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
+                cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
+                price = float(request.form.get('price') or bundle['base_price'] or 0)
+                primary = employee_ids[0]
+                con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                            (cid,carid,name,phone,car,plate,bundle['primary_id'],bundle['name'],d,start,end,bundle['duration_min'],'Записан',primary,price,request.form.get('comment',''),now()))
+                aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+                set_appointment_employees(con, aid, employee_ids)
+                set_appointment_services(con, aid, service_ids)
+                con.commit()
+                notify_employee_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
+                flash('Запись добавлена вручную')
+                con.close()
+                return redirect(url_for('calendar_view', date=d))
 
     selected = request.args.get('date') or today(); q = request.args.get('q','').strip()
     month = datetime.strptime(selected, '%Y-%m-%d').date().replace(day=1)
@@ -1165,8 +1402,9 @@ def calendar_view():
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     employees = list_masters(con)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
+    services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     con.close()
-    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, masters_json=masters_json, master_error=master_error, form_data=form_data)
+    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, masters_json=masters_json, services_json=services_json, master_error=master_error, service_error=service_error, form_data=form_data)
 
 @app.route('/appointment/<int:aid>/extra', methods=['POST'])
 @login_required
@@ -1291,16 +1529,21 @@ def edit_appointment(aid):
         ok, err = validate_master_ids(con, employee_ids)
         if not ok:
             con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
-        sid = request.form['service_id']; primary = employee_ids[0]; d = request.form['appointment_date']; start = request.form['start_time']
-        service = con.execute("SELECT * FROM services WHERE id=?", (sid,)).fetchone()
-        end = m2hm(hm2m(start) + int(service['duration_min']))
+        service_ids = parse_service_ids(request.form)
+        ok, err = validate_service_ids(con, service_ids)
+        if not ok:
+            con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
+        bundle = resolve_services_bundle(con, service_ids)
+        primary = employee_ids[0]; d = request.form['appointment_date']; start = request.form['start_time']
+        end = m2hm(hm2m(start) + int(bundle['duration_min']))
         name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car', ''); plate = request.form.get('plate_number', '').upper().replace(' ', '')
-        price = float(request.form.get('price') or service['base_price'] or 0)
+        price = float(request.form.get('price') or bundle['base_price'] or 0)
         con.execute(
             "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
-            (name, phone, car, plate, sid, service['name'], d, start, end, service['duration_min'], primary, price, request.form.get('comment', ''), aid)
+            (name, phone, car, plate, bundle['primary_id'], bundle['name'], d, start, end, bundle['duration_min'], primary, price, request.form.get('comment', ''), aid)
         )
         set_appointment_employees(con, aid, employee_ids)
+        set_appointment_services(con, aid, service_ids)
         con.commit(); con.close(); flash('Запись обновлена')
         return redirect(url_for('calendar_view', date=d))
     materials = list_stock_for_writeoff(con, u)
@@ -1312,10 +1555,12 @@ def edit_appointment(aid):
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     employees = list_masters(con)
     selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+    selected_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
     master_error = request.args.get('master_error') == '1'
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
+    services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, masters_json=masters_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -1352,6 +1597,7 @@ def close_appointment(aid):
         refresh_dashboard_stats()
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         notify_directors_appointment_closed(con, ap_closed, price)
+        notify_telegram_appointment_closed(ap_closed, price)
         con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
@@ -1486,8 +1732,11 @@ def reschedule_appointment(aid):
     start = request.form.get('start_time', '').strip()
     if not d or not start:
         con.close(); flash('Укажите дату и время'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
-    service = con.execute("SELECT * FROM services WHERE id=?", (ap['service_id'],)).fetchone()
-    duration = int(service['duration_min']) if service else int(ap['duration_min'] or 60)
+    duration = int(ap['duration_min'] or 0)
+    if not duration:
+        service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+        bundle = resolve_services_bundle(con, service_ids)
+        duration = int(bundle['duration_min']) if bundle else 60
     end = m2hm(hm2m(start) + duration)
     note = f'Перенос: {ap["appointment_date"]} {ap["start_time"]} → {d} {start}'
     comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
@@ -1936,6 +2185,19 @@ def settings():
                 flash('База восстановлена из резервной копии')
             else:
                 flash('Не найдена резервная копия с данными')
+        elif action == 'telegram_save':
+            set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
+            set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
+            flash('Настройки Telegram сохранены')
+        elif action == 'telegram_test':
+            ok, err = send_telegram_message('<b>Тест</b>\nУведомления BlackSquare CRM работают.', force=True)
+            flash('Тестовое сообщение отправлено в чат' if ok else f'Telegram: {err}')
+        elif action == 'telegram_discover':
+            chats = telegram_discover_chats()
+            if chats:
+                flash('Найденные чаты: ' + ', '.join(f'{c["title"]} ({c["id"]})' for c in chats))
+            else:
+                flash('Чаты не найдены. Напишите что-нибудь боту в рабочем чате и повторите поиск.')
         return redirect(url_for('settings'))
     stats_refresh = get_setting('stats_refresh', 'live')
     stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
@@ -1947,7 +2209,20 @@ def settings():
     con.close()
     backup_dir = Path(DB).parent / 'backups'
     backups = sorted(backup_dir.glob('blacksquare_*.db'), key=lambda p: p.stat().st_mtime, reverse=True)[:5] if backup_dir.exists() else []
-    return render_template('settings.html', stats_refresh=stats_refresh, stats_updated=stats_updated, db_path=DB, db_info=db_info, backups=backups)
+    telegram_on = get_setting('telegram_enabled', '0') == '1'
+    telegram_chat = get_setting('telegram_chat_id', '')
+    telegram_token_ok = bool(telegram_bot_token())
+    return render_template(
+        'settings.html',
+        stats_refresh=stats_refresh,
+        stats_updated=stats_updated,
+        db_path=DB,
+        db_info=db_info,
+        backups=backups,
+        telegram_on=telegram_on,
+        telegram_chat=telegram_chat,
+        telegram_token_ok=telegram_token_ok,
+    )
 
 
 @app.route('/finance', methods=['GET', 'POST'])
