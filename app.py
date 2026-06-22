@@ -1454,24 +1454,64 @@ def transcribe_voice_bytes(audio_bytes, filename='voice.ogg'):
     ]
     body = b''.join(parts)
     import urllib.request
-    req = urllib.request.Request(
-        'https://api.openai.com/v1/audio/transcriptions',
-        data=body,
-        method='POST',
-        headers={
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': f'multipart/form-data; boundary={boundary}',
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode())
-            text = (data.get('text') or '').strip()
-            if text:
-                return text, None
-            return None, 'Пустая расшифровка'
-    except Exception as e:
-        return None, f'Расшифровка: {str(e)[:160]}'
+    import urllib.error
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': f'multipart/form-data; boundary={boundary}',
+    }
+    delays = (0, 4, 10, 20)
+    last_err = ''
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        req = urllib.request.Request(
+            'https://api.openai.com/v1/audio/transcriptions',
+            data=body,
+            method='POST',
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode())
+                text = (data.get('text') or '').strip()
+                if text:
+                    return text, None
+                return None, 'Пустая расшифровка'
+        except urllib.error.HTTPError as e:
+            detail = ''
+            try:
+                detail = json.loads(e.read().decode()).get('error', {}).get('message', '')
+            except Exception:
+                pass
+            last_err = detail or str(e)
+            if e.code == 429 and attempt < len(delays) - 1:
+                retry_after = e.headers.get('Retry-After')
+                if retry_after:
+                    try:
+                        time.sleep(min(30, int(retry_after)))
+                    except ValueError:
+                        pass
+                continue
+            if e.code == 429:
+                return None, 'OpenAI: слишком много запросов. Подождите 1–2 минуты или запишите текстом: /z ...'
+            if e.code == 401:
+                return None, 'OpenAI: неверный ключ API — проверьте в Настройках CRM'
+            if e.code == 402 or 'quota' in last_err.lower() or 'billing' in last_err.lower():
+                return None, 'OpenAI: закончился лимит или нет оплаты на аккаунте OpenAI'
+            return None, f'Расшифровка OpenAI ({e.code}): {last_err[:120]}'
+        except Exception as e:
+            return None, f'Расшифровка: {str(e)[:120]}'
+    return None, 'OpenAI: лимит запросов. Подождите и повторите или используйте /z текстом'
+
+_voice_last_by_chat = {}
+
+def voice_rate_ok(chat_id):
+    now_t = time.time()
+    last = _voice_last_by_chat.get(str(chat_id), 0)
+    if now_t - last < 12:
+        return False, 'Подождите ~15 секунд между голосовыми'
+    _voice_last_by_chat[str(chat_id)] = now_t
+    return True, ''
 
 def process_telegram_booking(chat_id, parsed, author='', reply_to=None, source='text'):
     con = db()
@@ -1508,6 +1548,10 @@ def handle_telegram_voice(msg):
     audio, err = telegram_download_file(voice['file_id'])
     if err:
         telegram_reply(chat_id, f'❌ {err}', reply_to)
+        return
+    ok, rate_err = voice_rate_ok(chat_id)
+    if not ok:
+        telegram_reply(chat_id, f'⏳ {rate_err}', reply_to)
         return
     transcript, err = transcribe_voice_bytes(audio)
     if err:
