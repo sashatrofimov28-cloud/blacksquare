@@ -27,6 +27,36 @@
 </div>
 
 <div class="panel profile-card">
+  <h2>Telegram-уведомления</h2>
+  <p style="color:#666;font-size:14px">Надёжная альтернатива push: все записи и закрытия приходят в общий рабочий чат.</p>
+  <ol style="color:#666;font-size:14px;margin:12px 0;padding-left:20px">
+    <li>Создайте бота через <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> и скопируйте токен.</li>
+    <li>Добавьте бота в рабочий чат и напишите любое сообщение (чтобы бот увидел чат).</li>
+    <li>Укажите токен в переменной <code>TELEGRAM_BOT_TOKEN</code> на сервере Timeweb.</li>
+    <li>Нажмите «Найти чаты», выберите ID и включите уведомления.</li>
+  </ol>
+  {% if telegram_token_ok %}
+  <p class="hint" style="color:#2e7d32">Токен бота на сервере настроен</p>
+  {% else %}
+  <p class="hint" style="color:#c62828">Токен бота не найден — добавьте TELEGRAM_BOT_TOKEN в настройках приложения Timeweb</p>
+  {% endif %}
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="telegram_save">
+    <label class="check span4"><input type="checkbox" name="telegram_enabled" {% if telegram_on %}checked{% endif %}> Включить уведомления в Telegram</label>
+    <input name="telegram_chat_id" value="{{ telegram_chat }}" placeholder="ID чата (например -1001234567890)">
+    <button>Сохранить</button>
+  </form>
+  <form method="post" style="margin-top:12px;display:inline-block">
+    <input type="hidden" name="action" value="telegram_discover">
+    <button class="ghost">Найти чаты</button>
+  </form>
+  <form method="post" style="margin-top:12px;display:inline-block;margin-left:8px">
+    <input type="hidden" name="action" value="telegram_test">
+    <button class="ghost">Отправить тест</button>
+  </form>
+</div>
+
+<div class="panel profile-card">
   <h2>Статистика на главной</h2>
   <p style="color:#666;font-size:14px">Общая касса на главной обновляется сразу при закрытии записи.</p>
   <form method="post" class="form-grid">

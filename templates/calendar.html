@@ -20,12 +20,19 @@
     <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
     <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
     <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
-    <select name="service_id">
-      <option value="">— Выберите услугу —</option>
-      {% for s in services %}
-      <option value="{{ s.id }}" {% if form_data and form_data.get('service_id')|string == s.id|string %}selected{% endif %}>{{ s.name }} — {{ service_price_label(s.base_price) }}</option>
-      {% endfor %}
-    </select>
+    <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
+      <label class="master-picker-label">Услуги *</label>
+      <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
+      <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
+      <div class="master-add-row">
+        <select id="serviceSelect" class="master-select">
+          <option value="">— Выберите услугу —</option>
+        </select>
+        <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+      </div>
+      <div id="serviceChips" class="master-chips"></div>
+      <div id="serviceHiddenInputs"></div>
+    </div>
     <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
       <label class="master-picker-label">Мастера *</label>
       <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
@@ -98,5 +105,7 @@
 <script>
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ (form_data.getlist('employee_ids') if form_data else [])|tojson }};
+window.BS_SERVICES = {{ services_json|safe }};
+window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data else [])|tojson }};
 </script>
 {% endblock %}

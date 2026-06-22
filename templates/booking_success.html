@@ -1,1 +1,17 @@
-{% extends "base.html" %}{% block content %}<div class="public-wrap"><div class="public-card"><div class="wordmark center">BlackSquare</div><h1>Вы записаны</h1><p>{{ service.name }} · {{ emp.full_name }}</p><p><b>{{ d }}</b> {{ start }}–{{ end }}</p></div></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="public-wrap">
+  <div class="public-card">
+    <div class="wordmark center">BlackSquare</div>
+    <h1>Вы записаны</h1>
+  {% if services|length > 1 %}
+    <p><b>{{ service_name }}</b></p>
+    <ul>{% for s in services %}<li>{{ s.name }}</li>{% endfor %}</ul>
+  {% else %}
+    <p>{{ services[0].name if services else service_name }}</p>
+  {% endif %}
+    <p>Мастер: {{ emp.full_name }}</p>
+    <p><b>{{ d }}</b> {{ start }}–{{ end }}</p>
+  </div>
+</div>
+{% endblock %}
