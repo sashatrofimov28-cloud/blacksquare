@@ -485,7 +485,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_enabled','0')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_update_offset','0')")
-    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_wake_name','сквер')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_wake_name','пантюха')")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))

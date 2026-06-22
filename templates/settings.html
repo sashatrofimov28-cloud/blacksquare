@@ -44,7 +44,7 @@
     <input type="hidden" name="action" value="telegram_save">
     <label class="check span4"><input type="checkbox" name="telegram_enabled" {% if telegram_on %}checked{% endif %}> Включить уведомления в Telegram</label>
     <input name="telegram_chat_id" value="{{ telegram_chat }}" placeholder="ID чата (например -1001234567890)">
-    <input name="telegram_wake_name" value="{{ telegram_wake }}" placeholder="Имя бота для голоса (например сквер)">
+    <input name="telegram_wake_name" value="{{ telegram_wake }}" placeholder="Имя бота для голоса (например пантюха)">
     <button>Сохранить</button>
   </form>
   {% if openai_ok %}
