@@ -3175,6 +3175,11 @@ def settings():
         'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
         'clients': con.execute("SELECT COUNT(*) c FROM clients").fetchone()['c'],
     }
+    friend_discount_percent = get_setting('friend_discount_percent', '10')
+    friend_cards_raw = con.execute(
+        "SELECT fc.*, c.name client_name FROM friend_cards fc LEFT JOIN clients c ON c.id=fc.client_id ORDER BY fc.id DESC"
+    ).fetchall()
+    clients = con.execute("SELECT id, name, phone FROM clients ORDER BY name").fetchall()
     con.close()
     backup_dir = Path(DB).parent / 'backups'
     backups = sorted(backup_dir.glob('blacksquare_*.db'), key=lambda p: p.stat().st_mtime, reverse=True)[:5] if backup_dir.exists() else []
@@ -3186,12 +3191,6 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
-    friend_discount_percent = get_setting('friend_discount_percent', '10')
-    friend_cards_raw = con.execute(
-        "SELECT fc.*, c.name client_name FROM friend_cards fc LEFT JOIN clients c ON c.id=fc.client_id ORDER BY fc.id DESC"
-    ).fetchall()
-    clients = con.execute("SELECT id, name, phone FROM clients ORDER BY name").fetchall()
-    con.close()
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
