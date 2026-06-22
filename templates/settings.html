@@ -61,8 +61,24 @@
     <button class="ghost">Отправить тест</button>
   </form>
   <p class="hint" style="margin-top:16px"><b>Текст:</b> <code>/z приора на 14:00 передняя полусфера 4000</code><br>
-    <b>Голос:</b> «Сквер, приора на 14:00 передняя полусфера 4000»<br>
+    <b>Голос:</b> «Пантюха, приора на 14:00 передняя полусфера 4000»<br>
     Или голосовое ответом на сообщение бота. В @BotFather отключите Group Privacy, чтобы бот слышал голос без ответа.
+  </p>
+</div>
+
+<div class="panel profile-card">
+  <h2>Бонусная программа</h2>
+  <p style="color:#666;font-size:14px">Каждый клиент получает персональный код и QR-карту. Бонусы начисляются при закрытии визита. Управление — в карточке клиента в CRM.</p>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="bonus_save">
+    <label class="check span4"><input type="checkbox" name="bonus_enabled" {% if bonus_on %}checked{% endif %}> Включить бонусную программу</label>
+    <input name="bonus_percent" type="number" step="0.1" min="0" value="{{ bonus_percent }}" placeholder="Процент от суммы визита">
+    <input name="bonus_from_visit" type="number" step="1" min="1" value="{{ bonus_from_visit }}" placeholder="С какого визита начислять">
+    <button>Сохранить</button>
+  </form>
+  <p class="hint" style="margin-top:12px">
+    По умолчанию {{ bonus_percent }}% со {{ bonus_from_visit }}-го визита. Клиент сканирует QR — открывается карта с балансом.
+    <b>iPhone:</b> «Поделиться» → «На экран Домой». <b>Android:</b> «Добавить на главный экран».
   </p>
 </div>
 

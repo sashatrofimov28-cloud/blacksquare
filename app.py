@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json, shutil, threading, time, re
+import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib
 import os
 
 try:
@@ -396,6 +396,7 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS director_notification_prefs(user_id INTEGER PRIMARY KEY, notify_new INTEGER DEFAULT 1, notify_closed INTEGER DEFAULT 1, notify_daily INTEGER DEFAULT 1)")
     c.execute("CREATE TABLE IF NOT EXISTS director_employee_notify(director_id INTEGER, employee_id INTEGER, enabled INTEGER DEFAULT 1, UNIQUE(director_id, employee_id))")
     c.execute("CREATE TABLE IF NOT EXISTS daily_reports(report_date TEXT PRIMARY KEY, revenue REAL DEFAULT 0, salary REAL DEFAULT 0, profit REAL DEFAULT 0, certificate_paid REAL DEFAULT 0, material_cost REAL DEFAULT 0, m2 REAL DEFAULT 0, appointments_count INTEGER DEFAULT 0, by_employee_json TEXT, created_at TEXT, notified INTEGER DEFAULT 0)")
+    c.execute("CREATE TABLE IF NOT EXISTS bonus_transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER, appointment_id INTEGER, type TEXT, amount REAL DEFAULT 0, percent REAL, visit_price REAL, balance_after REAL DEFAULT 0, comment TEXT, user_id INTEGER, created_at TEXT)")
     con.commit()
     migrate_db(c)
 
@@ -487,6 +488,22 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_update_offset','0')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_wake_name','пантюха')")
     c.execute("UPDATE app_settings SET value='пантюха' WHERE key='telegram_wake_name' AND value IN ('', 'сквер')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_enabled','1')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_percent','3')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
+    client_cols = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
+    if 'bonus_code' not in client_cols:
+        c.execute("ALTER TABLE clients ADD COLUMN bonus_code TEXT")
+    if 'bonus_balance' not in client_cols:
+        c.execute("ALTER TABLE clients ADD COLUMN bonus_balance REAL DEFAULT 0")
+    if 'bonus_enabled' not in client_cols:
+        c.execute("ALTER TABLE clients ADD COLUMN bonus_enabled INTEGER DEFAULT 1")
+    if 'bonus_percent' not in client_cols:
+        c.execute("ALTER TABLE clients ADD COLUMN bonus_percent REAL")
+    for row in c.execute("SELECT id FROM clients WHERE bonus_code IS NULL OR bonus_code=''").fetchall():
+        code = make_bonus_code(c, row['id'])
+        c.execute("UPDATE clients SET bonus_code=? WHERE id=?", (code, row['id']))
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_bonus_code ON clients(bonus_code)")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -680,9 +697,13 @@ def perm_required(perm):
 
 def get_client(con, name, phone):
     row = con.execute("SELECT id FROM clients WHERE phone=?", (phone,)).fetchone()
-    if row: return row['id']
+    if row:
+        ensure_client_bonus_code(con, row['id'])
+        return row['id']
     con.execute("INSERT INTO clients(name,phone,source,stage,created_at) VALUES(?,?,?,?,?)", (name,phone,'Запись','Новый',now()))
-    return con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+    cid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+    ensure_client_bonus_code(con, cid)
+    return cid
 
 def get_car(con, client_id, car, plate):
     row = con.execute("SELECT id FROM cars WHERE client_id=? AND (plate_number=? OR car_model=?)", (client_id,plate,car)).fetchone()
@@ -759,6 +780,135 @@ def booking_public_url():
     if explicit:
         return f'{explicit}/booking'
     return url_for('booking', _external=True)
+
+def public_base_url():
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if explicit:
+        return explicit
+    return request.url_root.rstrip('/') if request else ''
+
+def bonus_card_url(code):
+    base = public_base_url() or booking_public_url().rsplit('/booking', 1)[0]
+    return f'{base}/bonus/{code}'
+
+def make_bonus_code(con, client_id=None):
+    if client_id:
+        code = f'BS{int(client_id):06d}'
+        row = con.execute("SELECT id FROM clients WHERE bonus_code=? AND id!=?", (code, client_id)).fetchone()
+        if not row:
+            return code
+    for _ in range(30):
+        code = 'BS' + ''.join(random.choices('0123456789', k=8))
+        if not con.execute("SELECT id FROM clients WHERE bonus_code=?", (code,)).fetchone():
+            return code
+    return f'BS{int(time.time())}'
+
+def ensure_client_bonus_code(con, client_id):
+    row = con.execute("SELECT bonus_code FROM clients WHERE id=?", (client_id,)).fetchone()
+    if row and row['bonus_code']:
+        return row['bonus_code']
+    code = make_bonus_code(con, client_id)
+    con.execute("UPDATE clients SET bonus_code=? WHERE id=?", (code, client_id))
+    return code
+
+def bonus_system_enabled():
+    return get_setting('bonus_enabled', '1') == '1'
+
+def global_bonus_percent():
+    try:
+        return float(get_setting('bonus_percent', '3') or 3)
+    except ValueError:
+        return 3.0
+
+def client_bonus_percent(client):
+    if client['bonus_percent'] is not None and str(client['bonus_percent']).strip() != '':
+        try:
+            return float(client['bonus_percent'])
+        except ValueError:
+            pass
+    return global_bonus_percent()
+
+def bonus_from_visit_number():
+    try:
+        return max(1, int(get_setting('bonus_from_visit', '2') or 2))
+    except ValueError:
+        return 2
+
+def add_bonus_transaction(con, client_id, tx_type, amount, balance_after, comment='', appointment_id=None, percent=None, visit_price=None, user_id=None):
+    con.execute(
+        "INSERT INTO bonus_transactions(client_id,appointment_id,type,amount,percent,visit_price,balance_after,comment,user_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        (client_id, appointment_id, tx_type, amount, percent, visit_price, balance_after, comment, user_id, now()),
+    )
+
+def spend_client_bonus(con, client_id, amount, appointment_id=None, user_id=None, comment=''):
+    amount = round(float(amount or 0), 2)
+    if amount <= 0:
+        return True, ''
+    client = con.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
+    if not client:
+        return False, 'Клиент не найден'
+    balance = float(client['bonus_balance'] or 0)
+    if amount > balance:
+        return False, f'Недостаточно бонусов (доступно {balance:.0f} ₽)'
+    new_balance = round(balance - amount, 2)
+    con.execute("UPDATE clients SET bonus_balance=? WHERE id=?", (new_balance, client_id))
+    add_bonus_transaction(con, client_id, 'spend', -amount, new_balance, comment or 'Списание бонусов', appointment_id, user_id=user_id)
+    return True, ''
+
+def accrue_bonus_on_close(con, ap, price, user_id=None):
+    if not bonus_system_enabled():
+        return 0, ''
+    client_id = ap['client_id']
+    if not client_id:
+        return 0, ''
+    client = con.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
+    if not client or not int(client['bonus_enabled'] or 0):
+        return 0, ''
+    if con.execute("SELECT id FROM bonus_transactions WHERE appointment_id=? AND type='earn'", (ap['id'],)).fetchone():
+        return 0, ''
+    prev_closed = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт' AND id!=?",
+        (client_id, ap['id']),
+    ).fetchone()['c']
+    visit_no = int(prev_closed) + 1
+    if visit_no < bonus_from_visit_number():
+        return 0, ''
+    percent = client_bonus_percent(client)
+    amount = round(float(price or 0) * percent / 100.0, 2)
+    if amount <= 0:
+        return 0, ''
+    ensure_client_bonus_code(con, client_id)
+    new_balance = round(float(client['bonus_balance'] or 0) + amount, 2)
+    con.execute("UPDATE clients SET bonus_balance=? WHERE id=?", (new_balance, client_id))
+    add_bonus_transaction(
+        con, client_id, 'earn', amount, new_balance,
+        f'Начисление {percent:g}% за визит №{visit_no}',
+        ap['id'], percent, price, user_id,
+    )
+    return amount, f'Начислено {amount:.0f} бонусов ({percent:g}%)'
+
+def adjust_client_bonus(con, client_id, delta, user_id=None, comment=''):
+    client = con.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
+    if not client:
+        return False, 'Клиент не найден'
+    delta = round(float(delta), 2)
+    new_balance = round(float(client['bonus_balance'] or 0) + delta, 2)
+    if new_balance < 0:
+        return False, 'Баланс не может быть отрицательным'
+    ensure_client_bonus_code(con, client_id)
+    con.execute("UPDATE clients SET bonus_balance=? WHERE id=?", (new_balance, client_id))
+    add_bonus_transaction(con, client_id, 'adjust', delta, new_balance, comment or 'Корректировка', user_id=user_id)
+    return True, ''
+
+def bonus_qr_png(url):
+    try:
+        import qrcode
+        img = qrcode.make(url, box_size=8, border=2)
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception:
+        return None
 
 def _derive_vapid_public_key(private_key):
     if not private_key:
@@ -1721,7 +1871,7 @@ def ensure_db():
 
 @app.before_request
 def prepare_db():
-    if request.endpoint not in ('healthz', 'health'):
+    if request.endpoint not in ('healthz', 'health', 'bonus_card_public'):
         ensure_db()
 
 @app.route('/login', methods=['GET','POST'])
@@ -2075,20 +2225,34 @@ def close_appointment(aid):
             flash(cert_msg)
             return redirect(url_for('close_appointment', aid=aid))
         cert_paid = float(ap['certificate_paid'] or 0) + float(cert_amount or 0)
-        profit = price - cert_paid - material_cost - salary_amount
+        bonus_spent = float(request.form.get('bonus_spent') or 0)
+        if bonus_spent > 0 and ap['client_id']:
+            ok, berr = spend_client_bonus(con, ap['client_id'], bonus_spent, aid, u['id'], 'Списание при закрытии визита')
+            if not ok:
+                con.close()
+                flash(berr)
+                return redirect(url_for('close_appointment', aid=aid))
+        profit = price - cert_paid - material_cost - salary_amount - bonus_spent
         con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
                     (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
         if salary_amount > 0:
             con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
+        ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+        earned, earn_msg = accrue_bonus_on_close(con, ap_closed, price, u['id'])
         con.commit()
         refresh_dashboard_stats()
-        ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         notify_directors_appointment_closed(con, ap_closed, price)
         notify_telegram_appointment_closed(con, ap_closed, price)
-        con.close(); flash('Запись закрыта'); return redirect(url_for('calendar_view', date=ap['appointment_date']))
+        con.close()
+        flash('Запись закрыта' + (f'. {earn_msg}' if earn_msg else ''))
+        return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
-    con.close(); return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'))
+    client_bonus = None
+    if ap['client_id']:
+        client_bonus = con.execute("SELECT bonus_balance, bonus_code, bonus_enabled FROM clients WHERE id=?", (ap['client_id'],)).fetchone()
+    con.close()
+    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent())
 
 @app.route('/appointment/<int:aid>/delete', methods=['POST'])
 @login_required
@@ -2521,6 +2685,7 @@ def crm():
     if request.method == 'POST':
         con.execute("INSERT INTO clients(name,phone,source,stage,reason,comment,created_at) VALUES(?,?,?,?,?,?,?)", (request.form.get('name'), request.form.get('phone'), request.form.get('source','Ручное добавление'), request.form.get('stage','Новый'), request.form.get('reason',''), request.form.get('comment',''), now()))
         cid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+        ensure_client_bonus_code(con, cid)
         car = request.form.get('car','')
         plate = request.form.get('plate_number','').upper().replace(' ','')
         if car or plate:
@@ -2535,6 +2700,58 @@ def crm():
         rows = con.execute("SELECT * FROM clients ORDER BY id DESC").fetchall()
     con.close(); return render_template('crm.html', rows=rows, q=q)
 
+
+@app.route('/crm/<int:cid>/bonus', methods=['POST'])
+@login_required
+@perm_required('crm')
+def client_bonus_action(cid):
+    con = db()
+    u = current_user()
+    action = request.form.get('action', '')
+    if action == 'adjust':
+        delta = float(request.form.get('bonus_delta') or 0)
+        comment = request.form.get('bonus_comment', '').strip()
+        ok, err = adjust_client_bonus(con, cid, delta, u['id'], comment)
+        con.commit() if ok else None
+        con.close()
+        flash(f'Бонусы обновлены' if ok else err)
+    elif action == 'toggle':
+        row = con.execute("SELECT bonus_enabled FROM clients WHERE id=?", (cid,)).fetchone()
+        if row:
+            con.execute("UPDATE clients SET bonus_enabled=? WHERE id=?", (0 if int(row['bonus_enabled'] or 0) else 1, cid))
+            con.commit()
+        con.close()
+        flash('Настройка бонусов сохранена')
+    elif action == 'percent':
+        raw = request.form.get('bonus_percent', '').strip()
+        val = float(raw) if raw else None
+        con.execute("UPDATE clients SET bonus_percent=? WHERE id=?", (val, cid))
+        con.commit()
+        con.close()
+        flash('Персональный процент сохранён')
+    elif action == 'regenerate':
+        code = make_bonus_code(con, cid)
+        con.execute("UPDATE clients SET bonus_code=? WHERE id=?", (code, cid))
+        con.commit()
+        con.close()
+        flash(f'Новый код: {code}')
+    else:
+        con.close()
+    return redirect(url_for('client_card', cid=cid))
+
+@app.route('/crm/<int:cid>/bonus-qr.png')
+@login_required
+@perm_required('crm')
+def client_bonus_qr(cid):
+    con = db()
+    client = con.execute("SELECT bonus_code FROM clients WHERE id=?", (cid,)).fetchone()
+    con.close()
+    if not client or not client['bonus_code']:
+        return 'No code', 404
+    png = bonus_qr_png(bonus_card_url(client['bonus_code']))
+    if not png:
+        return 'QR unavailable', 503
+    return app.response_class(png, mimetype='image/png')
 
 @app.route('/crm/<int:cid>/update', methods=['POST'])
 @login_required
@@ -2560,9 +2777,52 @@ def client_update(cid):
 def client_card(cid):
     con = db()
     client = con.execute("SELECT * FROM clients WHERE id=?", (cid,)).fetchone()
+    if not client:
+        con.close()
+        flash('Клиент не найден')
+        return redirect(url_for('crm'))
+    ensure_client_bonus_code(con, cid)
+    client = con.execute("SELECT * FROM clients WHERE id=?", (cid,)).fetchone()
     cars = con.execute("SELECT * FROM cars WHERE client_id=? ORDER BY id DESC", (cid,)).fetchall()
     visits = con.execute("SELECT a.*,u.full_name employee_name FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE client_id=? ORDER BY appointment_date DESC,start_time DESC", (cid,)).fetchall()
-    con.close(); return render_template('client_card.html', client=client, cars=cars, visits=visits)
+    bonus_tx = con.execute(
+        "SELECT bt.*, u.full_name user_name FROM bonus_transactions bt LEFT JOIN users u ON u.id=bt.user_id WHERE bt.client_id=? ORDER BY bt.id DESC LIMIT 50",
+        (cid,),
+    ).fetchall()
+    closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (cid,)).fetchone()['c']
+    con.close()
+    card_url = bonus_card_url(client['bonus_code']) if client['bonus_code'] else ''
+    return render_template(
+        'client_card.html',
+        client=client,
+        cars=cars,
+        visits=visits,
+        bonus_tx=bonus_tx,
+        card_url=card_url,
+        global_bonus_percent=global_bonus_percent(),
+        bonus_from_visit=bonus_from_visit_number(),
+        closed_visits=closed_visits,
+    )
+
+@app.route('/bonus/<code>')
+def bonus_card_public(code):
+    con = db()
+    client = con.execute("SELECT * FROM clients WHERE bonus_code=?", (code.upper(),)).fetchone()
+    if not client:
+        con.close()
+        return render_template('bonus_card.html', found=False), 404
+    closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (client['id'],)).fetchone()['c']
+    percent = client_bonus_percent(client)
+    con.close()
+    return render_template(
+        'bonus_card.html',
+        found=True,
+        client=client,
+        card_url=bonus_card_url(client['bonus_code']),
+        percent=percent,
+        closed_visits=closed_visits,
+        bonus_from_visit=bonus_from_visit_number(),
+    )
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -2672,6 +2932,11 @@ def settings():
                 flash('База восстановлена из резервной копии')
             else:
                 flash('Не найдена резервная копия с данными')
+        elif action == 'bonus_save':
+            set_setting('bonus_enabled', '1' if request.form.get('bonus_enabled') else '0')
+            set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
+            set_setting('bonus_from_visit', request.form.get('bonus_from_visit', '2').strip() or '2')
+            flash('Настройки бонусной программы сохранены')
         elif action == 'telegram_save':
             set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
             set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
@@ -2706,6 +2971,9 @@ def settings():
     telegram_token_ok = bool(telegram_bot_token())
     telegram_wake = get_setting('telegram_wake_name', 'пантюха')
     openai_ok = bool(openai_api_key())
+    bonus_on = get_setting('bonus_enabled', '1') == '1'
+    bonus_percent = get_setting('bonus_percent', '3')
+    bonus_from_visit = get_setting('bonus_from_visit', '2')
     return render_template(
         'settings.html',
         stats_refresh=stats_refresh,
@@ -2718,6 +2986,9 @@ def settings():
         telegram_token_ok=telegram_token_ok,
         telegram_wake=telegram_wake,
         openai_ok=openai_ok,
+        bonus_on=bonus_on,
+        bonus_percent=bonus_percent,
+        bonus_from_visit=bonus_from_visit,
     )
 
 

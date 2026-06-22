@@ -40,6 +40,10 @@
       <div id="certBalance" class="hint span4">Введите номер сертификата — баланс появится здесь</div>
       <input name="cert_amount" type="number" step="0.01" placeholder="Списать с сертификата ₽">
       <input name="cert_comment" placeholder="Комментарий к сертификату">
+      {% if client_bonus and client_bonus.bonus_enabled %}
+      <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
+      <div id="bonusBalance" class="hint span4">Бонусы клиента: {{ "%.0f"|format(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }} · начисление {{ bonus_percent }}%</div>
+      {% endif %}
       <textarea name="comment" placeholder="Комментарий к визиту (видит директор в зарплате)" class="span4"></textarea>
       <button>Закрыть запись</button>
     </div>
