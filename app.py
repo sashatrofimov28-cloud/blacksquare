@@ -484,6 +484,10 @@ def migrate_db(c):
         )
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_enabled','0')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
+    env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if env_chat:
+        c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
+        c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_enabled','1') ON CONFLICT(key) DO UPDATE SET value='1'")
     for d in c.execute("SELECT id FROM users WHERE role='director'").fetchall():
         c.execute(
             "INSERT OR IGNORE INTO director_notification_prefs(user_id,notify_new,notify_closed,notify_daily) VALUES(?,?,?,?)",
@@ -891,20 +895,17 @@ def telegram_bot_token():
     return os.environ.get('TELEGRAM_BOT_TOKEN', '').strip() or get_setting('telegram_bot_token', '').strip()
 
 def telegram_chat_id():
-    return get_setting('telegram_chat_id', '').strip()
+    return os.environ.get('TELEGRAM_CHAT_ID', '').strip() or get_setting('telegram_chat_id', '').strip()
 
 def telegram_enabled():
+    env = os.environ.get('TELEGRAM_ENABLED', '').strip().lower()
+    if env in ('1', 'true', 'yes', 'on'):
+        return True
+    if env in ('0', 'false', 'no', 'off'):
+        return False
     return get_setting('telegram_enabled', '0') == '1'
 
-def send_telegram_message(text, force=False):
-    if not force and not telegram_enabled():
-        return False, 'Telegram выключен'
-    token = telegram_bot_token()
-    chat_id = telegram_chat_id()
-    if not token:
-        return False, 'Укажите TELEGRAM_BOT_TOKEN в настройках сервера'
-    if not chat_id:
-        return False, 'Укажите ID чата в настройках'
+def _post_telegram_message(token, chat_id, text):
     import urllib.request
     import urllib.parse
     payload = urllib.parse.urlencode({
@@ -918,12 +919,31 @@ def send_telegram_message(text, force=False):
         data=payload,
         method='POST',
     )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        return json.loads(resp.read().decode())
+
+def send_telegram_message(text, force=False):
+    if not force and not telegram_enabled():
+        return False, 'Telegram выключен'
+    token = telegram_bot_token()
+    chat_id = telegram_chat_id()
+    if not token:
+        return False, 'Укажите TELEGRAM_BOT_TOKEN в настройках сервера'
+    if not chat_id:
+        return False, 'Укажите ID чата в настройках'
     try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read().decode())
+        data = _post_telegram_message(token, chat_id, text)
+        if data.get('ok'):
+            return True, None
+        params = data.get('parameters') or {}
+        new_id = params.get('migrate_to_chat_id')
+        if new_id:
+            set_setting('telegram_chat_id', str(new_id))
+            set_setting('telegram_enabled', '1')
+            data = _post_telegram_message(token, new_id, text)
             if data.get('ok'):
                 return True, None
-            return False, str(data.get('description', 'Ошибка Telegram'))
+        return False, str(data.get('description', 'Ошибка Telegram'))
     except Exception as e:
         return False, str(e)[:200]
 
@@ -933,10 +953,12 @@ def telegram_discover_chats():
         return []
     import urllib.request
     try:
-        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getUpdates?limit=30', timeout=12) as resp:
+        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getUpdates?limit=50', timeout=12) as resp:
             data = json.loads(resp.read().decode())
             chats = {}
+            order = 0
             for item in data.get('result', []):
+                order += 1
                 chat = None
                 if item.get('message'):
                     chat = item['message'].get('chat')
@@ -947,20 +969,43 @@ def telegram_discover_chats():
                 cid = chat.get('id') if chat else None
                 if cid is not None:
                     title = chat.get('title') or chat.get('first_name') or str(cid)
-                    chats[str(cid)] = title
-            return [{'id': k, 'title': v} for k, v in chats.items()]
+                    chats[str(cid)] = {'title': title, 'order': order}
+            rows = sorted(chats.items(), key=lambda x: x[1]['order'], reverse=True)
+            return [{'id': k, 'title': v['title']} for k, v in rows]
     except Exception:
         return []
+
+def telegram_pick_chat(chats):
+    if not chats:
+        return None
+    for c in chats:
+        if str(c['id']).startswith('-100'):
+            return c
+    for c in chats:
+        if str(c['id']).startswith('-'):
+            return c
+    return chats[0]
 
 def telegram_autoconfigure():
     if not telegram_bot_token():
         return False
-    if telegram_enabled() and telegram_chat_id():
-        return False
     chats = telegram_discover_chats()
     if not chats:
         return False
-    chosen = next((c for c in chats if str(c['id']).startswith('-')), chats[0])
+    current = telegram_chat_id()
+    if telegram_enabled() and current:
+        if any(str(c['id']) == str(current) for c in chats):
+            return False
+        if str(current).startswith('-') and not str(current).startswith('-100'):
+            chosen = telegram_pick_chat(chats)
+            if chosen and str(chosen['id']) != str(current):
+                set_setting('telegram_chat_id', str(chosen['id']))
+                send_telegram_message('<b>BlackSquare CRM</b>\nЧат обновлён после перехода в супергруппу.', force=True)
+                return True
+        return False
+    chosen = telegram_pick_chat(chats)
+    if not chosen:
+        return False
     set_setting('telegram_chat_id', str(chosen['id']))
     set_setting('telegram_enabled', '1')
     send_telegram_message('<b>BlackSquare CRM</b>\nУведомления о записях подключены.', force=True)
@@ -982,6 +1027,7 @@ def notify_telegram_new_appointment(ap_date, start_time, client_name, service_na
     send_telegram_message(text)
 
 def notify_telegram_appointment_closed(ap, price):
+    telegram_autoconfigure()
     if not telegram_enabled():
         return
     text = (
@@ -1249,6 +1295,7 @@ def ensure_db():
         remote_restore_database()
         restore_database_if_needed()
         init_db()
+        telegram_autoconfigure()
         start_scheduler()
         _db_initialized = True
 
