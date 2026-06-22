@@ -44,6 +44,8 @@
       <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
       <div id="bonusBalance" class="hint span4">Бонусы клиента: {{ "%.0f"|format(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }} · начисление {{ bonus_percent }}%</div>
       {% endif %}
+      <input name="friend_discount_code" id="friendDiscountCode" placeholder="Скидка для друзей — код (4 цифры)" maxlength="4" inputmode="numeric" pattern="1[0-9]{3}">
+      <div id="friendDiscountHint" class="hint span4">Код скидки «Для друзей» — друг открывает свою карту и называет 4-значный код. Скидка {{ friend_discount_percent|int }}% от суммы заказа.</div>
       <textarea name="comment" placeholder="Комментарий к визиту (видит директор в зарплате)" class="span4"></textarea>
       <button>Закрыть запись</button>
     </div>
@@ -123,6 +125,31 @@ if (certInput && certBalance) {
     const r = await fetch('/api/certificate_balance?number=' + encodeURIComponent(n));
     const d = await r.json();
     certBalance.textContent = d.ok ? ('Баланс: ' + Math.round(d.balance) + ' ₽ · ' + d.status) : d.message;
+  });
+}
+
+const friendInput = document.getElementById('friendDiscountCode');
+const friendHint = document.getElementById('friendDiscountHint');
+const priceInput = document.querySelector('input[name="price"]');
+if (friendInput && friendHint) {
+  friendInput.addEventListener('input', async () => {
+    const code = friendInput.value.trim();
+    if (!code) {
+      friendHint.textContent = 'Код скидки «Для друзей» — друг открывает свою карту и называет 4-значный код. Скидка {{ friend_discount_percent|int }}% от суммы заказа.';
+      friendHint.style.color = '';
+      return;
+    }
+    const r = await fetch('/api/friend_discount_check?code=' + encodeURIComponent(code));
+    const d = await r.json();
+    if (!d.ok) {
+      friendHint.textContent = d.message;
+      friendHint.style.color = '#c62828';
+      return;
+    }
+    const price = parseFloat(priceInput?.value || 0);
+    const off = price > 0 ? Math.round(price * d.percent / 100) : 0;
+    friendHint.textContent = 'Карта №' + d.card_number + ' · ' + d.name + ' · скидка ' + d.percent + '%' + (off ? ' (−' + off + ' ₽)' : '');
+    friendHint.style.color = '#2e7d32';
   });
 }
 </script>

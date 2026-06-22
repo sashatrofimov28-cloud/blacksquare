@@ -67,6 +67,60 @@
 </div>
 
 <div class="panel profile-card">
+  <h2>Карты «Для друзей»</h2>
+  <p style="color:#666;font-size:14px">Постоянная скидка вместо бонусов. У карты номер <b>10001, 10002…</b> (начинается с 1). При открытии ссылки другу выдаётся короткий код скидки (4 цифры, начинается с 1) — сотрудник вводит его при закрытии заказа. Код меняется при каждом открытии ссылки.</p>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="friend_save">
+    <input name="friend_discount_percent" type="number" step="0.1" min="0" value="{{ friend_discount_percent }}" placeholder="Скидка по умолчанию, %">
+    <button>Сохранить %</button>
+  </form>
+  <form method="post" class="form-grid" style="margin-top:16px">
+    <input type="hidden" name="action" value="friend_add">
+    <input name="friend_name" placeholder="Имя друга" required>
+    <select name="friend_client_id">
+      <option value="">Без привязки к CRM</option>
+      {% for c in clients %}
+      <option value="{{ c.id }}">{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    <input name="friend_card_percent" type="number" step="0.1" placeholder="Скидка % (пусто = {{ friend_discount_percent }})">
+    <input name="friend_comment" placeholder="Комментарий">
+    <button>Выдать карту</button>
+  </form>
+  {% if friend_cards %}
+  <table style="margin-top:16px">
+    <tr><th>№ карты</th><th>Имя</th><th>CRM</th><th>Скидка</th><th>QR / ссылка</th><th></th></tr>
+    {% for fc in friend_cards %}
+    <tr>
+      <td><b>{{ fc.card_number }}</b></td>
+      <td>{{ fc.name }}</td>
+      <td>{{ fc.client_name or '—' }}</td>
+      <td>{{ fc.discount_percent or friend_discount_percent }}%</td>
+      <td>
+        <img src="{{ url_for('friend_card_qr', fid=fc.id) }}" alt="QR" class="bonus-qr" style="width:80px;height:80px">
+        <a class="ghost mini-btn" href="{{ fc.card_url }}" target="_blank" rel="noopener">Открыть</a>
+      </td>
+      <td>
+        <form method="post" style="display:inline">
+          <input type="hidden" name="action" value="friend_toggle">
+          <input type="hidden" name="friend_id" value="{{ fc.id }}">
+          <button class="ghost mini-btn">{% if fc.active %}Выкл{% else %}Вкл{% endif %}</button>
+        </form>
+        <form method="post" style="display:inline" onsubmit="return confirm('Удалить карту?')">
+          <input type="hidden" name="action" value="friend_delete">
+          <input type="hidden" name="friend_id" value="{{ fc.id }}">
+          <button class="danger mini-btn">×</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="hint" style="margin-top:12px">Пока нет карт для друзей.</p>
+  {% endif %}
+</div>
+
+<div class="panel profile-card">
   <h2>Бонусная программа</h2>
   <p style="color:#666;font-size:14px">Каждый клиент получает персональный код и QR-карту. Бонусы начисляются при закрытии визита. Управление — в карточке клиента в CRM.</p>
   <form method="post" class="form-grid" style="margin-top:12px">

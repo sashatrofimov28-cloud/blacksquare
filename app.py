@@ -397,6 +397,9 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS director_employee_notify(director_id INTEGER, employee_id INTEGER, enabled INTEGER DEFAULT 1, UNIQUE(director_id, employee_id))")
     c.execute("CREATE TABLE IF NOT EXISTS daily_reports(report_date TEXT PRIMARY KEY, revenue REAL DEFAULT 0, salary REAL DEFAULT 0, profit REAL DEFAULT 0, certificate_paid REAL DEFAULT 0, material_cost REAL DEFAULT 0, m2 REAL DEFAULT 0, appointments_count INTEGER DEFAULT 0, by_employee_json TEXT, created_at TEXT, notified INTEGER DEFAULT 0)")
     c.execute("CREATE TABLE IF NOT EXISTS bonus_transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER, appointment_id INTEGER, type TEXT, amount REAL DEFAULT 0, percent REAL, visit_price REAL, balance_after REAL DEFAULT 0, comment TEXT, user_id INTEGER, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS friend_cards(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, client_id INTEGER, card_number TEXT UNIQUE, access_token TEXT UNIQUE, discount_percent REAL DEFAULT 10, active INTEGER DEFAULT 1, comment TEXT, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS friend_discount_codes(id INTEGER PRIMARY KEY AUTOINCREMENT, friend_card_id INTEGER, code TEXT, created_at TEXT, expires_at TEXT, used_at TEXT, appointment_id INTEGER)")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_discount_code_active ON friend_discount_codes(code) WHERE used_at IS NULL")
     con.commit()
     migrate_db(c)
 
@@ -491,6 +494,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_enabled','1')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_percent','3')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
     client_cols = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
     if 'bonus_code' not in client_cols:
         c.execute("ALTER TABLE clients ADD COLUMN bonus_code TEXT")
@@ -504,6 +508,11 @@ def migrate_db(c):
         code = make_bonus_code(c, row['id'])
         c.execute("UPDATE clients SET bonus_code=? WHERE id=?", (code, row['id']))
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_bonus_code ON clients(bonus_code)")
+    appt_cols = {r[1] for r in c.execute("PRAGMA table_info(appointments)").fetchall()}
+    if 'friend_discount_code' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN friend_discount_code TEXT")
+    if 'friend_discount_amount' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN friend_discount_amount REAL DEFAULT 0")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -855,11 +864,15 @@ def spend_client_bonus(con, client_id, amount, appointment_id=None, user_id=None
     add_bonus_transaction(con, client_id, 'spend', -amount, new_balance, comment or 'Списание бонусов', appointment_id, user_id=user_id)
     return True, ''
 
-def accrue_bonus_on_close(con, ap, price, user_id=None):
+def accrue_bonus_on_close(con, ap, price, user_id=None, skip_bonus=False):
+    if skip_bonus:
+        return 0, ''
     if not bonus_system_enabled():
         return 0, ''
     client_id = ap['client_id']
     if not client_id:
+        return 0, ''
+    if client_has_friend_card(con, client_id):
         return 0, ''
     client = con.execute("SELECT * FROM clients WHERE id=?", (client_id,)).fetchone()
     if not client or not int(client['bonus_enabled'] or 0):
@@ -909,6 +922,81 @@ def bonus_qr_png(url):
         return buf.getvalue()
     except Exception:
         return None
+
+def friend_card_url(token):
+    base = public_base_url() or booking_public_url().rsplit('/booking', 1)[0]
+    return f'{base}/friend/{token}'
+
+def make_friend_access_token(con):
+    for _ in range(30):
+        token = hashlib.sha256(f'friend{time.time()}{random.random()}'.encode()).hexdigest()[:16]
+        if not con.execute("SELECT id FROM friend_cards WHERE access_token=?", (token,)).fetchone():
+            return token
+    return hashlib.sha256(str(time.time()).encode()).hexdigest()[:16]
+
+def make_friend_card_number(con):
+    row = con.execute(
+        "SELECT COALESCE(MAX(CAST(card_number AS INTEGER)), 10000) n FROM friend_cards WHERE card_number GLOB '1[0-9][0-9][0-9][0-9]'"
+    ).fetchone()
+    return str(int(row['n']) + 1)
+
+def global_friend_discount_percent():
+    try:
+        return float(get_setting('friend_discount_percent', '10') or 10)
+    except ValueError:
+        return 10.0
+
+def client_has_friend_card(con, client_id):
+    if not client_id:
+        return False
+    return bool(con.execute("SELECT id FROM friend_cards WHERE client_id=? AND active=1", (client_id,)).fetchone())
+
+def issue_friend_discount_code(con, friend_card_id):
+    con.execute(
+        "UPDATE friend_discount_codes SET expires_at=? WHERE friend_card_id=? AND used_at IS NULL",
+        (now(), friend_card_id),
+    )
+    for _ in range(80):
+        code = '1' + ''.join(random.choices('0123456789', k=3))
+        busy = con.execute(
+            "SELECT id FROM friend_discount_codes WHERE code=? AND used_at IS NULL AND expires_at > ?",
+            (code, now()),
+        ).fetchone()
+        if not busy:
+            expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
+            con.execute(
+                "INSERT INTO friend_discount_codes(friend_card_id,code,created_at,expires_at) VALUES(?,?,?,?)",
+                (friend_card_id, code, now(), expires),
+            )
+            return code
+    code = '1' + str(int(time.time()) % 1000).zfill(3)
+    expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
+    con.execute(
+        "INSERT INTO friend_discount_codes(friend_card_id,code,created_at,expires_at) VALUES(?,?,?,?)",
+        (friend_card_id, code, now(), expires),
+    )
+    return code
+
+def lookup_friend_discount_code(con, code):
+    code = (code or '').strip()
+    if not code:
+        return None, ''
+    row = con.execute(
+        "SELECT fdc.*, fc.name, fc.card_number, fc.discount_percent, fc.active, fc.client_id "
+        "FROM friend_discount_codes fdc "
+        "JOIN friend_cards fc ON fc.id=fdc.friend_card_id "
+        "WHERE fdc.code=? AND fdc.used_at IS NULL AND fdc.expires_at > ? AND fc.active=1",
+        (code, now()),
+    ).fetchone()
+    if not row:
+        return None, 'Код скидки не найден, просрочен или уже использован'
+    return row, ''
+
+def use_friend_discount_code(con, code_row, appointment_id):
+    con.execute(
+        "UPDATE friend_discount_codes SET used_at=?, appointment_id=? WHERE id=?",
+        (now(), appointment_id, code_row['id']),
+    )
 
 def _derive_vapid_public_key(private_key):
     if not private_key:
@@ -2232,19 +2320,39 @@ def close_appointment(aid):
                 con.close()
                 flash(berr)
                 return redirect(url_for('close_appointment', aid=aid))
+        friend_discount_code = request.form.get('friend_discount_code', '').strip()
+        friend_discount_amount = 0.0
+        friend_discount_applied = False
+        if friend_discount_code:
+            fc_row, ferr = lookup_friend_discount_code(con, friend_discount_code)
+            if not fc_row:
+                con.close()
+                flash(ferr)
+                return redirect(url_for('close_appointment', aid=aid))
+            percent = float(fc_row['discount_percent'] or global_friend_discount_percent())
+            friend_discount_amount = round(float(price) * percent / 100.0, 2)
+            price = round(float(price) - friend_discount_amount, 2)
+            friend_discount_applied = True
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
-        con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
-                    (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), now(), aid))
+        con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,friend_discount_code=?,friend_discount_amount=?,closed_at=? WHERE id=?",
+                    (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), friend_discount_code if friend_discount_applied else None, friend_discount_amount, now(), aid))
+        if friend_discount_applied:
+            use_friend_discount_code(con, fc_row, aid)
         if salary_amount > 0:
             con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
-        earned, earn_msg = accrue_bonus_on_close(con, ap_closed, price, u['id'])
+        earned, earn_msg = accrue_bonus_on_close(con, ap_closed, price, u['id'], skip_bonus=friend_discount_applied)
         con.commit()
         refresh_dashboard_stats()
         notify_directors_appointment_closed(con, ap_closed, price)
         notify_telegram_appointment_closed(con, ap_closed, price)
         con.close()
-        flash('Запись закрыта' + (f'. {earn_msg}' if earn_msg else ''))
+        extra = []
+        if friend_discount_applied:
+            extra.append(f'Скидка для друзей −{friend_discount_amount:.0f} ₽')
+        if earn_msg:
+            extra.append(earn_msg)
+        flash('Запись закрыта' + (f'. {" · ".join(extra)}' if extra else ''))
         return redirect(url_for('calendar_view', date=ap['appointment_date']))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
@@ -2252,7 +2360,23 @@ def close_appointment(aid):
     if ap['client_id']:
         client_bonus = con.execute("SELECT bonus_balance, bonus_code, bonus_enabled FROM clients WHERE id=?", (ap['client_id'],)).fetchone()
     con.close()
-    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent())
+    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent())
+
+@app.route('/api/friend_discount_check')
+@login_required
+def api_friend_discount_check():
+    code = request.args.get('code', '').strip()
+    con = db()
+    row, err = lookup_friend_discount_code(con, code)
+    con.close()
+    if not row:
+        return jsonify(ok=False, message=err or 'Код не найден')
+    return jsonify(
+        ok=True,
+        percent=float(row['discount_percent'] or global_friend_discount_percent()),
+        name=row['name'],
+        card_number=row['card_number'],
+    )
 
 @app.route('/appointment/<int:aid>/delete', methods=['POST'])
 @login_required
@@ -2790,8 +2914,10 @@ def client_card(cid):
         (cid,),
     ).fetchall()
     closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (cid,)).fetchone()['c']
+    friend_card = con.execute("SELECT * FROM friend_cards WHERE client_id=? AND active=1", (cid,)).fetchone()
     con.close()
     card_url = bonus_card_url(client['bonus_code']) if client['bonus_code'] else ''
+    friend_card_url_val = friend_card_url(friend_card['access_token']) if friend_card else ''
     return render_template(
         'client_card.html',
         client=client,
@@ -2802,6 +2928,8 @@ def client_card(cid):
         global_bonus_percent=global_bonus_percent(),
         bonus_from_visit=bonus_from_visit_number(),
         closed_visits=closed_visits,
+        friend_card=friend_card,
+        friend_card_url=friend_card_url_val,
     )
 
 @app.route('/bonus/<code>')
@@ -2823,6 +2951,42 @@ def bonus_card_public(code):
         closed_visits=closed_visits,
         bonus_from_visit=bonus_from_visit_number(),
     )
+
+
+@app.route('/friend/<token>')
+def friend_card_public(token):
+    con = db()
+    card = con.execute("SELECT * FROM friend_cards WHERE access_token=? AND active=1", (token,)).fetchone()
+    if not card:
+        con.close()
+        return render_template('friend_card.html', found=False), 404
+    discount_code = issue_friend_discount_code(con, card['id'])
+    con.commit()
+    con.close()
+    return render_template(
+        'friend_card.html',
+        found=True,
+        card=card,
+        discount_code=discount_code,
+        card_url=friend_card_url(card['access_token']),
+        discount_percent=float(card['discount_percent'] or global_friend_discount_percent()),
+    )
+
+@app.route('/settings/friend/<int:fid>/qr.png')
+@login_required
+def friend_card_qr(fid):
+    u = current_user()
+    if u['role'] != 'director':
+        return 'Forbidden', 403
+    con = db()
+    card = con.execute("SELECT access_token FROM friend_cards WHERE id=?", (fid,)).fetchone()
+    con.close()
+    if not card:
+        return 'No card', 404
+    png = bonus_qr_png(friend_card_url(card['access_token']))
+    if not png:
+        return 'QR unavailable', 503
+    return app.response_class(png, mimetype='image/png')
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -2937,6 +3101,54 @@ def settings():
             set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
             set_setting('bonus_from_visit', request.form.get('bonus_from_visit', '2').strip() or '2')
             flash('Настройки бонусной программы сохранены')
+        elif action == 'friend_save':
+            set_setting('friend_discount_percent', request.form.get('friend_discount_percent', '10').strip() or '10')
+            flash('Настройки карт для друзей сохранены')
+        elif action == 'friend_add':
+            con = db()
+            name = request.form.get('friend_name', '').strip()
+            if not name:
+                con.close()
+                flash('Укажите имя для карты')
+                return redirect(url_for('settings'))
+            client_id = request.form.get('friend_client_id', '').strip()
+            client_id = int(client_id) if client_id else None
+            percent = float(request.form.get('friend_card_percent') or global_friend_discount_percent())
+            card_number = make_friend_card_number(con)
+            token = make_friend_access_token(con)
+            con.execute(
+                "INSERT INTO friend_cards(name,client_id,card_number,access_token,discount_percent,active,comment,created_at) VALUES(?,?,?,?,?,1,?,?)",
+                (name, client_id, card_number, token, percent, request.form.get('friend_comment', '').strip(), now()),
+            )
+            if client_id:
+                con.execute("UPDATE clients SET bonus_enabled=0 WHERE id=?", (client_id,))
+            con.commit()
+            con.close()
+            flash(f'Карта для друзей выдана: №{card_number} · {name}')
+        elif action == 'friend_toggle':
+            con = db()
+            fid = int(request.form.get('friend_id') or 0)
+            row = con.execute("SELECT active, client_id FROM friend_cards WHERE id=?", (fid,)).fetchone()
+            if row:
+                new_active = 0 if int(row['active'] or 0) else 1
+                con.execute("UPDATE friend_cards SET active=? WHERE id=?", (new_active, fid))
+                if row['client_id']:
+                    con.execute("UPDATE clients SET bonus_enabled=? WHERE id=?", (1 if not new_active else 0, row['client_id']))
+                con.commit()
+            con.close()
+            flash('Карта обновлена')
+        elif action == 'friend_delete':
+            con = db()
+            fid = int(request.form.get('friend_id') or 0)
+            row = con.execute("SELECT client_id FROM friend_cards WHERE id=?", (fid,)).fetchone()
+            if row:
+                if row['client_id']:
+                    con.execute("UPDATE clients SET bonus_enabled=1 WHERE id=?", (row['client_id'],))
+                con.execute("DELETE FROM friend_discount_codes WHERE friend_card_id=?", (fid,))
+                con.execute("DELETE FROM friend_cards WHERE id=?", (fid,))
+                con.commit()
+            con.close()
+            flash('Карта удалена')
         elif action == 'telegram_save':
             set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
             set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
@@ -2974,6 +3186,17 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
+    friend_discount_percent = get_setting('friend_discount_percent', '10')
+    friend_cards_raw = con.execute(
+        "SELECT fc.*, c.name client_name FROM friend_cards fc LEFT JOIN clients c ON c.id=fc.client_id ORDER BY fc.id DESC"
+    ).fetchall()
+    clients = con.execute("SELECT id, name, phone FROM clients ORDER BY name").fetchall()
+    con.close()
+    friend_cards = []
+    for r in friend_cards_raw:
+        fc = dict(r)
+        fc['card_url'] = friend_card_url(r['access_token'])
+        friend_cards.append(fc)
     return render_template(
         'settings.html',
         stats_refresh=stats_refresh,
@@ -2989,6 +3212,9 @@ def settings():
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,
+        friend_discount_percent=friend_discount_percent,
+        friend_cards=friend_cards,
+        clients=clients,
     )
 
 

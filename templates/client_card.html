@@ -5,6 +5,15 @@
   <p>{{ client.phone }}</p>
 </header>
 
+{% if friend_card %}
+<div class="panel" style="border-color:#333;background:#fafafa">
+  <h2>Карта «Для друзей»</h2>
+  <p>№ <b>{{ friend_card.card_number }}</b> · скидка {{ friend_card.discount_percent or 10 }}% · бонусы отключены</p>
+  <a class="ghost mini-btn" href="{{ friend_card_url }}" target="_blank" rel="noopener">Открыть карту друга</a>
+  <p class="hint">Управление — в <a href="{{ url_for('settings') }}">Настройках</a></p>
+</div>
+{% endif %}
+
 <div class="panel bonus-panel">
   <h2>Бонусная карта</h2>
   <div class="bonus-card-preview">
