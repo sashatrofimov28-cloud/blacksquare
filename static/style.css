@@ -89,6 +89,35 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .appt-table td.appt-actions-cell{white-space:normal}
 
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
+.calendar-page-layout{display:grid;grid-template-columns:minmax(220px,260px) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:20px}
+.calendar-mini-wrap{background:#fff;border:1px solid #e4e4e4;border-radius:20px;padding:14px 12px;box-shadow:0 12px 40px rgba(0,0,0,.05)}
+.calendar-mini-header{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px;font-weight:800;font-size:14px}
+.calendar-nav{min-width:36px;padding:6px 10px;font-size:18px;line-height:1}
+.calendar-mini-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;text-align:center;font-size:10px;color:#888;font-weight:700}
+.calendar-mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.calendar-mini-grid .day{min-height:34px;padding:4px 2px;text-align:center;justify-content:center;align-items:center;border-radius:10px}
+.calendar-mini-grid .day b{font-size:13px;line-height:1.2}
+.calendar-mini-grid .day span,.calendar-mini-grid .day small{display:none}
+.calendar-mini-grid .day.has-events{position:relative}
+.calendar-mini-grid .day.has-events::after{content:'';display:block;width:4px;height:4px;border-radius:50%;background:#050505;margin:2px auto 0}
+.calendar-mini-grid .day.active::after{background:#fff}
+.calendar-mini-hint{margin:10px 0 0;font-size:11px;color:#888;line-height:1.4}
+.calendar-booking-panel{margin-bottom:0}
+.calendar-booking-panel h2{margin-top:0;font-size:20px}
+.calendar-booking-note{color:#666;font-size:13px;margin:0 0 12px;line-height:1.45}
+.calendar-booking-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+.calendar-top{margin-bottom:14px}
+.calendar-top h1{font-size:28px}
+.calendar-toolbar{margin-bottom:14px}
+.calendar-day-panel{margin-top:0}
+@media(min-width:901px){
+  .calendar-mini-wrap{position:sticky;top:12px}
+}
+@media(max-width:900px){
+  .calendar-page-layout{grid-template-columns:1fr}
+  .calendar-mini-wrap{max-width:320px}
+  .calendar-booking-form{grid-template-columns:1fr}
+}
 .day{min-height:110px;padding:12px;display:flex;flex-direction:column;justify-content:space-between}
 .day b{font-size:22px}
 .day span,.day small{color:#666;font-size:12px}

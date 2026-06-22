@@ -184,6 +184,7 @@ PERMS = {
 }
 
 WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+MONTHS_RU = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
@@ -2177,7 +2178,34 @@ def calendar_view():
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     con.close()
-    return render_template('calendar.html', cells=cells, rows=rows, selected=selected, q=q, load=load, services=services, employees=employees, masters_json=masters_json, services_json=services_json, master_error=master_error, service_error=service_error, form_data=form_data)
+    month_start = datetime.strptime(selected, '%Y-%m-%d').date().replace(day=1)
+    if month_start.month == 1:
+        prev_month_start = date(month_start.year - 1, 12, 1)
+    else:
+        prev_month_start = date(month_start.year, month_start.month - 1, 1)
+    if month_start.month == 12:
+        next_month_start = date(month_start.year + 1, 1, 1)
+    else:
+        next_month_start = date(month_start.year, month_start.month + 1, 1)
+    calendar_month_title = f'{MONTHS_RU[month_start.month]} {month_start.year}'
+    return render_template(
+        'calendar.html',
+        cells=cells,
+        rows=rows,
+        selected=selected,
+        q=q,
+        load=load,
+        services=services,
+        employees=employees,
+        masters_json=masters_json,
+        services_json=services_json,
+        master_error=master_error,
+        service_error=service_error,
+        form_data=form_data,
+        calendar_month_title=calendar_month_title,
+        prev_month_date=prev_month_start.isoformat(),
+        next_month_date=next_month_start.isoformat(),
+    )
 
 @app.route('/appointment/<int:aid>/extra', methods=['POST'])
 @login_required

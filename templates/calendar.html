@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
+<header class="top calendar-top">
   <h1>Календарь</h1>
   <p>За день: {{ load.c }} записей, {{ load.mins }} минут загрузки.</p>
 </header>
-<div class="notice">
+<div class="notice calendar-toolbar">
   <form method="get" class="inline">
     <input type="date" name="date" value="{{ selected }}">
     <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя / авто">
@@ -12,49 +12,77 @@
   </form>
   <b>Ссылка клиенту:</b><code><a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></code>
 </div>
-<div class="panel">
-  <h2>Записать клиента вручную</h2>
-  <p style="color:#666;font-size:14px;margin-top:0">Любое время — ограничения графика действуют только для онлайн-записи клиентов. Мастера выбираются вручную — по умолчанию никто не назначен.</p>
-  <form method="post" class="form-grid" id="manualBookingForm" autocomplete="off">
-    <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
-    <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
-    <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
-    <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
-    <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
-      <label class="master-picker-label">Услуги *</label>
-      <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
-      <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
-      <div class="master-add-row">
-        <select id="serviceSelect" class="master-select">
-          <option value="">— Выберите услугу —</option>
-        </select>
-        <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
-      </div>
-      <div id="serviceChips" class="master-chips"></div>
-      <div id="serviceHiddenInputs"></div>
+
+<div class="calendar-page-layout">
+  <aside class="calendar-mini-wrap">
+    <div class="calendar-mini-header">
+      <a class="ghost mini-btn calendar-nav" href="{{ url_for('calendar_view', date=prev_month_date, q=q) }}" title="Предыдущий месяц">‹</a>
+      <span>{{ calendar_month_title }}</span>
+      <a class="ghost mini-btn calendar-nav" href="{{ url_for('calendar_view', date=next_month_date, q=q) }}" title="Следующий месяц">›</a>
     </div>
-    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
-      <label class="master-picker-label">Мастера *</label>
-      <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
-      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить»</p>
-      <div class="master-add-row">
-        <select id="masterSelect" class="master-select">
-          <option value="">— Выберите мастера —</option>
-        </select>
-        <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
-      </div>
-      <div id="masterChips" class="master-chips"></div>
-      <div id="masterHiddenInputs"></div>
+    <div class="calendar-mini-weekdays">
+      {% for wd in ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}<span>{{ wd }}</span>{% endfor %}
     </div>
-    <input type="date" name="appointment_date" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
-    <input type="time" name="start_time" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
-    <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)" value="{{ form_data.get('price', '') if form_data else '' }}">
-    <input name="comment" placeholder="Комментарий" value="{{ form_data.get('comment', '') if form_data else '' }}">
-    <button>Добавить запись</button>
-  </form>
+    <div class="calendar-mini-grid">
+      {% for c in cells %}
+        {% if c %}
+        <a class="day {% if c.date==selected %}active{% endif %}{% if c.count %} has-events{% endif %}" href="{{ url_for('calendar_view', date=c.date, q=q) }}" title="{{ c.count }} записей, {{ c.closed }} закрыто">
+          <b>{{ c.day }}</b>
+        </a>
+        {% else %}
+        <div class="day empty"></div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <p class="calendar-mini-hint">Точки — есть записи. Нажмите день, чтобы открыть список ниже.</p>
+  </aside>
+
+  <section class="calendar-booking-wrap">
+    <div class="panel calendar-booking-panel">
+      <h2>Записать клиента вручную</h2>
+      <p class="calendar-booking-note">Любое время — ограничения графика только для онлайн-записи. Мастера выбираются вручную.</p>
+      <form method="post" class="form-grid calendar-booking-form" id="manualBookingForm" autocomplete="off">
+        <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
+        <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
+        <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
+        <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
+        <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
+          <label class="master-picker-label">Услуги *</label>
+          <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
+          <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
+          <div class="master-add-row">
+            <select id="serviceSelect" class="master-select">
+              <option value="">— Выберите услугу —</option>
+            </select>
+            <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+          </div>
+          <div id="serviceChips" class="master-chips"></div>
+          <div id="serviceHiddenInputs"></div>
+        </div>
+        <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
+          <label class="master-picker-label">Мастера *</label>
+          <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
+          <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить»</p>
+          <div class="master-add-row">
+            <select id="masterSelect" class="master-select">
+              <option value="">— Выберите мастера —</option>
+            </select>
+            <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+          </div>
+          <div id="masterChips" class="master-chips"></div>
+          <div id="masterHiddenInputs"></div>
+        </div>
+        <input type="date" name="appointment_date" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
+        <input type="time" name="start_time" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
+        <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)" value="{{ form_data.get('price', '') if form_data else '' }}">
+        <input name="comment" placeholder="Комментарий" value="{{ form_data.get('comment', '') if form_data else '' }}">
+        <button class="span4">Добавить запись</button>
+      </form>
+    </div>
+  </section>
 </div>
-<div class="calendar-grid">{% for c in cells %}{% if c %}<a class="day {% if c.date==selected %}active{% endif %}" href="{{ url_for('calendar_view', date=c.date, q=q) }}"><b>{{ c.day }}</b><span>{{ c.count }} записей</span><small>{{ c.closed }} закрыто</small></a>{% else %}<div class="day empty"></div>{% endif %}{% endfor %}</div>
-<div class="panel">
+
+<div class="panel calendar-day-panel">
   <h2>Записи на {{ selected }}</h2>
   <div class="appt-list">
     {% for r in rows %}
