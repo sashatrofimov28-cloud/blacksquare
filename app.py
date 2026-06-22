@@ -937,9 +937,14 @@ def telegram_discover_chats():
             data = json.loads(resp.read().decode())
             chats = {}
             for item in data.get('result', []):
-                msg = item.get('message') or item.get('channel_post') or {}
-                chat = msg.get('chat') or {}
-                cid = chat.get('id')
+                chat = None
+                if item.get('message'):
+                    chat = item['message'].get('chat')
+                elif item.get('channel_post'):
+                    chat = item['channel_post'].get('chat')
+                elif item.get('my_chat_member'):
+                    chat = item['my_chat_member'].get('chat')
+                cid = chat.get('id') if chat else None
                 if cid is not None:
                     title = chat.get('title') or chat.get('first_name') or str(cid)
                     chats[str(cid)] = title
@@ -947,7 +952,22 @@ def telegram_discover_chats():
     except Exception:
         return []
 
+def telegram_autoconfigure():
+    if not telegram_bot_token():
+        return False
+    if telegram_enabled() and telegram_chat_id():
+        return False
+    chats = telegram_discover_chats()
+    if not chats:
+        return False
+    chosen = next((c for c in chats if str(c['id']).startswith('-')), chats[0])
+    set_setting('telegram_chat_id', str(chosen['id']))
+    set_setting('telegram_enabled', '1')
+    send_telegram_message('<b>BlackSquare CRM</b>\nУведомления о записях подключены.', force=True)
+    return True
+
 def notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, masters_str, car='', source=''):
+    telegram_autoconfigure()
     if not telegram_enabled():
         return
     car_part = f'\n🚗 {car}' if car else ''
@@ -2193,12 +2213,14 @@ def settings():
             ok, err = send_telegram_message('<b>Тест</b>\nУведомления BlackSquare CRM работают.', force=True)
             flash('Тестовое сообщение отправлено в чат' if ok else f'Telegram: {err}')
         elif action == 'telegram_discover':
+            telegram_autoconfigure()
             chats = telegram_discover_chats()
             if chats:
                 flash('Найденные чаты: ' + ', '.join(f'{c["title"]} ({c["id"]})' for c in chats))
             else:
                 flash('Чаты не найдены. Напишите что-нибудь боту в рабочем чате и повторите поиск.')
         return redirect(url_for('settings'))
+    telegram_autoconfigure()
     stats_refresh = get_setting('stats_refresh', 'live')
     stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
     con = db()
