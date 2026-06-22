@@ -495,6 +495,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_percent','3')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('openai_api_key','')")
     client_cols = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
     if 'bonus_code' not in client_cols:
         c.execute("ALTER TABLE clients ADD COLUMN bonus_code TEXT")
@@ -1150,7 +1151,10 @@ def telegram_wake_name():
     return os.environ.get('TELEGRAM_WAKE_NAME', '').strip() or get_setting('telegram_wake_name', 'пантюха').strip()
 
 def openai_api_key():
-    return os.environ.get('OPENAI_API_KEY', '').strip()
+    env = os.environ.get('OPENAI_API_KEY', '').strip()
+    if env:
+        return env
+    return get_setting('openai_api_key', '').strip()
 
 _telegram_bot_id = None
 
@@ -1437,7 +1441,7 @@ def telegram_download_file(file_id):
 def transcribe_voice_bytes(audio_bytes, filename='voice.ogg'):
     api_key = openai_api_key()
     if not api_key:
-        return None, 'Голосовые: добавьте OPENAI_API_KEY на сервере Timeweb'
+        return None, 'Голосовые: укажите ключ OpenAI в Настройках CRM или OPENAI_API_KEY на Timeweb'
     boundary = '----BlackSquare' + os.urandom(8).hex()
     parts = [
         f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n'.encode(),
@@ -3149,7 +3153,13 @@ def settings():
                 con.commit()
             con.close()
             flash('Карта удалена')
-        elif action == 'telegram_save':
+        elif action == 'openai_save':
+            key = request.form.get('openai_api_key', '').strip()
+            if key:
+                set_setting('openai_api_key', key)
+                flash('Ключ OpenAI сохранён — голосовые записи в Telegram включены')
+            else:
+                flash('Введите ключ OpenAI (начинается с sk-)')
             set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
             set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
             wake = request.form.get('telegram_wake_name', '').strip()
@@ -3188,6 +3198,8 @@ def settings():
     telegram_token_ok = bool(telegram_bot_token())
     telegram_wake = get_setting('telegram_wake_name', 'пантюха')
     openai_ok = bool(openai_api_key())
+    openai_key = openai_api_key()
+    openai_masked = ('sk-…' + openai_key[-4:]) if len(openai_key) > 8 else ''
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
@@ -3208,6 +3220,7 @@ def settings():
         telegram_token_ok=telegram_token_ok,
         telegram_wake=telegram_wake,
         openai_ok=openai_ok,
+        openai_masked=openai_masked,
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,

@@ -48,10 +48,15 @@
     <button>Сохранить</button>
   </form>
   {% if openai_ok %}
-  <p class="hint" style="color:#2e7d32">Голосовые записи: OpenAI настроен</p>
+  <p class="hint" style="color:#2e7d32">Голосовые записи: OpenAI настроен{% if openai_masked %} ({{ openai_masked }}){% endif %}</p>
   {% else %}
-  <p class="hint" style="color:#c62828">Для голосовых добавьте OPENAI_API_KEY в Timeweb</p>
+  <p class="hint" style="color:#c62828">Для голосовых укажите ключ OpenAI ниже или добавьте OPENAI_API_KEY в Timeweb</p>
   {% endif %}
+  <form method="post" class="form-grid" style="margin-top:8px">
+    <input type="hidden" name="action" value="openai_save">
+    <input name="openai_api_key" type="password" placeholder="Ключ OpenAI (sk-...)" autocomplete="off" class="span4">
+    <button class="ghost">Сохранить ключ OpenAI</button>
+  </form>
   <form method="post" style="margin-top:12px;display:inline-block">
     <input type="hidden" name="action" value="telegram_discover">
     <button class="ghost">Найти чаты</button>
