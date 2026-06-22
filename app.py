@@ -486,6 +486,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_chat_id','')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_update_offset','0')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('telegram_wake_name','пантюха')")
+    c.execute("UPDATE app_settings SET value='пантюха' WHERE key='telegram_wake_name' AND value IN ('', 'сквер')")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -908,7 +909,7 @@ def telegram_enabled():
     return get_setting('telegram_enabled', '0') == '1'
 
 def telegram_wake_name():
-    return os.environ.get('TELEGRAM_WAKE_NAME', '').strip() or get_setting('telegram_wake_name', 'сквер').strip()
+    return os.environ.get('TELEGRAM_WAKE_NAME', '').strip() or get_setting('telegram_wake_name', 'пантюха').strip()
 
 def openai_api_key():
     return os.environ.get('OPENAI_API_KEY', '').strip()
@@ -1044,7 +1045,7 @@ TELEGRAM_Z_HELP = (
     '<code>/z авто на 14:00 услуга 4000</code>\n'
     '<code>/z приора 14:00 передняя полусфера</code>\n\n'
     '<b>Голосом</b> (начните с имени бота):\n'
-    '«Сквер, приора на 14:00 передняя полусфера 4000»\n'
+    '«Пантюха, приора на 14:00 передняя полусфера 4000»\n'
     'Или голосовое <b>ответом</b> на сообщение бота.\n\n'
     'Дата: сегодня, <code>завтра</code> или <code>22.06</code>'
 )
@@ -2703,7 +2704,7 @@ def settings():
     telegram_on = get_setting('telegram_enabled', '0') == '1'
     telegram_chat = get_setting('telegram_chat_id', '')
     telegram_token_ok = bool(telegram_bot_token())
-    telegram_wake = get_setting('telegram_wake_name', 'сквер')
+    telegram_wake = get_setting('telegram_wake_name', 'пантюха')
     openai_ok = bool(openai_api_key())
     return render_template(
         'settings.html',
