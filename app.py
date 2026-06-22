@@ -1871,7 +1871,7 @@ def ensure_db():
 
 @app.before_request
 def prepare_db():
-    if request.endpoint not in ('healthz', 'health', 'bonus_card_public'):
+    if request.endpoint not in ('healthz', 'health'):
         ensure_db()
 
 @app.route('/login', methods=['GET','POST'])
