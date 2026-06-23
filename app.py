@@ -2545,16 +2545,115 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
 
 CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
 
-# Координаты для шаблона «В КВАДРАТЕ» (A4, доли от ширины/высоты страницы).
+# Запасные координаты, если в PDF нет линий (доли страницы / отступы).
 CERT_PDF_LAYOUT = {
-    'number_y': 0.102,
-    'number_right': 78,
+    'number_y': 0.067,
+    'number_right': 48,
     'number_fontsize': 12,
-    'amount_y': 0.540,
-    'amount_left': 0.34,
-    'amount_right': 0.62,
+    'amount_y': 0.355,
+    'amount_left': 0.220,
+    'amount_right': 0.620,
     'amount_fontsize': 24,
 }
+
+def _certificate_horizontal_lines(page):
+    w = page.rect.width
+    lines = []
+    for drawing in page.get_drawings():
+        for item in drawing.get('items', ()):
+            if item[0] != 'l':
+                continue
+            p1, p2 = item[1], item[2]
+            if abs(p1.y - p2.y) > 4:
+                continue
+            x1, x2 = sorted((p1.x, p2.x))
+            if (x2 - x1) < w * 0.12:
+                continue
+            lines.append({'x1': x1, 'x2': x2, 'y': (p1.y + p2.y) / 2})
+    return sorted(lines, key=lambda line: line['y'])
+
+def _certificate_text_boxes(page):
+    boxes = []
+    for block in page.get_text('dict').get('blocks', ()):
+        if block.get('type') != 0:
+            continue
+        for line in block.get('lines', ()):
+            for span in line.get('spans', ()):
+                text = span.get('text', '').strip()
+                if not text:
+                    continue
+                x0, y0, x1, y1 = span['bbox']
+                boxes.append({
+                    'text': text,
+                    'upper': text.upper(),
+                    'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1,
+                    'cx': (x0 + x1) / 2,
+                    'cy': (y0 + y1) / 2,
+                })
+    return boxes
+
+def certificate_overlay_positions(page):
+    w, h = page.rect.width, page.rect.height
+    lines = _certificate_horizontal_lines(page)
+    texts = _certificate_text_boxes(page)
+    fallback = CERT_PDF_LAYOUT
+
+    summa = next((t for t in texts if 'СУММ' in t['upper'] or t['upper'].startswith('SUMMA')), None)
+    number_mark = next((t for t in texts if t['upper'] in ('№', 'NO', 'Nº', 'N°') or '№' in t['text']), None)
+
+    number_line = None
+    amount_line = None
+    upper_lines = [
+        line for line in lines
+        if line['y'] < h * 0.18 and line['x1'] > w * 0.40 and line['x2'] > w * 0.65
+    ]
+    if upper_lines:
+        if number_mark:
+            number_line = min(upper_lines, key=lambda line: abs(line['y'] - number_mark['cy']))
+        else:
+            number_line = max(upper_lines, key=lambda line: line['x2'])
+
+    if summa:
+        below = [line for line in lines if line['y'] > summa['y1'] + 6]
+        if below:
+            amount_line = min(below, key=lambda line: line['y'])
+
+    if not amount_line and lines:
+        lower = [line for line in lines if line['y'] > h * 0.28]
+        if lower:
+            amount_line = max(lower, key=lambda line: line['x2'] - line['x1'])
+
+    num_fs = fallback['number_fontsize']
+    amt_fs = fallback['amount_fontsize']
+
+    if number_line:
+        num_y = number_line['y'] + num_fs * 0.15
+        num_x_right = number_line['x2'] - 6
+    elif number_mark:
+        num_y = number_mark['cy'] + num_fs * 0.35
+        num_x_right = w - fallback['number_right']
+    else:
+        num_y = h * fallback['number_y'] + num_fs
+        num_x_right = w - fallback['number_right']
+
+    if amount_line:
+        amt_y = amount_line['y'] + amt_fs * 0.2
+        amount_left = amount_line['x1']
+        amount_right = amount_line['x2']
+    else:
+        amt_y = h * fallback['amount_y'] + amt_fs
+        amount_left = w * fallback['amount_left']
+        amount_right = w * fallback['amount_right']
+
+    return {
+        'number_y': num_y,
+        'number_x_right': num_x_right,
+        'number_fontsize': num_fs,
+        'amount_y': amt_y,
+        'amount_left': amount_left,
+        'amount_right': amount_right,
+        'amount_fontsize': amt_fs,
+    }
 
 def make_certificate_number(con):
     row = con.execute(
@@ -2605,28 +2704,23 @@ def render_certificate_pdf(cert_number, amount):
             import fitz
             doc = fitz.open(template)
             page = doc[0]
-            w, h = page.rect.width, page.rect.height
             white = (1, 1, 1)
-            layout = CERT_PDF_LAYOUT
-            num_fs = layout['number_fontsize']
-            num_y = h * layout['number_y']
+            pos = certificate_overlay_positions(page)
+            num_fs = pos['number_fontsize']
             num_tw = fitz.get_text_length(str(cert_number), fontname='helv', fontsize=num_fs)
-            num_x = w - layout['number_right'] - num_tw
+            num_x = pos['number_x_right'] - num_tw
             page.insert_text(
-                (num_x, num_y),
+                (num_x, pos['number_y']),
                 str(cert_number),
                 fontsize=num_fs,
                 fontname='helv',
                 color=white,
             )
-            amt_fs = layout['amount_fontsize']
-            amt_y = h * layout['amount_y']
-            line_l = w * layout['amount_left']
-            line_r = w * layout['amount_right']
+            amt_fs = pos['amount_fontsize']
             amt_tw = fitz.get_text_length(amount_txt, fontname='helv', fontsize=amt_fs)
-            amt_x = (line_l + line_r) / 2 - amt_tw / 2
+            amt_x = (pos['amount_left'] + pos['amount_right']) / 2 - amt_tw / 2
             page.insert_text(
-                (amt_x, amt_y),
+                (amt_x, pos['amount_y']),
                 amount_txt,
                 fontsize=amt_fs,
                 fontname='helv',
