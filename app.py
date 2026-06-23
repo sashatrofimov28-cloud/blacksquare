@@ -2723,6 +2723,11 @@ def employees():
 @perm_required('employees')
 def employee_update(uid):
     con = db(); u = current_user(); role = request.form.get('role'); active = 1 if request.form.get('active') else 0
+    full_name = request.form.get('full_name', '').strip()
+    if not full_name:
+        con.close()
+        flash('Укажите имя сотрудника')
+        return redirect(url_for('employees'))
     new_password = request.form.get('password', '').strip()
     if new_password:
         if u['role'] != 'director' and u['id'] != uid:
@@ -2730,7 +2735,7 @@ def employee_update(uid):
             flash('Пароль другого пользователя может менять только директор')
             return redirect(url_for('employees'))
         con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_password), uid))
-    con.execute("UPDATE users SET role=?,active=?,fired_at=? WHERE id=?", (role,active,None if active else today(),uid))
+    con.execute("UPDATE users SET full_name=?,role=?,active=?,fired_at=? WHERE id=?", (full_name, role, active, None if active else today(), uid))
     for p in PERMS:
         con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))

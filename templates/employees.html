@@ -74,7 +74,7 @@
     {% for r in rows %}
     <div class="employee-card {% if not r.active %}inactive{% endif %}">
       <form method="post" action="{{ url_for('employee_update', uid=r.id) }}">
-        <h3>{{ r.full_name }}</h3>
+        <input name="full_name" value="{{ r.full_name }}" placeholder="Имя сотрудника" required style="font-size:18px;font-weight:700;border:0;border-bottom:1px solid #eee;border-radius:0;padding:4px 0 8px;margin-bottom:4px;background:transparent;width:100%">
         <div class="meta">@{{ r.username }} · {% if r.role=='director' %}Директор{% elif r.role=='admin' %}Администратор{% else %}Мастер{% endif %}</div>
 
         <div class="employee-section">
