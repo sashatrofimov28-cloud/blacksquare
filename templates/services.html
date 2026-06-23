@@ -1,91 +1,97 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
+<header class="top top-compact">
   <h1>Услуги</h1>
-  <p>Цена указывается «от» — итоговая сумма вписывается при закрытии заказа.</p>
 </header>
 
-<div class="panel">
-  <h2>Подразделы</h2>
-  <p class="hint" style="margin-bottom:12px">Группируйте услуги: тонировка, обучение и т.д. Можно добавлять новые подразделы.</p>
-  <form method="post" class="form-grid" style="margin-bottom:12px">
-    <input type="hidden" name="action" value="create_category">
-    <input name="name" placeholder="Название подраздела" required>
-    <input name="sort_order" type="number" placeholder="Порядок" value="0">
-    <button class="ghost">Добавить подраздел</button>
-  </form>
-  <div class="chips">
-    {% for c in categories %}
-    <span class="chip">
-      {{ c.name }}
-      <form method="post" style="display:inline" onsubmit="return confirm('Удалить подраздел «{{ c.name }}»?')">
-        <input type="hidden" name="action" value="delete_category">
-        <input type="hidden" name="category_id" value="{{ c.id }}">
-        <button type="submit" class="chip-x" title="Удалить">×</button>
-      </form>
-    </span>
-    {% else %}
-    <span class="hint">Пока нет подразделов</span>
+<div class="panel panel-compact">
+  <div class="section-tabs" id="serviceTabs">
+    {% for g in service_groups %}
+    {% set tab_id = 'cat-' ~ (g.category.id if g.category.id is not none else 'other') %}
+    <button type="button" class="section-tab{% if active_tab == tab_id %} active{% endif %}" data-tab="{{ tab_id }}">
+      {{ g.category.name }}<span class="tab-count">{{ g.services|length }}</span>
+    </button>
     {% endfor %}
+    <details class="tab-add-fold">
+      <summary class="section-tab section-tab-add">+</summary>
+      <form method="post" class="tab-add-form">
+        <input type="hidden" name="action" value="create_category">
+        <input name="name" placeholder="Новый подраздел" required>
+        <button class="ghost">Добавить</button>
+      </form>
+    </details>
+  </div>
+
+  {% for g in service_groups %}
+  {% set tab_id = 'cat-' ~ (g.category.id if g.category.id is not none else 'other') %}
+  <div class="tab-panel{% if active_tab == tab_id %} active{% endif %}" id="{{ tab_id }}">
+    <div class="tab-panel-head">
+      <h2>{{ g.category.name }}</h2>
+      {% if g.category.id %}
+      <form method="post" class="inline" onsubmit="return confirm('Удалить подраздел «{{ g.category.name }}»?')">
+        <input type="hidden" name="action" value="delete_category">
+        <input type="hidden" name="category_id" value="{{ g.category.id }}">
+        <button type="submit" class="ghost danger-text" {% if g.services %}disabled title="Сначала перенесите услуги"{% endif %}>Удалить подраздел</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <form method="post" class="inline-form-row">
+      <input type="hidden" name="action" value="create_service">
+      <input type="hidden" name="category_id" value="{{ g.category.id or '' }}">
+      <input type="hidden" name="return_tab" value="{{ tab_id }}">
+      <input name="name" placeholder="Новая услуга" required>
+      <input name="duration_min" type="number" placeholder="мин" required>
+      <input name="base_price" type="number" placeholder="₽ от">
+      <label class="check check-inline"><input type="checkbox" name="online_calendar" checked> Онлайн</label>
+      <button>+</button>
+    </form>
+
+    {% if g.services %}
+    <table class="table-compact">
+      <tr><th>Услуга</th><th>мин</th><th>₽</th><th>Онл.</th><th>Акт.</th><th></th><th></th></tr>
+      {% for r in g.services %}
+      <tr>
+        <form method="post" action="{{ url_for('service_update', sid=r.id) }}" style="display:contents">
+          <input type="hidden" name="category_id" value="{{ g.category.id or '' }}">
+          <input type="hidden" name="return_tab" value="{{ tab_id }}">
+          <td><input name="name" value="{{ r.name }}" class="input-compact"></td>
+          <td><input name="duration_min" type="number" value="{{ r.duration_min }}" class="input-compact input-tiny"></td>
+          <td><input name="base_price" type="number" value="{{ r.base_price }}" class="input-compact input-tiny"></td>
+          <td><label class="check"><input type="checkbox" name="online_calendar" {% if r.online_calendar %}checked{% endif %}></label></td>
+          <td><label class="check"><input type="checkbox" name="active" {% if r.active %}checked{% endif %}></label></td>
+          <td><button class="ghost">OK</button></td>
+        </form>
+        <td>
+          <form method="post" action="{{ url_for('service_delete', sid=r.id) }}">
+            <button class="danger danger-sm">×</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="hint tab-empty">Пока нет услуг — добавьте строкой выше.</p>
+    {% endif %}
   </div>
 </div>
 
-<div class="panel">
-  <h2>Создать услугу</h2>
-  <form method="post" class="form-grid">
-    <input type="hidden" name="action" value="create_service">
-    <input name="name" placeholder="Название" required>
-    <select name="category_id">
-      <option value="">Без подраздела</option>
-      {% for c in categories %}
-      <option value="{{ c.id }}">{{ c.name }}</option>
-      {% endfor %}
-    </select>
-    <input name="duration_min" type="number" placeholder="Тайминг минут" required>
-    <input name="base_price" type="number" placeholder="Цена от, ₽">
-    <input name="comment" placeholder="Комментарий" class="span2">
-    <label class="check span2"><input type="checkbox" name="online_calendar" checked> Показывать в онлайн-календаре</label>
-    <button>Создать услугу</button>
-  </form>
-</div>
-
-<div class="panel">
-  <table>
-    <tr>
-      <th>Услуга</th>
-      <th>Подраздел</th>
-      <th>Тайминг</th>
-      <th>Цена от</th>
-      <th>Онлайн</th>
-      <th>Активна</th>
-      <th></th>
-      <th></th>
-    </tr>
-    {% for r in rows %}
-    <tr>
-      <form method="post" action="{{ url_for('service_update', sid=r.id) }}" style="display:contents">
-        <td><input name="name" value="{{ r.name }}"></td>
-        <td>
-          <select name="category_id">
-            <option value="">—</option>
-            {% for c in categories %}
-            <option value="{{ c.id }}" {% if r.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-            {% endfor %}
-          </select>
-        </td>
-        <td><input name="duration_min" type="number" value="{{ r.duration_min }}" style="width:72px"></td>
-        <td><input name="base_price" type="number" value="{{ r.base_price }}" style="width:88px"></td>
-        <td><label class="check"><input type="checkbox" name="online_calendar" {% if r.online_calendar %}checked{% endif %}> да</label></td>
-        <td><label class="check"><input type="checkbox" name="active" {% if r.active %}checked{% endif %}> да</label></td>
-        <td><button class="ghost">Сохранить</button></td>
-      </form>
-      <td>
-        <form method="post" action="{{ url_for('service_delete', sid=r.id) }}">
-          <button class="danger">Удалить</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.section-tab[data-tab]');
+  const panels = document.querySelectorAll('.tab-panel');
+  function openTab(id) {
+    tabs.forEach((b) => b.classList.toggle('active', b.dataset.tab === id));
+    panels.forEach((p) => p.classList.toggle('active', p.id === id));
+    if (id) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', id);
+      history.replaceState(null, '', url);
+    }
+  }
+  tabs.forEach((btn) => btn.addEventListener('click', () => openTab(btn.dataset.tab)));
+  const initial = new URL(window.location.href).searchParams.get('tab');
+  if (initial) openTab(initial);
+})();
+</script>
 {% endblock %}

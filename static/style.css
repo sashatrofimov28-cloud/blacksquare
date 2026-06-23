@@ -68,6 +68,40 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#1f1f1f;border:1px solid #333;font-size:14px;color:#fff}
 .chip-x{background:transparent;border:0;color:#aaa;cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
 .chip-x:hover{color:#fff}
+.top-compact p{display:none}
+.panel-compact{padding:14px 16px;margin-bottom:14px}
+.compact-fold{border:1px solid #e4e4e4;border-radius:16px;background:#fff;margin-bottom:14px}
+.compact-fold>summary{cursor:pointer;font-weight:700;padding:12px 16px;list-style:none}
+.compact-fold>summary::-webkit-details-marker{display:none}
+.compact-fold[open]>summary{border-bottom:1px solid #eee}
+.compact-form{padding:12px 16px 14px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:8px;align-items:center}
+.compact-more{grid-column:1/-1}
+.compact-more>summary{cursor:pointer;color:#666;font-size:13px;padding:4px 0}
+.compact-more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.notice-compact{padding:10px 14px;margin-bottom:14px}
+.inline-search input{min-width:220px}
+.section-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+.section-tab{border:1px solid #ddd;background:#f7f7f7;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;color:#111}
+.section-tab.active{background:#111;color:#fff;border-color:#111}
+.section-tab-add{list-style:none}
+.tab-count{display:inline-block;margin-left:6px;opacity:.7;font-size:12px}
+.tab-add-fold{position:relative}
+.tab-add-form{display:none;position:absolute;top:100%;right:0;z-index:5;margin-top:6px;padding:10px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.08);grid-template-columns:1fr auto;gap:8px;min-width:240px}
+.tab-add-fold[open] .tab-add-form{display:grid}
+.tab-add-fold>summary::-webkit-details-marker{display:none}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.tab-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.tab-panel-head h2{margin:0;font-size:17px}
+.danger-text{color:#8b0000}
+.inline-form-row{display:grid;grid-template-columns:2fr 72px 80px auto auto;gap:8px;align-items:center;margin-bottom:12px}
+.check-inline{padding:8px 10px;font-size:13px}
+.table-compact{font-size:13px}
+.table-compact th,.table-compact td{padding:8px 6px}
+.input-compact{padding:8px 10px;font-size:13px}
+.input-tiny{width:64px}
+.danger-sm{padding:4px 10px;font-size:16px;line-height:1}
+.tab-empty{margin:8px 0 0}
 .check{display:flex;align-items:center;gap:8px;background:#f7f7f7;border:1px solid #eee;border-radius:12px;padding:10px 12px}
 .check input{width:auto}
 .perm-list{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:8px}
@@ -264,6 +298,9 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
   .top h1{font-size:24px}
   .cards{grid-template-columns:1fr}
   .form-grid{grid-template-columns:1fr}
+  .compact-form{grid-template-columns:1fr}
+  .inline-form-row{grid-template-columns:1fr 1fr}
+  .compact-more-grid{grid-template-columns:1fr}
   .calendar-grid{grid-template-columns:repeat(2,1fr)}
   .employee-grid{grid-template-columns:1fr}
   input,select,textarea,button,.btn,.mini-btn{font-size:16px;min-height:44px}

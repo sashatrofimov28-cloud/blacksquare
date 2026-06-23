@@ -296,8 +296,19 @@ def parse_category_id(raw):
     except (TypeError, ValueError):
         return None
 
+def group_services_for_admin(rows, categories):
+    grouped = []
+    seen = set()
+    for cat in categories:
+        items = [s for s in rows if s['category_id'] == cat['id']]
+        grouped.append({'category': cat, 'services': items})
+        seen.update(s['id'] for s in items)
+    other = [s for s in rows if s['id'] not in seen]
+    if other:
+        grouped.append({'category': {'id': None, 'name': 'Прочее'}, 'services': other})
+    return grouped
+
 def group_services_by_category(services, categories):
-    by_id = {c['id']: c for c in categories}
     grouped = []
     seen = set()
     for cat in categories:
@@ -3238,16 +3249,28 @@ def services():
             )
             con.commit()
             flash('Услуга создана')
+        tab = request.form.get('return_tab') or request.args.get('tab', '')
         con.close()
-        return redirect(url_for('services'))
+        return redirect(url_for('services', tab=tab) if tab else url_for('services'))
     rows = con.execute(
         "SELECT s.*, c.name category_name FROM services s "
         "LEFT JOIN service_categories c ON c.id=s.category_id "
         "ORDER BY COALESCE(c.sort_order, 999), c.name, s.active DESC, s.name"
     ).fetchall()
     categories = list_service_categories(con, active_only=False)
+    service_groups = group_services_for_admin(rows, categories)
+    active_tab = request.args.get('tab', '')
+    if not active_tab and service_groups:
+        cid = service_groups[0]['category']['id']
+        active_tab = f"cat-{cid}" if cid is not None else 'cat-other'
     con.close()
-    return render_template('services.html', rows=rows, categories=categories)
+    return render_template(
+        'services.html',
+        rows=rows,
+        categories=categories,
+        service_groups=service_groups,
+        active_tab=active_tab,
+    )
 
 @app.route('/services/<int:sid>/update', methods=['POST'])
 @login_required
@@ -3271,7 +3294,8 @@ def service_update(sid):
     con.commit()
     con.close()
     flash('Услуга обновлена')
-    return redirect(url_for('services'))
+    tab = request.form.get('return_tab', '')
+    return redirect(url_for('services', tab=tab) if tab else url_for('services'))
 
 @app.route('/services/<int:sid>/delete', methods=['POST'])
 @login_required
