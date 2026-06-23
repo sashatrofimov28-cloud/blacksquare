@@ -54,7 +54,7 @@
 
 <div class="panel">
   <table>
-    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th><th></th></tr>
+    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th><th></th>{% if is_director %}<th></th>{% endif %}</tr>
     {% for r in rows %}
     <tr>
       <td>{{ r.cert_number }}</td>
@@ -64,6 +64,15 @@
       <td>{{ r.client_name }}</td>
       <td>{{ r.phone }}</td>
       <td><a href="{{ url_for('certificate_pdf', cid=r.id) }}">PDF</a></td>
+      {% if is_director %}
+      <td>
+        <form method="post" onsubmit="return confirm('Удалить сертификат №{{ r.cert_number }}?')">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="cert_id" value="{{ r.id }}">
+          <button class="danger">Удалить</button>
+        </form>
+      </td>
+      {% endif %}
     </tr>
     {% endfor %}
   </table>

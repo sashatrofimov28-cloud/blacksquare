@@ -2550,11 +2550,18 @@ CERT_PDF_LAYOUT = {
     'number_y': 0.067,
     'number_right': 48,
     'number_fontsize': 12,
-    'amount_y': 0.355,
+    'amount_y': 0.545,
     'amount_left': 0.220,
-    'amount_right': 0.620,
+    'amount_right': 0.600,
     'amount_fontsize': 24,
 }
+
+def _certificate_amount_band(h):
+    return h * 0.30, h * 0.58
+
+def _certificate_middle_lines(lines, h):
+    y_min, y_max = _certificate_amount_band(h)
+    return [line for line in lines if y_min < line['y'] < y_max]
 
 def _certificate_horizontal_lines(page):
     w = page.rect.width
@@ -2599,10 +2606,12 @@ def certificate_overlay_positions(page):
     fallback = CERT_PDF_LAYOUT
 
     summa = next((t for t in texts if 'СУММ' in t['upper'] or t['upper'].startswith('SUMMA')), None)
+    rub = next((t for t in texts if 'РУБ' in t['upper'] or t['upper'].startswith('RUB')), None)
     number_mark = next((t for t in texts if t['upper'] in ('№', 'NO', 'Nº', 'N°') or '№' in t['text']), None)
 
     number_line = None
     amount_line = None
+    middle_lines = _certificate_middle_lines(lines, h)
     upper_lines = [
         line for line in lines
         if line['y'] < h * 0.18 and line['x1'] > w * 0.40 and line['x2'] > w * 0.65
@@ -2613,15 +2622,20 @@ def certificate_overlay_positions(page):
         else:
             number_line = max(upper_lines, key=lambda line: line['x2'])
 
-    if summa:
-        below = [line for line in lines if line['y'] > summa['y1'] + 6]
+    if rub:
+        rub_lines = [line for line in middle_lines if abs(line['y'] - rub['cy']) < 24]
+        if rub_lines:
+            amount_line = min(rub_lines, key=lambda line: abs(line['y'] - rub['cy']))
+        else:
+            amount_line = min(middle_lines, key=lambda line: abs(line['y'] - rub['cy'])) if middle_lines else None
+
+    if not amount_line and summa:
+        below = [line for line in middle_lines if line['y'] > summa['y1'] + 6]
         if below:
             amount_line = min(below, key=lambda line: line['y'])
 
-    if not amount_line and lines:
-        lower = [line for line in lines if line['y'] > h * 0.28]
-        if lower:
-            amount_line = max(lower, key=lambda line: line['x2'] - line['x1'])
+    if not amount_line and middle_lines:
+        amount_line = max(middle_lines, key=lambda line: line['x2'] - line['x1'])
 
     num_fs = fallback['number_fontsize']
     amt_fs = fallback['amount_fontsize']
@@ -2636,12 +2650,20 @@ def certificate_overlay_positions(page):
         num_y = h * fallback['number_y'] + num_fs
         num_x_right = w - fallback['number_right']
 
-    if amount_line:
+    if rub and not amount_line:
+        amount_left = w * fallback['amount_left']
+        amount_right = max(amount_left + 80, rub['x0'] - 10)
+        amt_y = rub['y1'] - 2
+    elif amount_line:
         amt_y = amount_line['y'] + amt_fs * 0.2
         amount_left = amount_line['x1']
         amount_right = amount_line['x2']
+    elif summa:
+        amount_left = w * fallback['amount_left']
+        amount_right = w * fallback['amount_right']
+        amt_y = summa['y1'] + (h * fallback['amount_y'] - summa['y1']) + amt_fs * 0.2
     else:
-        amt_y = h * fallback['amount_y'] + amt_fs
+        amt_y = h * fallback['amount_y'] + amt_fs * 0.2
         amount_left = w * fallback['amount_left']
         amount_right = w * fallback['amount_right']
 
@@ -2696,6 +2718,35 @@ def ensure_certificate_template():
         return None
     return str(CERT_TEMPLATE_PATH)
 
+def _overlay_certificate_amount(page, amount_txt, pos, white):
+    import fitz
+    amt_fs = pos['amount_fontsize']
+    rect = fitz.Rect(
+        pos['amount_left'],
+        pos['amount_y'] - amt_fs,
+        pos['amount_right'],
+        pos['amount_y'] + amt_fs * 0.35,
+    )
+    leftover = page.insert_textbox(
+        rect,
+        amount_txt,
+        fontsize=amt_fs,
+        fontname='helv',
+        color=white,
+        align=fitz.TEXT_ALIGN_CENTER,
+    )
+    if leftover >= 0:
+        return
+    amt_tw = fitz.get_text_length(amount_txt, fontname='helv', fontsize=amt_fs)
+    amt_x = (pos['amount_left'] + pos['amount_right']) / 2 - amt_tw / 2
+    page.insert_text(
+        (amt_x, pos['amount_y']),
+        amount_txt,
+        fontsize=amt_fs,
+        fontname='helv',
+        color=white,
+    )
+
 def render_certificate_pdf(cert_number, amount):
     template = ensure_certificate_template()
     amount_txt = f'{int(round(float(amount))):,}'.replace(',', ' ')
@@ -2716,16 +2767,7 @@ def render_certificate_pdf(cert_number, amount):
                 fontname='helv',
                 color=white,
             )
-            amt_fs = pos['amount_fontsize']
-            amt_tw = fitz.get_text_length(amount_txt, fontname='helv', fontsize=amt_fs)
-            amt_x = (pos['amount_left'] + pos['amount_right']) / 2 - amt_tw / 2
-            page.insert_text(
-                (amt_x, pos['amount_y']),
-                amount_txt,
-                fontsize=amt_fs,
-                fontname='helv',
-                color=white,
-            )
+            _overlay_certificate_amount(page, amount_txt, pos, white)
             pdf = doc.tobytes()
             doc.close()
             return pdf
@@ -2862,6 +2904,22 @@ def certificates():
             f.save(str(CERT_TEMPLATE_PATH))
             con.close()
             flash('Шаблон сертификата загружен')
+        elif action == 'delete':
+            if u['role'] != 'director':
+                con.close()
+                flash('Только директор может удалять сертификаты')
+                return redirect(url_for('certificates'))
+            cid = int(request.form.get('cert_id') or 0)
+            cert = con.execute("SELECT id,cert_number FROM certificates WHERE id=?", (cid,)).fetchone()
+            if not cert:
+                con.close()
+                flash('Сертификат не найден')
+                return redirect(url_for('certificates'))
+            con.execute("DELETE FROM certificate_moves WHERE certificate_id=?", (cid,))
+            con.execute("DELETE FROM certificates WHERE id=?", (cid,))
+            con.commit()
+            con.close()
+            flash(f'Сертификат №{cert["cert_number"]} удалён')
         elif action == 'pay':
             return certificate_pay_internal(con)
         con.close()
