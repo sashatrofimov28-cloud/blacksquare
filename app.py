@@ -2545,6 +2545,17 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
 
 CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
 
+# Координаты для шаблона «В КВАДРАТЕ» (A4, доли от ширины/высоты страницы).
+CERT_PDF_LAYOUT = {
+    'number_y': 0.102,
+    'number_right': 78,
+    'number_fontsize': 12,
+    'amount_y': 0.540,
+    'amount_left': 0.34,
+    'amount_right': 0.62,
+    'amount_fontsize': 24,
+}
+
 def make_certificate_number(con):
     row = con.execute(
         "SELECT COALESCE(MAX(CAST(cert_number AS INTEGER)), 100000) n FROM certificates WHERE cert_number GLOB '[0-9]*'"
@@ -2594,25 +2605,32 @@ def render_certificate_pdf(cert_number, amount):
             import fitz
             doc = fitz.open(template)
             page = doc[0]
-            rect = page.rect
+            w, h = page.rect.width, page.rect.height
             white = (1, 1, 1)
-            number_rect = fitz.Rect(rect.width * 0.62, 38, rect.width - 42, 62)
-            page.insert_textbox(
-                number_rect,
+            layout = CERT_PDF_LAYOUT
+            num_fs = layout['number_fontsize']
+            num_y = h * layout['number_y']
+            num_tw = fitz.get_text_length(str(cert_number), fontname='helv', fontsize=num_fs)
+            num_x = w - layout['number_right'] - num_tw
+            page.insert_text(
+                (num_x, num_y),
                 str(cert_number),
-                fontsize=13,
+                fontsize=num_fs,
                 fontname='helv',
                 color=white,
-                align=fitz.TEXT_ALIGN_RIGHT,
             )
-            amount_rect = fitz.Rect(rect.width * 0.18, rect.height * 0.50, rect.width * 0.64, rect.height * 0.58)
-            page.insert_textbox(
-                amount_rect,
+            amt_fs = layout['amount_fontsize']
+            amt_y = h * layout['amount_y']
+            line_l = w * layout['amount_left']
+            line_r = w * layout['amount_right']
+            amt_tw = fitz.get_text_length(amount_txt, fontname='helv', fontsize=amt_fs)
+            amt_x = (line_l + line_r) / 2 - amt_tw / 2
+            page.insert_text(
+                (amt_x, amt_y),
                 amount_txt,
-                fontsize=28,
+                fontsize=amt_fs,
                 fontname='helv',
                 color=white,
-                align=fitz.TEXT_ALIGN_CENTER,
             )
             pdf = doc.tobytes()
             doc.close()
