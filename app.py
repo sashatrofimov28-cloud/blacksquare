@@ -269,17 +269,46 @@ def parse_service_ids(form):
             out.append(sid)
     return out
 
-def validate_service_ids(con, service_ids):
+def validate_service_ids(con, service_ids, online_only=False):
     if not service_ids:
         return False, 'Выберите хотя бы одну услугу'
     placeholders = ','.join('?' * len(service_ids))
-    found = con.execute(
-        f"SELECT id FROM services WHERE active=1 AND id IN ({placeholders})",
-        service_ids,
-    ).fetchall()
+    sql = f"SELECT id FROM services WHERE active=1 AND id IN ({placeholders})"
+    if online_only:
+        sql += " AND online_calendar=1"
+    found = con.execute(sql, service_ids).fetchall()
     if len(found) != len(service_ids):
-        return False, 'Выбрана недоступная услуга'
+        return False, 'Выбрана недоступная услуга' if not online_only else 'Выбрана услуга, недоступная для онлайн-записи'
     return True, ''
+
+def list_service_categories(con, active_only=True):
+    sql = "SELECT * FROM service_categories"
+    if active_only:
+        sql += " WHERE active=1"
+    sql += " ORDER BY sort_order, name"
+    return con.execute(sql).fetchall()
+
+def parse_category_id(raw):
+    if raw in (None, ''):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+def group_services_by_category(services, categories):
+    by_id = {c['id']: c for c in categories}
+    grouped = []
+    seen = set()
+    for cat in categories:
+        items = [s for s in services if s['category_id'] == cat['id']]
+        if items:
+            grouped.append({'category': cat, 'services': items})
+            seen.update(s['id'] for s in items)
+    other = [s for s in services if s['id'] not in seen]
+    if other:
+        grouped.append({'category': {'id': None, 'name': 'Без подраздела'}, 'services': other})
+    return grouped
 
 def set_appointment_services(con, aid, service_ids):
     con.execute("DELETE FROM appointment_services WHERE appointment_id=?", (aid,))
@@ -375,7 +404,8 @@ def init_db():
     con = db(); c = con.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password_hash TEXT, role TEXT, full_name TEXT, active INTEGER DEFAULT 1, hired_at TEXT, fired_at TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS user_permissions(user_id INTEGER, permission TEXT, allowed INTEGER DEFAULT 0, UNIQUE(user_id, permission))")
-    c.execute("CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, duration_min INTEGER, base_price REAL DEFAULT 0, active INTEGER DEFAULT 1, comment TEXT, created_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, duration_min INTEGER, base_price REAL DEFAULT 0, active INTEGER DEFAULT 1, comment TEXT, created_at TEXT, category_id INTEGER, online_calendar INTEGER DEFAULT 1)")
+    c.execute("CREATE TABLE IF NOT EXISTS service_categories(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, sort_order INTEGER DEFAULT 0, active INTEGER DEFAULT 1, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS user_services(user_id INTEGER, service_id INTEGER, allowed INTEGER DEFAULT 1, UNIQUE(user_id, service_id))")
     c.execute("CREATE TABLE IF NOT EXISTS schedules(user_id INTEGER, work_date TEXT, start_time TEXT, end_time TEXT, is_day_off INTEGER DEFAULT 0, comment TEXT, UNIQUE(user_id, work_date))")
     c.execute("CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT, source TEXT, stage TEXT DEFAULT 'Новый', reason TEXT, comment TEXT, created_at TEXT)")
@@ -531,6 +561,21 @@ def migrate_db(c):
                 (d['id'], m['id'], 1),
             )
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('last_daily_report_date','')")
+    c.execute("CREATE TABLE IF NOT EXISTS service_categories(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, sort_order INTEGER DEFAULT 0, active INTEGER DEFAULT 1, created_at TEXT)")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_service_categories_name ON service_categories(name)")
+    service_cols = {r[1] for r in c.execute("PRAGMA table_info(services)").fetchall()}
+    if 'category_id' not in service_cols:
+        c.execute("ALTER TABLE services ADD COLUMN category_id INTEGER")
+    if 'online_calendar' not in service_cols:
+        c.execute("ALTER TABLE services ADD COLUMN online_calendar INTEGER DEFAULT 1")
+    if c.execute("SELECT COUNT(*) c FROM service_categories").fetchone()['c'] == 0:
+        c.execute("INSERT INTO service_categories(name,sort_order,created_at) VALUES(?,?,?)", ('Тонировка', 1, now()))
+        tint_id = c.execute("SELECT id FROM service_categories WHERE name='Тонировка'").fetchone()['id']
+        for row in c.execute("SELECT id, name FROM services").fetchall():
+            name_l = (row['name'] or '').lower()
+            if 'обучен' in name_l:
+                continue
+            c.execute("UPDATE services SET category_id=? WHERE id=?", (tint_id, row['id']))
 
 def get_setting(key, default=''):
     con = db()
@@ -2050,7 +2095,7 @@ def booking():
         uid = request.form.get('employee_id', '').strip()
         d = request.form.get('appointment_date', '').strip()
         start = normalize_hm(request.form.get('start_time', ''))
-        ok, err = validate_service_ids(con, service_ids)
+        ok, err = validate_service_ids(con, service_ids, online_only=True)
         if not ok or not uid or not d or not start:
             con.close()
             flash(err or 'Заполните все поля и выберите свободное время из списка.')
@@ -2079,14 +2124,23 @@ def booking():
         notify_employee_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
         con.close()
         return render_template('booking_success.html', services=bundle['rows'], service_name=bundle['name'], emp=emp, d=d, start=start, end=end)
-    services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    con.close(); return render_template('booking.html', services=services, default_date=today())
+    services = con.execute(
+        "SELECT * FROM services WHERE active=1 AND online_calendar=1 ORDER BY category_id, name"
+    ).fetchall()
+    categories = list_service_categories(con)
+    service_groups = group_services_by_category(services, categories)
+    con.close()
+    return render_template('booking.html', services=services, service_groups=service_groups, default_date=today())
 
 @app.route('/api/masters')
 def api_masters():
     con = db()
     service_ids = parse_service_ids_from_request(request.args)
     if not service_ids:
+        con.close()
+        return jsonify([])
+    ok, _ = validate_service_ids(con, service_ids, online_only=True)
+    if not ok:
         con.close()
         return jsonify([])
     placeholders = ','.join('?' * len(service_ids))
@@ -2105,6 +2159,11 @@ def api_slots():
     service_ids = parse_service_ids_from_request(request.args)
     uid = request.args.get('employee_id')
     d = request.args.get('date')
+    if service_ids:
+        ok, _ = validate_service_ids(con, service_ids, online_only=True)
+        if not ok:
+            con.close()
+            return jsonify([])
     bundle = resolve_services_bundle(con, service_ids) if service_ids else None
     out = available_slots_for_duration(con, uid, bundle['duration_min'], d) if bundle else []
     con.close()
@@ -3074,17 +3133,82 @@ def certificate_pay_internal(con):
 def services():
     con = db()
     if request.method == 'POST':
-        con.execute("INSERT INTO services(name,duration_min,base_price,comment,created_at) VALUES(?,?,?,?,?)", (request.form['name'],int(request.form['duration_min']),float(request.form.get('base_price') or 0),request.form.get('comment',''),now()))
-        con.commit(); flash('Услуга создана'); return redirect(url_for('services'))
-    rows = con.execute("SELECT * FROM services ORDER BY active DESC,name").fetchall()
-    con.close(); return render_template('services.html', rows=rows)
+        action = request.form.get('action', 'create_service')
+        if action == 'create_category':
+            name = (request.form.get('name') or '').strip()
+            if not name:
+                flash('Укажите название подраздела')
+            else:
+                try:
+                    sort_order = int(request.form.get('sort_order') or 0)
+                    con.execute(
+                        "INSERT INTO service_categories(name,sort_order,created_at) VALUES(?,?,?)",
+                        (name, sort_order, now()),
+                    )
+                    con.commit()
+                    flash(f'Подраздел «{name}» создан')
+                except sqlite3.IntegrityError:
+                    flash('Такой подраздел уже есть')
+        elif action == 'delete_category':
+            cid = int(request.form.get('category_id') or 0)
+            used = con.execute("SELECT COUNT(*) c FROM services WHERE category_id=?", (cid,)).fetchone()['c']
+            if used:
+                flash('В подразделе есть услуги — сначала перенесите их в другой подраздел')
+            else:
+                con.execute("DELETE FROM service_categories WHERE id=?", (cid,))
+                con.commit()
+                flash('Подраздел удалён')
+        else:
+            category_id = parse_category_id(request.form.get('category_id'))
+            online_calendar = 1 if request.form.get('online_calendar') else 0
+            con.execute(
+                "INSERT INTO services(name,duration_min,base_price,comment,category_id,online_calendar,created_at) VALUES(?,?,?,?,?,?,?)",
+                (
+                    request.form['name'],
+                    int(request.form['duration_min']),
+                    float(request.form.get('base_price') or 0),
+                    request.form.get('comment', ''),
+                    category_id,
+                    online_calendar,
+                    now(),
+                ),
+            )
+            con.commit()
+            flash('Услуга создана')
+        con.close()
+        return redirect(url_for('services'))
+    rows = con.execute(
+        "SELECT s.*, c.name category_name FROM services s "
+        "LEFT JOIN service_categories c ON c.id=s.category_id "
+        "ORDER BY COALESCE(c.sort_order, 999), c.name, s.active DESC, s.name"
+    ).fetchall()
+    categories = list_service_categories(con, active_only=False)
+    con.close()
+    return render_template('services.html', rows=rows, categories=categories)
 
 @app.route('/services/<int:sid>/update', methods=['POST'])
 @login_required
 @perm_required('services')
 def service_update(sid):
-    con = db(); con.execute("UPDATE services SET name=?,duration_min=?,base_price=?,active=? WHERE id=?", (request.form['name'],int(request.form['duration_min']),float(request.form.get('base_price') or 0),1 if request.form.get('active') else 0,sid)); con.commit(); con.close()
-    flash('Услуга обновлена'); return redirect(url_for('services'))
+    con = db()
+    category_id = parse_category_id(request.form.get('category_id'))
+    online_calendar = 1 if request.form.get('online_calendar') else 0
+    con.execute(
+        "UPDATE services SET name=?,duration_min=?,base_price=?,active=?,category_id=?,online_calendar=? WHERE id=?",
+        (
+            request.form['name'],
+            int(request.form['duration_min']),
+            float(request.form.get('base_price') or 0),
+            1 if request.form.get('active') else 0,
+            category_id,
+            online_calendar,
+            sid,
+        ),
+    )
+    con.commit()
+    con.close()
+    flash('Услуга обновлена')
+    return redirect(url_for('services'))
 
 @app.route('/services/<int:sid>/delete', methods=['POST'])
 @login_required
