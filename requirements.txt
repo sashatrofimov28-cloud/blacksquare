@@ -5,3 +5,5 @@ waitress==3.0.2
 pywebpush==2.0.1
 boto3==1.35.99
 qrcode[pil]==7.4.2
+pymupdf==1.24.10
+reportlab==4.2.5
