@@ -1,15 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Сертификаты</h1><p>Создание и списание сертификатов</p></header>
+<header class="top"><h1>Сертификаты</h1><p>Создание PDF-сертификатов и списание</p></header>
+
+{% if is_director %}
+<div class="panel">
+  <h2>Шаблон PDF</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Загрузите свой PDF-шаблон один раз. При создании сертификата система сама проставит
+    <b>номер</b> (справа вверху) и <b>сумму</b> (поле «СУММА») и сохранит запись в базе.
+  </p>
+  {% if has_template %}
+  <p class="hint" style="color:#2e7d32;margin-bottom:12px">Шаблон загружен — можно создавать сертификаты</p>
+  {% else %}
+  <p class="hint" style="color:#c62828;margin-bottom:12px">Шаблон не загружен — будет использован простой встроенный макет</p>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" class="form-grid">
+    <input type="hidden" name="action" value="upload_template">
+    <input type="file" name="template_pdf" accept="application/pdf,.pdf" required class="span3">
+    <button class="ghost">Загрузить шаблон PDF</button>
+  </form>
+</div>
+{% endif %}
 
 <div class="panel">
   <h2>Создать сертификат</h2>
+  <p class="hint" style="margin-bottom:12px">Укажите только сумму — номер присвоится автоматически, PDF скачается сразу после создания.</p>
   <form method="post" class="form-grid">
     <input type="hidden" name="action" value="create">
-    <input name="cert_number" placeholder="Номер сертификата" required>
-    <input name="nominal" type="number" step="0.01" placeholder="Номинал ₽" required>
-    <input name="client_name" placeholder="Клиент">
-    <input name="phone" placeholder="Телефон">
+    <input name="nominal" type="number" step="1" min="1" placeholder="Сумма сертификата, ₽" required>
+    <input name="client_name" placeholder="Клиент (необязательно)">
+    <input name="phone" placeholder="Телефон (необязательно)">
     <input name="comment" placeholder="Комментарий" class="span4">
     <button>Создать сертификат</button>
   </form>
@@ -34,7 +54,7 @@
 
 <div class="panel">
   <table>
-    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th></tr>
+    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th><th></th></tr>
     {% for r in rows %}
     <tr>
       <td>{{ r.cert_number }}</td>
@@ -43,6 +63,7 @@
       <td>{{ r.status }}</td>
       <td>{{ r.client_name }}</td>
       <td>{{ r.phone }}</td>
+      <td><a href="{{ url_for('certificate_pdf', cid=r.id) }}">PDF</a></td>
     </tr>
     {% endfor %}
   </table>

@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -2542,6 +2543,104 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
     return True, f'Списано с сертификата {amount:.0f} ₽'
 
 
+CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
+
+def make_certificate_number(con):
+    row = con.execute(
+        "SELECT COALESCE(MAX(CAST(cert_number AS INTEGER)), 100000) n FROM certificates WHERE cert_number GLOB '[0-9]*'"
+    ).fetchone()
+    return str(int(row['n']) + 1)
+
+def ensure_certificate_template():
+    CERT_TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if CERT_TEMPLATE_PATH.exists() and CERT_TEMPLATE_PATH.stat().st_size > 500:
+        return str(CERT_TEMPLATE_PATH)
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.colors import Color
+        w, h = A4
+        c = canvas.Canvas(str(CERT_TEMPLATE_PATH), pagesize=A4)
+        c.setFillColor(Color(0.05, 0.05, 0.05))
+        c.rect(0, 0, w, h, fill=1, stroke=0)
+        c.setStrokeColor(Color(1, 1, 1))
+        c.setLineWidth(1.5)
+        c.rect(28, 28, w - 56, h - 56, fill=0, stroke=1)
+        c.setFillColor(Color(1, 1, 1))
+        c.setFont('Helvetica', 11)
+        c.drawRightString(w - 70, h - 52, 'No')
+        c.line(w - 170, h - 56, w - 48, h - 56)
+        c.setFont('Helvetica-Bold', 28)
+        c.drawCentredString(w / 2, h - 130, 'PODAROCHNYI')
+        c.drawCentredString(w / 2, h - 168, 'SERTIFIKAT')
+        c.setFont('Helvetica', 14)
+        c.drawCentredString(w / 2, h - 250, 'SUMMA:')
+        c.line(w * 0.22, h - 290, w * 0.62, h - 290)
+        c.drawString(w * 0.64, h - 298, 'RUB.')
+        c.setFont('Helvetica-Bold', 16)
+        c.drawCentredString(w / 2, 95, 'V KVADRATE')
+        c.setFont('Helvetica', 8)
+        c.drawCentredString(w / 2, 52, 'TONIROVKA | POLIROVKA | KERAMIKA | ZASHCHITNYE POKRYTIYA / PLYONKI')
+        c.save()
+    except Exception:
+        return None
+    return str(CERT_TEMPLATE_PATH)
+
+def render_certificate_pdf(cert_number, amount):
+    template = ensure_certificate_template()
+    amount_txt = f'{int(round(float(amount))):,}'.replace(',', ' ')
+    if template:
+        try:
+            import fitz
+            doc = fitz.open(template)
+            page = doc[0]
+            rect = page.rect
+            white = (1, 1, 1)
+            number_rect = fitz.Rect(rect.width * 0.62, 38, rect.width - 42, 62)
+            page.insert_textbox(
+                number_rect,
+                str(cert_number),
+                fontsize=13,
+                fontname='helv',
+                color=white,
+                align=fitz.TEXT_ALIGN_RIGHT,
+            )
+            amount_rect = fitz.Rect(rect.width * 0.18, rect.height * 0.50, rect.width * 0.64, rect.height * 0.58)
+            page.insert_textbox(
+                amount_rect,
+                amount_txt,
+                fontsize=28,
+                fontname='helv',
+                color=white,
+                align=fitz.TEXT_ALIGN_CENTER,
+            )
+            pdf = doc.tobytes()
+            doc.close()
+            return pdf
+        except Exception:
+            pass
+    try:
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.colors import Color
+        buf = io.BytesIO()
+        w, h = A4
+        c = canvas.Canvas(buf, pagesize=A4)
+        c.setFillColor(Color(0.05, 0.05, 0.05))
+        c.rect(0, 0, w, h, fill=1, stroke=0)
+        c.setFillColor(Color(1, 1, 1))
+        c.setFont('Helvetica-Bold', 24)
+        c.drawCentredString(w / 2, h - 120, 'PODAROCHNYI SERTIFIKAT')
+        c.setFont('Helvetica', 14)
+        c.drawRightString(w - 40, h - 50, f'No {cert_number}')
+        c.setFont('Helvetica-Bold', 36)
+        c.drawCentredString(w / 2, h / 2, f'{amount_txt} RUB')
+        c.save()
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 @app.route('/api/certificate_balance')
 @login_required
 def api_certificate_balance():
@@ -2606,24 +2705,82 @@ def reschedule_appointment(aid):
 @perm_required('certificates')
 def certificates():
     con = db()
+    u = current_user()
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'create':
-            number = request.form['cert_number'].strip().upper(); nominal = float(request.form.get('nominal') or 0)
+            nominal = float(request.form.get('nominal') or 0)
+            if nominal <= 0:
+                con.close()
+                flash('Укажите сумму сертификата')
+                return redirect(url_for('certificates'))
+            number = make_certificate_number(con)
             try:
-                con.execute("INSERT INTO certificates(cert_number,nominal,balance,client_name,phone,comment,created_at) VALUES(?,?,?,?,?,?,?)", (number,nominal,nominal,request.form.get('client_name',''),request.form.get('phone',''),request.form.get('comment',''),now()))
+                con.execute(
+                    "INSERT INTO certificates(cert_number,nominal,balance,client_name,phone,comment,created_at) VALUES(?,?,?,?,?,?,?)",
+                    (number, nominal, nominal, request.form.get('client_name', ''), request.form.get('phone', ''), request.form.get('comment', ''), now()),
+                )
                 cid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
-                con.execute("INSERT INTO certificate_moves(certificate_id,user_id,amount,move_type,comment,created_at) VALUES(?,?,?,?,?,?)", (cid,current_user()['id'],nominal,'Создание','Сертификат создан',now()))
-                con.commit(); flash('Сертификат создан')
+                con.execute(
+                    "INSERT INTO certificate_moves(certificate_id,user_id,amount,move_type,comment,created_at) VALUES(?,?,?,?,?,?)",
+                    (cid, u['id'], nominal, 'Создание', 'Сертификат создан', now()),
+                )
+                con.commit()
+                con.close()
+                flash(f'Сертификат №{number} создан — скачайте PDF')
+                return redirect(url_for('certificate_pdf', cid=cid))
             except sqlite3.IntegrityError:
-                flash('Такой номер сертификата уже есть')
+                con.close()
+                flash('Не удалось создать сертификат — повторите')
+        elif action == 'upload_template':
+            if u['role'] != 'director':
+                con.close()
+                flash('Только директор может менять шаблон PDF')
+                return redirect(url_for('certificates'))
+            f = request.files.get('template_pdf')
+            if not f or not f.filename:
+                con.close()
+                flash('Выберите PDF-файл')
+                return redirect(url_for('certificates'))
+            if not f.filename.lower().endswith('.pdf'):
+                con.close()
+                flash('Нужен файл PDF')
+                return redirect(url_for('certificates'))
+            CERT_TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            f.save(str(CERT_TEMPLATE_PATH))
+            con.close()
+            flash('Шаблон сертификата загружен')
         elif action == 'pay':
             return certificate_pay_internal(con)
+        con.close()
         return redirect(url_for('certificates'))
     rows = con.execute("SELECT * FROM certificates ORDER BY id DESC").fetchall()
     moves = con.execute("SELECT cm.*,c.cert_number,u.full_name user_name FROM certificate_moves cm LEFT JOIN certificates c ON c.id=cm.certificate_id LEFT JOIN users u ON u.id=cm.user_id ORDER BY cm.id DESC LIMIT 100").fetchall()
     appointments = con.execute("SELECT id,appointment_date,start_time,client_name,plate_number,service_name FROM appointments WHERE status!='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 50").fetchall()
-    con.close(); return render_template('certificates.html', rows=rows, moves=moves, appointments=appointments)
+    has_template = CERT_TEMPLATE_PATH.exists() and CERT_TEMPLATE_PATH.stat().st_size > 500
+    con.close()
+    return render_template('certificates.html', rows=rows, moves=moves, appointments=appointments, has_template=has_template, is_director=(u['role'] == 'director'))
+
+@app.route('/certificates/<int:cid>/pdf')
+@login_required
+@perm_required('certificates')
+def certificate_pdf(cid):
+    con = db()
+    cert = con.execute("SELECT * FROM certificates WHERE id=?", (cid,)).fetchone()
+    con.close()
+    if not cert:
+        flash('Сертификат не найден')
+        return redirect(url_for('certificates'))
+    pdf = render_certificate_pdf(cert['cert_number'], cert['nominal'])
+    if not pdf:
+        flash('Не удалось сформировать PDF')
+        return redirect(url_for('certificates'))
+    return send_file(
+        io.BytesIO(pdf),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'sertifikat_{cert["cert_number"]}.pdf',
+    )
 
 def certificate_pay_internal(con):
     number = request.form['cert_number'].strip().upper(); amount = float(request.form.get('amount') or 0); aid = request.form.get('appointment_id') or None
