@@ -2544,24 +2544,188 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
 
 
 CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
+CERT_LAYOUT_PATH = BASE_DIR / 'static' / 'certificate_layout.json'
 
-# Запасные координаты, если в PDF нет линий (доли страницы / отступы).
+# Запасные координаты (доли страницы), если линии не найдены.
 CERT_PDF_LAYOUT = {
-    'number_y': 0.067,
+    'number_y': 0.145,
     'number_right': 48,
     'number_fontsize': 12,
-    'amount_y': 0.545,
-    'amount_left': 0.220,
-    'amount_right': 0.600,
-    'amount_fontsize': 24,
+    'amount_y': 0.655,
+    'amount_left': 0.250,
+    'amount_right': 0.735,
+    'amount_fontsize': 28,
 }
 
-def _certificate_amount_band(h):
-    return h * 0.30, h * 0.58
+def _cluster_scan_lines(rows, gap=4):
+    if not rows:
+        return []
+    rows = sorted(rows, key=lambda row: row['y'])
+    clusters = [[rows[0]]]
+    for row in rows[1:]:
+        if row['y'] - clusters[-1][-1]['y'] <= gap:
+            clusters[-1].append(row)
+        else:
+            clusters.append([row])
+    merged = []
+    for cluster in clusters:
+        best = max(cluster, key=lambda row: row['len'])
+        merged.append({
+            'y': sum(row['y'] for row in cluster) / len(cluster),
+            'x1': min(row['x1'] for row in cluster),
+            'x2': max(row['x2'] for row in cluster),
+            'len': best['len'],
+        })
+    return sorted(merged, key=lambda row: row['y'])
 
-def _certificate_middle_lines(lines, h):
-    y_min, y_max = _certificate_amount_band(h)
-    return [line for line in lines if y_min < line['y'] < y_max]
+def _scan_certificate_image_lines(page):
+    import fitz
+    w, h = page.rect.width, page.rect.height
+    scale = 2
+    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), colorspace=fitz.csRGB)
+    pw = pix.width
+    data = pix.samples
+    threshold = 180
+    min_run = int(pw * 0.08)
+    rows = []
+    for y in range(pix.height):
+        best_run = 0
+        best_x1 = best_x2 = 0
+        run = 0
+        cur_x1 = 0
+        for x in range(pw):
+            i = (y * pw + x) * 3
+            r, g, b = data[i], data[i + 1], data[i + 2]
+            if r >= threshold and g >= threshold and b >= threshold:
+                if run == 0:
+                    cur_x1 = x
+                run += 1
+            else:
+                if run > best_run:
+                    best_run = run
+                    best_x1, best_x2 = cur_x1, x
+                run = 0
+        if run > best_run:
+            best_run = run
+            best_x1, best_x2 = cur_x1, pw
+        if best_run >= min_run:
+            rows.append({
+                'y': y / scale,
+                'x1': best_x1 / scale,
+                'x2': best_x2 / scale,
+                'len': best_run / scale,
+            })
+    lines = _cluster_scan_lines(rows)
+    return [line for line in lines if line['len'] < w * 0.9]
+
+def _pick_certificate_lines(lines, w, h):
+    number_line = None
+    amount_line = None
+    upper_lines = [
+        line for line in lines
+        if line['y'] < h * 0.22 and line['x2'] > w * 0.72 and line['len'] < w * 0.25
+    ]
+    if upper_lines:
+        number_line = max(upper_lines, key=lambda line: line['x2'])
+    mid_lines = [
+        line for line in lines
+        if h * 0.35 < line['y'] < h * 0.82 and w * 0.15 < line['len'] < w * 0.85
+    ]
+    if mid_lines:
+        amount_line = max(mid_lines, key=lambda line: line['len'])
+    return number_line, amount_line
+
+def _layout_from_lines(number_line, amount_line, w, h, fallback):
+    num_fs = fallback['number_fontsize']
+    amt_fs = fallback['amount_fontsize']
+    if number_line:
+        num_y = number_line['y'] + num_fs * 0.25
+        num_x_right = number_line['x2'] - 8
+    else:
+        num_y = h * fallback['number_y'] + num_fs
+        num_x_right = w - fallback['number_right']
+    if amount_line:
+        amt_y = amount_line['y'] + amt_fs * 0.28
+        amount_left = amount_line['x1'] + 8
+        amount_right = amount_line['x2'] - 8
+    else:
+        amt_y = h * fallback['amount_y'] + amt_fs * 0.2
+        amount_left = w * fallback['amount_left']
+        amount_right = w * fallback['amount_right']
+    return {
+        'number_y': num_y,
+        'number_x_right': num_x_right,
+        'number_fontsize': num_fs,
+        'amount_y': amt_y,
+        'amount_left': amount_left,
+        'amount_right': amount_right,
+        'amount_fontsize': amt_fs,
+    }
+
+def calibrate_certificate_layout(page):
+    w, h = page.rect.width, page.rect.height
+    fallback = CERT_PDF_LAYOUT
+    vector_lines = _certificate_horizontal_lines(page)
+    number_line, amount_line = _pick_certificate_lines(vector_lines, w, h)
+    if not number_line or not amount_line:
+        image_lines = _scan_certificate_image_lines(page)
+        img_number, img_amount = _pick_certificate_lines(image_lines, w, h)
+        number_line = number_line or img_number
+        amount_line = amount_line or img_amount
+
+    texts = _certificate_text_boxes(page)
+    summa = next((t for t in texts if 'СУММ' in t['upper'] or t['upper'].startswith('SUMMA')), None)
+    rub = next((t for t in texts if 'РУБ' in t['upper'] or t['upper'].startswith('RUB')), None)
+    number_mark = next((t for t in texts if t['upper'] in ('№', 'NO', 'Nº', 'N°') or '№' in t['text']), None)
+
+    if not number_line and number_mark:
+        layout = _layout_from_lines(None, amount_line, w, h, fallback)
+        layout['number_y'] = number_mark['cy'] + fallback['number_fontsize'] * 0.35
+        layout['number_x_right'] = w - fallback['number_right']
+        return layout
+
+    layout = _layout_from_lines(number_line, amount_line, w, h, fallback)
+    if rub and amount_line and rub['x0'] > amount_line['x2'] - 20:
+        layout['amount_right'] = rub['x0'] - 8
+    elif rub and not amount_line:
+        layout['amount_right'] = max(layout['amount_left'] + 80, rub['x0'] - 8)
+        layout['amount_y'] = rub['y1'] - 2
+    elif summa and not amount_line:
+        layout['amount_y'] = summa['y1'] + (h * fallback['amount_y'] - summa['y1']) + layout['amount_fontsize'] * 0.2
+    return layout
+
+def save_certificate_layout(page):
+    layout = calibrate_certificate_layout(page)
+    w, h = page.rect.width, page.rect.height
+    payload = {
+        'number_y_ratio': layout['number_y'] / h,
+        'number_x_right_ratio': layout['number_x_right'] / w,
+        'number_fontsize': layout['number_fontsize'],
+        'amount_y_ratio': layout['amount_y'] / h,
+        'amount_left_ratio': layout['amount_left'] / w,
+        'amount_right_ratio': layout['amount_right'] / w,
+        'amount_fontsize': layout['amount_fontsize'],
+    }
+    CERT_LAYOUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CERT_LAYOUT_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+
+def load_certificate_layout(page):
+    if not CERT_LAYOUT_PATH.exists():
+        return None
+    try:
+        data = json.loads(CERT_LAYOUT_PATH.read_text(encoding='utf-8'))
+        w, h = page.rect.width, page.rect.height
+        return {
+            'number_y': h * float(data['number_y_ratio']),
+            'number_x_right': w * float(data['number_x_right_ratio']),
+            'number_fontsize': int(data['number_fontsize']),
+            'amount_y': h * float(data['amount_y_ratio']),
+            'amount_left': w * float(data['amount_left_ratio']),
+            'amount_right': w * float(data['amount_right_ratio']),
+            'amount_fontsize': int(data['amount_fontsize']),
+        }
+    except Exception:
+        return None
 
 def _certificate_horizontal_lines(page):
     w = page.rect.width
@@ -2600,82 +2764,10 @@ def _certificate_text_boxes(page):
     return boxes
 
 def certificate_overlay_positions(page):
-    w, h = page.rect.width, page.rect.height
-    lines = _certificate_horizontal_lines(page)
-    texts = _certificate_text_boxes(page)
-    fallback = CERT_PDF_LAYOUT
-
-    summa = next((t for t in texts if 'СУММ' in t['upper'] or t['upper'].startswith('SUMMA')), None)
-    rub = next((t for t in texts if 'РУБ' in t['upper'] or t['upper'].startswith('RUB')), None)
-    number_mark = next((t for t in texts if t['upper'] in ('№', 'NO', 'Nº', 'N°') or '№' in t['text']), None)
-
-    number_line = None
-    amount_line = None
-    middle_lines = _certificate_middle_lines(lines, h)
-    upper_lines = [
-        line for line in lines
-        if line['y'] < h * 0.18 and line['x1'] > w * 0.40 and line['x2'] > w * 0.65
-    ]
-    if upper_lines:
-        if number_mark:
-            number_line = min(upper_lines, key=lambda line: abs(line['y'] - number_mark['cy']))
-        else:
-            number_line = max(upper_lines, key=lambda line: line['x2'])
-
-    if rub:
-        rub_lines = [line for line in middle_lines if abs(line['y'] - rub['cy']) < 24]
-        if rub_lines:
-            amount_line = min(rub_lines, key=lambda line: abs(line['y'] - rub['cy']))
-        else:
-            amount_line = min(middle_lines, key=lambda line: abs(line['y'] - rub['cy'])) if middle_lines else None
-
-    if not amount_line and summa:
-        below = [line for line in middle_lines if line['y'] > summa['y1'] + 6]
-        if below:
-            amount_line = min(below, key=lambda line: line['y'])
-
-    if not amount_line and middle_lines:
-        amount_line = max(middle_lines, key=lambda line: line['x2'] - line['x1'])
-
-    num_fs = fallback['number_fontsize']
-    amt_fs = fallback['amount_fontsize']
-
-    if number_line:
-        num_y = number_line['y'] + num_fs * 0.15
-        num_x_right = number_line['x2'] - 6
-    elif number_mark:
-        num_y = number_mark['cy'] + num_fs * 0.35
-        num_x_right = w - fallback['number_right']
-    else:
-        num_y = h * fallback['number_y'] + num_fs
-        num_x_right = w - fallback['number_right']
-
-    if rub and not amount_line:
-        amount_left = w * fallback['amount_left']
-        amount_right = max(amount_left + 80, rub['x0'] - 10)
-        amt_y = rub['y1'] - 2
-    elif amount_line:
-        amt_y = amount_line['y'] + amt_fs * 0.2
-        amount_left = amount_line['x1']
-        amount_right = amount_line['x2']
-    elif summa:
-        amount_left = w * fallback['amount_left']
-        amount_right = w * fallback['amount_right']
-        amt_y = summa['y1'] + (h * fallback['amount_y'] - summa['y1']) + amt_fs * 0.2
-    else:
-        amt_y = h * fallback['amount_y'] + amt_fs * 0.2
-        amount_left = w * fallback['amount_left']
-        amount_right = w * fallback['amount_right']
-
-    return {
-        'number_y': num_y,
-        'number_x_right': num_x_right,
-        'number_fontsize': num_fs,
-        'amount_y': amt_y,
-        'amount_left': amount_left,
-        'amount_right': amount_right,
-        'amount_fontsize': amt_fs,
-    }
+    saved = load_certificate_layout(page)
+    if saved:
+        return saved
+    return calibrate_certificate_layout(page)
 
 def make_certificate_number(con):
     row = con.execute(
@@ -2902,6 +2994,15 @@ def certificates():
                 return redirect(url_for('certificates'))
             CERT_TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
             f.save(str(CERT_TEMPLATE_PATH))
+            if CERT_LAYOUT_PATH.exists():
+                CERT_LAYOUT_PATH.unlink()
+            try:
+                import fitz
+                doc = fitz.open(str(CERT_TEMPLATE_PATH))
+                save_certificate_layout(doc[0])
+                doc.close()
+            except Exception:
+                pass
             con.close()
             flash('Шаблон сертификата загружен')
         elif action == 'delete':
