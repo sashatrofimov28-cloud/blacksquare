@@ -2639,17 +2639,17 @@ def _layout_from_lines(number_line, amount_line, w, h, fallback):
     num_fs = fallback['number_fontsize']
     amt_fs = fallback['amount_fontsize']
     if number_line:
-        num_y = number_line['y'] + num_fs * 0.25
+        num_y = number_line['y'] - num_fs * 0.2
         num_x_right = number_line['x2'] - 8
     else:
-        num_y = h * fallback['number_y'] + num_fs
+        num_y = h * fallback['number_y']
         num_x_right = w - fallback['number_right']
     if amount_line:
-        amt_y = amount_line['y'] + amt_fs * 0.28
+        amt_y = amount_line['y'] - amt_fs * 0.15
         amount_left = amount_line['x1'] + 8
         amount_right = amount_line['x2'] - 8
     else:
-        amt_y = h * fallback['amount_y'] + amt_fs * 0.2
+        amt_y = h * fallback['amount_y']
         amount_left = w * fallback['amount_left']
         amount_right = w * fallback['amount_right']
     return {
@@ -2815,9 +2815,9 @@ def _overlay_certificate_amount(page, amount_txt, pos, white):
     amt_fs = pos['amount_fontsize']
     rect = fitz.Rect(
         pos['amount_left'],
-        pos['amount_y'] - amt_fs,
+        pos['amount_y'] - amt_fs * 0.9,
         pos['amount_right'],
-        pos['amount_y'] + amt_fs * 0.35,
+        pos['amount_y'] + amt_fs * 0.05,
     )
     leftover = page.insert_textbox(
         rect,
