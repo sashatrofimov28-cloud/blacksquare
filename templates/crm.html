@@ -1,6 +1,56 @@
-{% extends "base.html" %}{% block content %}
-<header class="top"><h1>CRM</h1><p>Поиск по телефону, имени, авто или госномеру. Можно добавлять клиента вручную и ставить стадию.</p></header>
-<div class="panel"><h2>Добавить клиента</h2><form method="post" class="form-grid"><input name="name" placeholder="Имя клиента" required><input name="phone" placeholder="Телефон"><input name="car" placeholder="Автомобиль"><input name="plate_number" placeholder="Госномер"><select name="stage"><option>Новый</option><option>Думает</option><option>Дорого</option><option>Вернуться позже</option><option>Записан</option><option>Отказ</option></select><input name="reason" placeholder="Причина / что смутило"><input name="source" placeholder="Источник"><input name="comment" placeholder="Комментарий"><button>Добавить в CRM</button></form></div>
-<div class="notice"><form method="get" class="inline"><input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя / авто"><button class="ghost">Найти</button></form></div>
-<div class="panel"><table><tr><th>Имя</th><th>Телефон</th><th>Бонусы</th><th>Стадия</th><th>Причина</th><th>Источник</th><th>Дата</th><th></th></tr>{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.phone }}</td><td>{% if r.bonus_code %}<span title="{{ r.bonus_code }}">{{ "%.0f"|format(r.bonus_balance or 0) }} ₽</span>{% else %}—{% endif %}</td><td>{{ r.stage }}</td><td>{{ r.reason }}</td><td>{{ r.source }}</td><td>{{ r.created_at }}</td><td><a class="mini-btn" href="{{ url_for('client_card', cid=r.id) }}">Карточка</a></td></tr>{% endfor %}</table></div>
+{% extends "base.html" %}
+{% block content %}
+<header class="top top-compact">
+  <h1>CRM</h1>
+</header>
+
+<details class="compact-fold panel-compact">
+  <summary>＋ Добавить клиента</summary>
+  <form method="post" class="compact-form">
+    <input name="name" placeholder="Имя" required>
+    <input name="phone" placeholder="Телефон">
+    <input name="car" placeholder="Авто">
+    <input name="plate_number" placeholder="Госномер">
+    <button>Добавить</button>
+    <details class="compact-more">
+      <summary>Дополнительно</summary>
+      <div class="compact-more-grid">
+        <select name="stage">
+          <option>Новый</option>
+          <option>Думает</option>
+          <option>Дорого</option>
+          <option>Вернуться позже</option>
+          <option>Записан</option>
+          <option>Отказ</option>
+        </select>
+        <input name="reason" placeholder="Причина">
+        <input name="source" placeholder="Источник">
+        <input name="comment" placeholder="Комментарий" class="span2">
+      </div>
+    </details>
+  </form>
+</details>
+
+<div class="notice notice-compact">
+  <form method="get" class="inline inline-search">
+    <input name="q" value="{{ q }}" placeholder="Поиск: телефон, имя, авто, госномер">
+    <button class="ghost">Найти</button>
+  </form>
+</div>
+
+<div class="panel panel-compact">
+  <table class="table-compact">
+    <tr><th>Имя</th><th>Телефон</th><th>Бонусы</th><th>Стадия</th><th>Дата</th><th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{{ r.phone }}</td>
+      <td>{% if r.bonus_code %}{{ "%.0f"|format(r.bonus_balance or 0) }} ₽{% else %}—{% endif %}</td>
+      <td>{{ r.stage }}</td>
+      <td>{{ r.created_at[:10] if r.created_at else '' }}</td>
+      <td><a class="mini-btn" href="{{ url_for('client_card', cid=r.id) }}">Карточка</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
 {% endblock %}
