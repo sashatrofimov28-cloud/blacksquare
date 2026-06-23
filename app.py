@@ -1331,13 +1331,67 @@ def telegram_autoconfigure():
 
 TELEGRAM_Z_HELP = (
     '<b>Запись из чата</b>\n'
-    '<code>/z авто на 14:00 услуга 4000</code>\n'
-    '<code>/z приора 14:00 передняя полусфера</code>\n\n'
+    '<code>/z Киа Рио на 15:00 тонировка задней полусферы</code>\n'
+    '<code>/z завтра приора 14:00 передняя полусфера</code>\n'
+    '<code>/z приора 15.00 задняя полусфера (завтра)</code>\n\n'
     '<b>Голосом</b> (начните с имени бота):\n'
-    '«Пантюха, приора на 14:00 передняя полусфера 4000»\n'
+    '«Пантюха, Киа Рио на 15:00 тонировка задней полусферы завтра»\n'
     'Или голосовое <b>ответом</b> на сообщение бота.\n\n'
-    'Дата: сегодня, <code>завтра</code> или <code>22.06</code>'
+    'Дата: <code>сегодня</code>, <code>завтра</code>, <code>22.06</code> — в начале, в конце или в скобках'
 )
+
+_TELEGRAM_DATE_TOKEN = r'сегодня|завтра|послезавтра|\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?'
+
+def preprocess_telegram_booking_body(body):
+    body = re.sub(r'\s+', ' ', (body or '').strip())
+    if not body:
+        return '', None
+    date_token = None
+    paren = re.search(
+        rf'\(\s*({_TELEGRAM_DATE_TOKEN})\s*\)',
+        body,
+        flags=re.IGNORECASE,
+    )
+    if paren:
+        date_token = paren.group(1)
+        body = (body[:paren.start()] + ' ' + body[paren.end():]).strip()
+    lead = re.match(rf'^({_TELEGRAM_DATE_TOKEN})\s+', body, flags=re.IGNORECASE)
+    if lead:
+        date_token = date_token or lead.group(1)
+        body = body[lead.end():].strip()
+    trail = re.search(rf'\s+({_TELEGRAM_DATE_TOKEN})\s*$', body, flags=re.IGNORECASE)
+    if trail:
+        date_token = date_token or trail.group(1)
+        body = body[:trail.start()].strip()
+    return body, date_token
+
+def parse_booking_body(body):
+    body, date_token = preprocess_telegram_booking_body(body)
+    if not body:
+        return None, TELEGRAM_Z_HELP
+    m = re.match(
+        r'^(.+?)\s+(?:на\s+)?(\d{1,2}[:.]\d{2})\s+(.+)$',
+        body,
+        flags=re.IGNORECASE,
+    )
+    if not m:
+        return None, (
+            'Не понял запись.\n'
+            'Пример: <code>Киа Рио на 15:00 тонировка задней полусферы завтра</code>'
+        )
+    car, start_raw, rest = m.group(1).strip(), m.group(2), m.group(3).strip()
+    start = normalize_hm(start_raw.replace('.', ':'))
+    if not start:
+        return None, 'Укажите время в формате 14:00 или 15.00'
+    ap_date = parse_telegram_booking_date(date_token)
+    service_text, price = split_telegram_service_price(rest)
+    return {
+        'date': ap_date,
+        'car': car,
+        'start': start,
+        'service_text': service_text,
+        'price': price,
+    }, None
 
 def telegram_reply(chat_id, text, reply_to=None):
     token = telegram_bot_token()
@@ -1359,35 +1413,6 @@ def telegram_reply(chat_id, text, reply_to=None):
     except Exception as e:
         return False, str(e)[:200]
 
-def parse_booking_body(body):
-    body = (body or '').strip()
-    if not body:
-        return None, TELEGRAM_Z_HELP
-    m = re.match(
-        r'^(?:(сегодня|завтра|\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?)\s+)?'
-        r'(.+?)\s+(?:на\s+)?(\d{1,2}[:.]\d{2})\s+(.+)$',
-        body,
-        flags=re.IGNORECASE,
-    )
-    if not m:
-        return None, (
-            'Не понял запись.\n'
-            'Пример: <code>приора на 14:00 передняя полусфера 4000</code>'
-        )
-    date_token, car, start_raw, rest = m.group(1), m.group(2).strip(), m.group(3), m.group(4).strip()
-    start = normalize_hm(start_raw.replace('.', ':'))
-    if not start:
-        return None, 'Укажите время в формате 14:00'
-    ap_date = parse_telegram_booking_date(date_token)
-    service_text, price = split_telegram_service_price(rest)
-    return {
-        'date': ap_date,
-        'car': car,
-        'start': start,
-        'service_text': service_text,
-        'price': price,
-    }, None
-
 def parse_telegram_z_command(text):
     raw = (text or '').strip()
     if not raw.lower().startswith('/z'):
@@ -1400,6 +1425,8 @@ def parse_telegram_booking_date(token):
         return today()
     if str(token).lower() == 'завтра':
         return (date.today() + timedelta(days=1)).isoformat()
+    if str(token).lower() == 'послезавтра':
+        return (date.today() + timedelta(days=2)).isoformat()
     token = str(token).replace('/', '.')
     parts = token.split('.')
     try:
@@ -1625,22 +1652,58 @@ def handle_telegram_voice(msg):
         author = frm['first_name']
     process_telegram_booking(chat_id, parsed, author, reply_to, source='голос')
 
+def _service_query_tokens(text):
+    aliases = {
+        'полусфера': 'част', 'полусферы': 'част', 'полусферу': 'част', 'полусфере': 'част',
+        'часть': 'част', 'части': 'част', 'частью': 'част',
+        'задняя': 'задн', 'задней': 'задн', 'заднюю': 'задн', 'задние': 'задн',
+        'передняя': 'передн', 'передней': 'передн', 'передние': 'передн', 'переднюю': 'передн',
+        'боковые': 'боков', 'боковая': 'боков', 'боковых': 'боков', 'боковое': 'боков',
+        'тонировка': 'тонир', 'тонировку': 'тонир', 'тонировки': 'тонир',
+        'атермальная': 'атерм', 'атермальную': 'атерм',
+        'пленка': 'плен', 'плёнка': 'плен', 'пленку': 'плен',
+    }
+    words = re.findall(r'[a-zа-яё0-9]+', (text or '').lower(), flags=re.IGNORECASE)
+    out = set()
+    for word in words:
+        if len(word) < 2:
+            continue
+        out.add(word)
+        out.add(aliases.get(word, word))
+        if len(word) > 4:
+            out.add(word[:5])
+    return out
+
+def _service_match_score(query, service_name):
+    q = (query or '').lower().strip()
+    n = (service_name or '').lower().strip()
+    if not q or not n:
+        return 0
+    if q in n or n in q:
+        return 100
+    q_words = _service_query_tokens(q)
+    n_words = _service_query_tokens(n)
+    overlap = len(q_words & n_words)
+    partial = 0
+    for qw in q_words:
+        if len(qw) < 3:
+            continue
+        for nw in n_words:
+            if qw in nw or nw in qw:
+                partial += 1
+                break
+    return overlap * 10 + partial
+
 def find_services_by_text(con, text):
     text_l = text.lower().strip()
     rows = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     if not rows:
         return None, 'В CRM нет активных услуг'
-    words = set(re.findall(r'[a-zа-яё0-9]+', text_l, flags=re.IGNORECASE))
     scored = []
     for s in rows:
-        name_l = s['name'].lower()
-        if text_l in name_l or name_l in text_l:
-            scored.append((100, s))
-            continue
-        name_words = set(re.findall(r'[a-zа-яё0-9]+', name_l, flags=re.IGNORECASE))
-        overlap = len(words & name_words)
-        if overlap:
-            scored.append((overlap, s))
+        score = _service_match_score(text_l, s['name'])
+        if score:
+            scored.append((score, s))
     if not scored:
         names = ', '.join(r['name'] for r in rows[:8])
         return None, f'Услуга не найдена: «{text}». Примеры: {names}'
