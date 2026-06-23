@@ -60,8 +60,14 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .public-card{width:min(560px,100%);padding:32px;text-align:center}
 .public-card form{display:grid;gap:12px;text-align:left;margin-top:18px}
 .booking-services-label{font-weight:700;margin:0 0 4px}
-.booking-services{display:grid;gap:8px;max-height:220px;overflow:auto;padding-right:4px}
+.booking-services{display:grid;gap:10px;max-height:260px;overflow:auto;padding-right:4px}
+.booking-service-group{display:grid;gap:6px}
+.booking-service-group-title{margin:0;font-size:13px;font-weight:700;color:#ccc;text-transform:uppercase;letter-spacing:.04em}
 .booking-service-check{font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#1f1f1f;border:1px solid #333;font-size:14px}
+.chip-x{background:transparent;border:0;color:#aaa;cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
+.chip-x:hover{color:#fff}
 .check{display:flex;align-items:center;gap:8px;background:#f7f7f7;border:1px solid #eee;border-radius:12px;padding:10px 12px}
 .check input{width:auto}
 .perm-list{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:8px}

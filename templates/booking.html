@@ -12,11 +12,16 @@
       <input name="plate_number" placeholder="Госномер авто">
       <div class="booking-services" id="serviceChecks">
         <p class="booking-services-label">Услуги *</p>
-        {% for s in services %}
-        <label class="check booking-service-check">
-          <input type="checkbox" name="service_ids" value="{{ s.id }}">
-          {{ s.name }} — {{ service_price_label(s.base_price) }}, {{ s.duration_min }} мин
-        </label>
+        {% for group in service_groups %}
+        <div class="booking-service-group">
+          <p class="booking-service-group-title">{{ group.category.name }}</p>
+          {% for s in group.services %}
+          <label class="check booking-service-check">
+            <input type="checkbox" name="service_ids" value="{{ s.id }}">
+            {{ s.name }} — {{ service_price_label(s.base_price) }}, {{ s.duration_min }} мин
+          </label>
+          {% endfor %}
+        </div>
         {% endfor %}
       </div>
       <select name="employee_id" id="employee" required disabled>
