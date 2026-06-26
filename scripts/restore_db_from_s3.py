@@ -9,7 +9,7 @@ def main() -> int:
     endpoint = os.environ.get("S3_ENDPOINT", "").strip()
     bucket = os.environ.get("S3_BUCKET", "").strip()
     key = os.environ.get("S3_DB_KEY", "").strip()
-    db_path = Path(os.environ.get("DATABASE_PATH", "/data/blacksquare_stock_crm_v2.db"))
+    db_path = Path(os.environ.get("DATABASE_PATH", "/app/data/blacksquare_stock_crm_v2.db"))
 
     if not (endpoint and bucket and key):
         print("S3 restore skipped: S3_ENDPOINT/S3_BUCKET/S3_DB_KEY not set", flush=True)
@@ -21,7 +21,14 @@ def main() -> int:
         print("S3 restore skipped: S3 credentials missing", flush=True)
         return 0
 
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        fallback = Path("/app/data/blacksquare_stock_crm_v2.db")
+        print(f"S3 restore: {db_path.parent} not writable, using {fallback}", flush=True)
+        db_path = fallback
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        os.environ["DATABASE_PATH"] = str(db_path)
     force = os.environ.get("S3_RESTORE_ON_START", "").strip() in ("1", "true", "yes")
     if db_path.exists() and db_path.stat().st_size > 0 and not force:
         print(f"S3 restore skipped: database already exists ({db_path.stat().st_size} bytes)", flush=True)
