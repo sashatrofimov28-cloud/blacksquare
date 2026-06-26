@@ -10,4 +10,6 @@ ENV DATABASE_PATH=/data/blacksquare_stock_crm_v2.db \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT} --workers 1 --threads 4 --timeout 120 --access-logfile - --error-logfile - app:app"]
+RUN chmod +x docker-entrypoint.sh scripts/restore_db_from_s3.py
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
