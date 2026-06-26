@@ -31,6 +31,38 @@
 | Путь проверки | пусто или `/healthz` |
 | Команда запуска | не нужна (берётся из Dockerfile) |
 
+## Timeweb MCP
+
+В проект добавлен `.cursor/mcp.json` для официального MCP-сервера Timeweb Cloud:
+
+```json
+{
+  "mcpServers": {
+    "timeweb": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "timeweb-mcp-server"],
+      "env": {
+        "TIMEWEB_TOKEN": "${env:TIMEWEB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Перед использованием добавьте токен Timeweb Cloud в переменную окружения `TIMEWEB_TOKEN` в Cursor/Cloud Agent или локальной оболочке. Сам токен нельзя коммитить в репозиторий.
+
+Подходящий запрос агенту:
+
+```text
+Запусти это Flask-приложение в Timeweb Cloud через Dockerfile.
+Репозиторий: sashatrofimov28-cloud/blacksquare
+Ветка: main
+Порт: 8000
+Health check: /healthz
+Переменные: FLASK_SECRET_KEY, DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db
+```
+
 ## После успешного деплоя
 
 - Сайт: `https://blacksquare72.ru`
