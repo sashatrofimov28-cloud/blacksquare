@@ -26,7 +26,7 @@ python app.py
 3. Порт: `8000`, health: `/healthz`.
 4. **Run command (обязательно):** `./docker-entrypoint.sh` — не используйте голый `gunicorn`, иначе контейнер падает и сайт отдаёт пустую страницу.
 5. Переменные окружения (из старого приложения):
-   - `DATABASE_PATH=/data/blacksquare_stock_crm_v2.db`
+   - `DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db`
    - `FLASK_SECRET_KEY=...`
    - `PUBLIC_BASE_URL=https://blacksquare72.ru`
    - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED=1`
