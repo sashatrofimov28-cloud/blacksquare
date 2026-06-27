@@ -75,12 +75,22 @@
   <div class="employee-grid">
     {% for r in rows %}
     <div class="employee-card {% if not r.active %}inactive{% endif %}">
+      <div class="employee-card-header">
+        <div>
+          <strong>{{ r.full_name }}</strong>
+          <div class="meta">@{{ r.username }} · {% if r.role=='director' %}Директор{% elif r.role=='admin' %}Администратор{% else %}Мастер{% endif %}{% if r.role=='master' and r.online_booking is not none and not r.online_booking %} · <span style="color:#888">только вручную</span>{% endif %}</div>
+        </div>
+        {% if r.id != user.id %}
+        <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" class="employee-delete-form" onsubmit="return confirm('Удалить @{{ r.username }} навсегда? История заказов сохранится.');">
+          <button type="submit" class="danger">Удалить</button>
+        </form>
+        {% endif %}
+      </div>
       <form method="post" action="{{ url_for('employee_update', uid=r.id) }}">
         <div class="employee-section" style="margin-top:0;padding-top:0;border-top:0">
           <label class="master-picker-label">Имя сотрудника</label>
           <input name="full_name" value="{{ r.full_name }}" placeholder="Имя сотрудника" required>
         </div>
-        <div class="meta">@{{ r.username }} · {% if r.role=='director' %}Директор{% elif r.role=='admin' %}Администратор{% else %}Мастер{% endif %}{% if r.role=='master' and not r.online_booking %} · <span style="color:#888">только вручную</span>{% endif %}</div>
 
         <div class="employee-section">
           <div class="form-grid" style="grid-template-columns:1fr 1fr">
@@ -92,7 +102,7 @@
             <label class="check"><input type="checkbox" name="active" {% if r.active %}checked{% endif %}> работает</label>
           </div>
           {% if r.role == 'master' %}
-          <label class="check" style="margin-top:10px;display:block"><input type="checkbox" name="online_booking" {% if r.online_booking %}checked{% endif %}> Участвует в онлайн-записи</label>
+          <label class="check" style="margin-top:10px;display:block"><input type="checkbox" name="online_booking" {% if r.online_booking is none or r.online_booking %}checked{% endif %}> Участвует в онлайн-записи</label>
           <p class="hint" style="margin:4px 0 0;font-size:12px">Без галочки мастер доступен только в календаре (ручные записи).</p>
           {% endif %}
         </div>
@@ -116,15 +126,6 @@
 
         <button class="ghost" style="margin-top:12px;width:100%">Сохранить</button>
       </form>
-      {% if has_perm('employees') and r.id != user.id and r.role != 'director' %}
-      <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" style="margin-top:8px" onsubmit="return confirm('Удалить аккаунт @{{ r.username }} навсегда? Записи в истории останутся, но мастер будет снят с заказов.');">
-        <button type="submit" class="danger" style="width:100%">Удалить аккаунт</button>
-      </form>
-      {% elif has_perm('employees') and r.id != user.id and r.role == 'director' %}
-      <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" style="margin-top:8px" onsubmit="return confirm('Удалить аккаунт директора @{{ r.username }}?');">
-        <button type="submit" class="danger" style="width:100%">Удалить аккаунт</button>
-      </form>
-      {% endif %}
     </div>
     {% endfor %}
   </div>
