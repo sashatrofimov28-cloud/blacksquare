@@ -29,7 +29,7 @@
     <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
     <div class="form-grid" style="margin-top:20px">
       <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽" required>
-      <input name="salary_amount" type="number" step="0.01" value="{{ ap.salary_amount or '' }}" placeholder="ЗП за заказ ₽">
+      {% include '_salary_by_master.html' %}
       <textarea name="comment" placeholder="Комментарий" class="span4">{{ ap.comment or '' }}</textarea>
       <button>Сохранить изменения</button>
     </div>
@@ -58,7 +58,7 @@
     <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="editApptForm">
       <label class="master-picker-label">Мастера *</label>
       <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
-      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить»</p>
+      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить». Можно добавить двух и более — одна запись на всех.</p>
       <div class="master-add-row">
         <select id="masterSelect" class="master-select">
           <option value="">— Выберите мастера —</option>

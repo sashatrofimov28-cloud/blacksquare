@@ -391,6 +391,49 @@ def get_appointment_employee_ids(con, aid, primary_id=None):
         return [r['employee_id'] for r in rows]
     return [primary_id] if primary_id else []
 
+def appointment_master_rows(con, aid, primary_id=None):
+    rows = con.execute(
+        "SELECT u.id, u.full_name FROM users u "
+        "JOIN appointment_employees ae ON ae.employee_id=u.id "
+        "WHERE ae.appointment_id=? ORDER BY ae.id",
+        (aid,),
+    ).fetchall()
+    if rows:
+        return rows
+    if primary_id:
+        r = con.execute("SELECT id, full_name FROM users WHERE id=?", (primary_id,)).fetchone()
+        return [r] if r else []
+    return []
+
+def get_appointment_salaries(con, aid):
+    return {
+        r['employee_id']: float(r['amount'])
+        for r in con.execute("SELECT employee_id, amount FROM salary WHERE appointment_id=?", (aid,)).fetchall()
+    }
+
+def parse_salaries_from_form(form, employee_ids):
+    salaries = {}
+    for eid in employee_ids:
+        raw = form.get(f'salary_{eid}', '').strip()
+        if raw:
+            salaries[int(eid)] = float(raw)
+    if not salaries:
+        single = float(form.get('salary_amount') or 0)
+        if single > 0 and employee_ids:
+            salaries[int(employee_ids[0])] = single
+    return salaries, sum(salaries.values())
+
+def save_appointment_salaries(con, aid, salaries, comment=''):
+    con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
+    period = datetime.now().strftime('%m.%Y')
+    text = comment or 'ЗП из закрытой записи'
+    for eid, amount in salaries.items():
+        if amount > 0:
+            con.execute(
+                "INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)",
+                (int(eid), aid, period, amount, text, now()),
+            )
+
 def user_on_appointment(con, aid, uid, primary_id=None):
     if primary_id and int(primary_id) == int(uid):
         return True
@@ -636,10 +679,17 @@ def compute_day_stats(con, day):
         (day,),
     ).fetchone()
     by_employee = con.execute(
-        "SELECT u.id, u.full_name, COUNT(a.id) cnt, COALESCE(SUM(a.price),0) revenue, COALESCE(SUM(a.salary_amount),0) salary "
-        "FROM users u LEFT JOIN appointments a ON a.employee_id=u.id AND a.status='Закрыт' AND a.appointment_date=? "
+        "SELECT u.id, u.full_name, "
+        "COUNT(DISTINCT CASE WHEN a.status='Закрыт' AND a.appointment_date=? AND "
+        "(a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
+        "THEN a.id END) cnt, "
+        "COALESCE(SUM(CASE WHEN a.status='Закрыт' AND a.appointment_date=? AND a.employee_id=u.id THEN a.price ELSE 0 END),0) revenue, "
+        "COALESCE((SELECT SUM(s.amount) FROM salary s JOIN appointments a2 ON a2.id=s.appointment_id "
+        "WHERE s.employee_id=u.id AND a2.status='Закрыт' AND a2.appointment_date=?),0) salary "
+        "FROM users u "
+        "LEFT JOIN appointments a ON (a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
         "WHERE u.role='master' AND u.active=1 GROUP BY u.id ORDER BY u.full_name",
-        (day,),
+        (day, day, day),
     ).fetchall()
     employees = []
     for e in by_employee:
@@ -2455,7 +2505,8 @@ def edit_appointment(aid):
             reset_appointment_close_data(con, aid, ap)
             ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
             price = float(request.form.get('price') or 0)
-            salary_amount = float(request.form.get('salary_amount') or 0)
+            employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
             mat, err = process_materials_from_form(con, aid, u['id'], request.form)
             if err:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
@@ -2471,9 +2522,7 @@ def edit_appointment(aid):
                 "UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
                 (price, mat['first_film_id'], mat['first_len'], mat['first_w'], mat['total_m2'], material_cost, salary_amount, profit, request.form.get('comment', ap['comment'] or ''), now(), aid)
             )
-            if salary_amount > 0:
-                con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)",
-                            (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment', '') or 'ЗП из закрытой записи', now()))
+            save_appointment_salaries(con, aid, salaries, request.form.get('comment', '') or 'ЗП из закрытой записи')
             con.commit()
             refresh_dashboard_stats()
             con.close(); flash('Закрытый заказ обновлён')
@@ -2512,8 +2561,10 @@ def edit_appointment(aid):
     master_error = request.args.get('master_error') == '1'
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
+    appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
+    existing_salaries = get_appointment_salaries(con, aid)
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error)
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries)
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -2527,7 +2578,8 @@ def close_appointment(aid):
         con.close(); flash('Можно закрывать только свои записи'); return redirect(url_for('calendar_view'))
     if request.method == 'POST':
         price = float(request.form.get('price') or 0)
-        salary_amount = float(request.form.get('salary_amount') or 0)
+        employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+        salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
         mat, err = process_materials_from_form(con, aid, u['id'], request.form)
         if err:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid))
@@ -2566,8 +2618,7 @@ def close_appointment(aid):
                     (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), friend_discount_code if friend_discount_applied else None, friend_discount_amount, now(), aid))
         if friend_discount_applied:
             use_friend_discount_code(con, fc_row, aid)
-        if salary_amount > 0:
-            con.execute("INSERT INTO salary(employee_id,appointment_id,period,amount,comment,created_at) VALUES(?,?,?,?,?,?)", (ap['employee_id'], aid, datetime.now().strftime('%m.%Y'), salary_amount, request.form.get('comment','') or 'ЗП из закрытой записи', now()))
+        save_appointment_salaries(con, aid, salaries, request.form.get('comment', '') or 'ЗП из закрытой записи')
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         earned, earn_msg = accrue_bonus_on_close(con, ap_closed, price, u['id'], skip_bonus=friend_discount_applied)
         con.commit()
@@ -2587,8 +2638,10 @@ def close_appointment(aid):
     client_bonus = None
     if ap['client_id']:
         client_bonus = con.execute("SELECT bonus_balance, bonus_code, bonus_enabled FROM clients WHERE id=?", (ap['client_id'],)).fetchone()
+    appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
+    existing_salaries = get_appointment_salaries(con, aid)
     con.close()
-    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent())
+    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent(), appointment_masters=appointment_masters, existing_salaries=existing_salaries)
 
 @app.route('/api/friend_discount_check')
 @login_required
@@ -3400,6 +3453,59 @@ def employee_update(uid):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
     con.commit(); con.close(); flash('Сотрудник обновлен'); return redirect(url_for('employees'))
 
+@app.route('/employees/<int:uid>/delete', methods=['POST'])
+@login_required
+@perm_required('employees')
+def employee_delete(uid):
+    con = db()
+    u = current_user()
+    if u['role'] != 'director':
+        con.close()
+        flash('Удалять аккаунты может только директор')
+        return redirect(url_for('employees'))
+    target = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not target:
+        con.close()
+        flash('Сотрудник не найден')
+        return redirect(url_for('employees'))
+    if uid == u['id']:
+        con.close()
+        flash('Нельзя удалить свой аккаунт')
+        return redirect(url_for('employees'))
+    if target['role'] == 'director':
+        others = con.execute("SELECT COUNT(*) c FROM users WHERE role='director' AND id!=?", (uid,)).fetchone()['c']
+        if others < 1:
+            con.close()
+            flash('Нельзя удалить последнего директора')
+            return redirect(url_for('employees'))
+    ap_count = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE employee_id=? "
+        "OR id IN (SELECT appointment_id FROM appointment_employees WHERE employee_id=?)",
+        (uid, uid),
+    ).fetchone()['c']
+    sal_count = con.execute("SELECT COUNT(*) c FROM salary WHERE employee_id=?", (uid,)).fetchone()['c']
+    if ap_count > 0 or sal_count > 0:
+        con.close()
+        flash(f'У «{target["full_name"]}» есть история ({ap_count} записей). Снимите галочку «работает» — аккаунт скроется из списков.')
+        return redirect(url_for('employees'))
+    for table, col in (
+        ('push_subscriptions', 'user_id'),
+        ('user_permissions', 'user_id'),
+        ('user_services', 'user_id'),
+        ('employee_weekly_schedule', 'user_id'),
+        ('schedules', 'user_id'),
+        ('director_notification_prefs', 'user_id'),
+        ('phone_access_requests', 'user_id'),
+    ):
+        con.execute(f"DELETE FROM {table} WHERE {col}=?", (uid,))
+    con.execute("DELETE FROM director_employee_notify WHERE director_id=? OR employee_id=?", (uid, uid))
+    con.execute("DELETE FROM appointment_employees WHERE employee_id=?", (uid,))
+    con.execute("DELETE FROM users WHERE id=?", (uid,))
+    con.commit()
+    con.close()
+    flash(f'Аккаунт «{target["full_name"]}» (@{target["username"]}) удалён')
+    return redirect(url_for('employees'))
+
 @app.route('/stock', methods=['GET','POST'])
 @login_required
 @perm_required('stock')
@@ -3529,7 +3635,21 @@ def analytics():
         'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Закрыт'", (start,end)).fetchone()['c'],
     }
     by_day = con.execute("SELECT appointment_date, COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(profit),0) profit, COALESCE(SUM(material_m2),0) m2, COALESCE(SUM(salary_amount),0) salary FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ? GROUP BY appointment_date ORDER BY appointment_date DESC", (start,end)).fetchall()
-    by_employee = con.execute("SELECT u.full_name,COUNT(a.id) cnt,COALESCE(SUM(a.price),0) revenue,COALESCE(SUM(a.salary_amount),0) salary,COALESCE(SUM(a.material_m2),0) m2,COALESCE(SUM(a.profit),0) profit FROM users u LEFT JOIN appointments a ON a.employee_id=u.id AND a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? GROUP BY u.id", (start,end)).fetchall()
+    by_employee = con.execute(
+        "SELECT u.full_name, "
+        "COUNT(DISTINCT CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND "
+        "(a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
+        "THEN a.id END) cnt, "
+        "COALESCE(SUM(CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND a.employee_id=u.id THEN a.price ELSE 0 END),0) revenue, "
+        "COALESCE((SELECT SUM(s.amount) FROM salary s JOIN appointments a2 ON a2.id=s.appointment_id "
+        "WHERE s.employee_id=u.id AND a2.status='Закрыт' AND a2.appointment_date BETWEEN ? AND ?),0) salary, "
+        "COALESCE(SUM(CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND a.employee_id=u.id THEN a.material_m2 ELSE 0 END),0) m2, "
+        "COALESCE(SUM(CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND a.employee_id=u.id THEN a.profit ELSE 0 END),0) profit "
+        "FROM users u "
+        "LEFT JOIN appointments a ON (a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
+        "WHERE u.role='master' GROUP BY u.id ORDER BY revenue DESC",
+        (start, end, start, end, start, end, start, end, start, end),
+    ).fetchall()
     archived_days = {r['report_date']: r for r in con.execute("SELECT * FROM daily_reports WHERE report_date BETWEEN ? AND ? ORDER BY report_date DESC", (start, end)).fetchall()}
     day_detail = None
     day_archived = None

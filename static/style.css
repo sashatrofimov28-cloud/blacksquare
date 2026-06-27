@@ -115,6 +115,11 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .master-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .master-chip{display:inline-flex;align-items:center;gap:6px;background:#111;color:#fff;border-radius:999px;padding:6px 10px 6px 12px;font-size:13px;font-weight:700}
 .master-chip-remove{border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.salary-by-master{margin-top:4px}
+.salary-master-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.salary-master-row{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+.salary-master-row input{width:100%}
+.salary-total-hint{margin-top:8px}
 .reschedule-inline{display:inline-block;position:relative}
 .reschedule-inline summary{list-style:none;cursor:pointer}
 .reschedule-inline summary::-webkit-details-marker{display:none}

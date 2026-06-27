@@ -110,6 +110,12 @@
 
         <button class="ghost" style="margin-top:12px;width:100%">Сохранить</button>
       </form>
+      {% if user.role == 'director' and r.id != user.id %}
+      <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" style="margin-top:8px" onsubmit="return confirm('Удалить аккаунт @{{ r.username }} навсегда? Это нельзя отменить.');">
+        <button type="submit" class="danger" style="width:100%">Удалить аккаунт</button>
+      </form>
+      <p class="hint" style="margin:6px 0 0;font-size:12px">Удаление возможно только если у мастера нет записей в истории. Иначе снимите «работает».</p>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
