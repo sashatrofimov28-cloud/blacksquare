@@ -1,0 +1,13 @@
+<div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="{{ master_form_id }}">
+  <label class="master-picker-label">Мастера *</label>
+  <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
+  <p class="master-empty-hint" id="masterEmptyHint">Выберите мастера из списка и нажмите «Добавить». Можно добавить двух и более — одна запись на всех.</p>
+  <div class="master-add-row">
+    <select id="masterSelect" class="master-select">
+      <option value="">— Выберите мастера —</option>
+    </select>
+    <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+  </div>
+  <div id="masterChips" class="master-chips"></div>
+  <div id="masterHiddenInputs"></div>
+</div>

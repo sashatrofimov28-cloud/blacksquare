@@ -34,6 +34,8 @@
     <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
 
     <div class="form-grid" style="margin-top:20px">
+      {% set master_form_id = 'closeForm' %}
+      {% include '_master_picker.html' %}
       <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽ (своя)" required>
       {% include '_salary_by_master.html' %}
       <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
@@ -152,5 +154,10 @@ if (friendInput && friendHint) {
     friendHint.style.color = '#2e7d32';
   });
 }
+</script>
+<script>
+window.BS_MASTERS = {{ masters_json|safe }};
+window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
+window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
 </script>
 {% endblock %}

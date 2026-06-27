@@ -373,6 +373,66 @@
     }
   }
 
+  function recalcSalaryTotal() {
+    const totalEl = document.getElementById('salaryTotal');
+    if (!totalEl) return;
+    let sum = 0;
+    document.querySelectorAll('.salary-master-input').forEach(function (el) {
+      const v = parseFloat(el.value);
+      if (!isNaN(v) && v > 0) sum += v;
+    });
+    totalEl.textContent = Math.round(sum);
+  }
+
+  function syncSalaryMasterGrid() {
+    const grid = document.getElementById('salaryMasterGrid');
+    if (!grid) return;
+    const masters = window.BS_MASTERS || [];
+    const existing = window.BS_EXISTING_SALARIES || {};
+    const values = {};
+    grid.querySelectorAll('.salary-master-input').forEach(function (el) {
+      const id = el.dataset.masterId;
+      if (id) values[id] = el.value;
+    });
+    const hidden = document.getElementById('masterHiddenInputs');
+    const ids = hidden
+      ? Array.from(hidden.querySelectorAll('input[name="employee_ids"]')).map(function (i) { return i.value; })
+      : [];
+    grid.innerHTML = '';
+    ids.forEach(function (id) {
+      const master = masters.find(function (m) { return String(m.id) === String(id); });
+      if (!master) return;
+      const label = document.createElement('label');
+      label.className = 'salary-master-row';
+      const val = values[id] !== undefined ? values[id] : (existing[id] !== undefined ? existing[id] : '');
+      const span = document.createElement('span');
+      span.textContent = master.name;
+      const input = document.createElement('input');
+      input.name = 'salary_' + id;
+      input.type = 'number';
+      input.step = '0.01';
+      input.min = '0';
+      input.className = 'salary-master-input';
+      input.dataset.masterId = id;
+      input.placeholder = 'ЗП ₽';
+      if (val !== '' && val !== null && val !== undefined) input.value = val;
+      label.appendChild(span);
+      label.appendChild(input);
+      grid.appendChild(label);
+    });
+    const multi = ids.length > 1;
+    const hint = document.getElementById('salaryMultiHint');
+    const note = document.getElementById('salaryMultiNote');
+    const totalWrap = document.getElementById('salaryTotalWrap');
+    if (hint) hint.hidden = !multi;
+    if (note) note.hidden = !multi;
+    if (totalWrap) totalWrap.hidden = !multi;
+    recalcSalaryTotal();
+    grid.querySelectorAll('.salary-master-input').forEach(function (el) {
+      el.addEventListener('input', recalcSalaryTotal);
+    });
+  }
+
   function initMasterPicker() {
     const picker = document.getElementById('masterPicker');
     if (!picker) return;
@@ -421,6 +481,7 @@
         if (input) input.remove();
         syncEmptyHint();
         showMasterError(false);
+        syncSalaryMasterGrid();
       });
       chips.appendChild(chip);
       const input = document.createElement('input');
@@ -432,6 +493,7 @@
       select.value = '';
       syncEmptyHint();
       showMasterError(false);
+      syncSalaryMasterGrid();
     }
 
     if (addBtn) {
@@ -446,6 +508,7 @@
     }
 
     initial.forEach(addMaster);
+    syncSalaryMasterGrid();
 
     if (form) {
       form.addEventListener('submit', function (e) {

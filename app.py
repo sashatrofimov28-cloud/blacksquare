@@ -423,6 +423,17 @@ def parse_salaries_from_form(form, employee_ids):
             salaries[int(employee_ids[0])] = single
     return salaries, sum(salaries.values())
 
+def apply_appointment_masters_from_form(con, aid, form):
+    employee_ids = parse_employee_ids(form)
+    if not employee_ids:
+        return False, 'Укажите хотя бы одного мастера', []
+    ok, err = validate_master_ids(con, employee_ids)
+    if not ok:
+        return False, err, []
+    set_appointment_employees(con, aid, employee_ids)
+    con.execute("UPDATE appointments SET employee_id=? WHERE id=?", (employee_ids[0], aid))
+    return True, '', employee_ids
+
 def save_appointment_salaries(con, aid, salaries, comment=''):
     con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
     period = datetime.now().strftime('%m.%Y')
@@ -2504,8 +2515,10 @@ def edit_appointment(aid):
         if is_closed:
             reset_appointment_close_data(con, aid, ap)
             ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+            ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form)
+            if not ok:
+                con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
             price = float(request.form.get('price') or 0)
-            employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
             salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
             mat, err = process_materials_from_form(con, aid, u['id'], request.form)
             if err:
@@ -2577,8 +2590,10 @@ def close_appointment(aid):
     if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
         con.close(); flash('Можно закрывать только свои записи'); return redirect(url_for('calendar_view'))
     if request.method == 'POST':
+        ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form)
+        if not ok:
+            con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid, master_error=1))
         price = float(request.form.get('price') or 0)
-        employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
         salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
         mat, err = process_materials_from_form(con, aid, u['id'], request.form)
         if err:
@@ -2640,8 +2655,11 @@ def close_appointment(aid):
         client_bonus = con.execute("SELECT bonus_balance, bonus_code, bonus_enabled FROM clients WHERE id=?", (ap['client_id'],)).fetchone()
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
+    employees = list_masters(con)
+    selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+    masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     con.close()
-    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent(), appointment_masters=appointment_masters, existing_salaries=existing_salaries)
+    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent(), appointment_masters=appointment_masters, existing_salaries=existing_salaries, masters_json=masters_json, selected_employee_ids=selected_employee_ids, master_error=request.args.get('master_error') == '1')
 
 @app.route('/api/friend_discount_check')
 @login_required

@@ -1,37 +1,6 @@
-<div class="salary-by-master span4">
-  <h3 style="margin:0 0 8px;font-size:15px">Зарплата{% if appointment_masters|length > 1 %} по мастерам{% endif %}</h3>
-  {% if appointment_masters|length > 1 %}
-  <p class="hint" style="margin-top:0">Укажите ЗП каждому мастеру на этот заказ.</p>
-  {% endif %}
-  <div class="salary-master-grid">
-    {% for m in appointment_masters %}
-    <label class="salary-master-row">
-      <span>{{ m.full_name }}</span>
-      <input name="salary_{{ m.id }}" type="number" step="0.01" min="0"
-             class="salary-master-input"
-             value="{{ existing_salaries.get(m.id, '') if existing_salaries else '' }}"
-             placeholder="ЗП ₽">
-    </label>
-    {% endfor %}
-  </div>
-  {% if appointment_masters|length > 1 %}
-  <p class="hint salary-total-hint">Итого ЗП: <b id="salaryTotal">0</b> ₽</p>
-  {% endif %}
+<div class="salary-by-master span4" id="salaryByMasterPanel">
+  <h3 style="margin:0 0 8px;font-size:15px">Зарплата <span id="salaryMultiHint" style="font-weight:400;color:#666" hidden>по мастерам</span></h3>
+  <p class="hint" id="salaryMultiNote" style="margin-top:0" hidden>Укажите ЗП каждому мастеру на этот заказ.</p>
+  <div class="salary-master-grid" id="salaryMasterGrid"></div>
+  <p class="hint salary-total-hint" id="salaryTotalWrap" hidden>Итого ЗП: <b id="salaryTotal">0</b> ₽</p>
 </div>
-<script>
-(function () {
-  const inputs = document.querySelectorAll('.salary-master-input');
-  const totalEl = document.getElementById('salaryTotal');
-  if (!inputs.length || !totalEl) return;
-  function recalc() {
-    let sum = 0;
-    inputs.forEach(function (el) {
-      const v = parseFloat(el.value);
-      if (!isNaN(v) && v > 0) sum += v;
-    });
-    totalEl.textContent = Math.round(sum);
-  }
-  inputs.forEach(function (el) { el.addEventListener('input', recalc); });
-  recalc();
-})();
-</script>
