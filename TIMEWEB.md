@@ -1,47 +1,58 @@
-# Деплой на Timeweb Cloud
+# Деплой BlackSquare CRM на Timeweb Cloud
 
-## Если старый деплой постоянно падает
-
-Удалять GitHub-репозиторий **не нужно**. Проще создать **новое** приложение в Timeweb:
-
-1. Timeweb Cloud → **App Platform** → **Создать приложение**
-2. Тип: **Dockerfile**
-3. Репозиторий: `sashatrofimov28-cloud/blacksquare`
-4. Ветка: `main`
-5. Порт: `8000`
-6. Путь проверки состояния: можно оставить пустым или указать `/healthz`
-7. Поле «Путь к директории проекта» — **пустое**
-8. Запустить деплой
-
-Старое приложение **Wild Lacerta** можно удалить после успешного запуска нового.
-
-## Настройки
+## Продакшен (текущий)
 
 | Параметр | Значение |
 |----------|----------|
+| Приложение | **BlackSquare CRM Prod** (ID `215409`) |
+| Регион | Москва (`msk-1`) |
+| Домен | **https://blacksquare72.ru** |
+| IP | `85.239.37.243` |
 | Ветка | `main` |
 | Порт | `8000` |
-| Автодеплой | выключен в панели — после push в `main` нужен ручной деплой (см. ниже) |
+| Health check | `/healthz` |
+| **Run command** | `./docker-entrypoint.sh` |
 
-## Если изменения не появились на сайте
+### Важно
 
-На Timeweb **App Platform** → приложение **BlackSquare CRM Mobile** → вкладка **Деплой** → **Запустить деплой** (ветка `main`, последний коммит).
+Timeweb для Flask по умолчанию подставляет `gunicorn main:app` — **так нельзя**: контейнер падает, сайт отдаёт пустую страницу.
 
-Либо попросите агента запустить деплой через API.
-| Путь проверки | пусто или `/healthz` |
-| Команда запуска | не нужна (берётся из Dockerfile) |
+В настройках приложения → **Команда запуска** должно быть:
 
-## После успешного деплоя
+```bash
+./docker-entrypoint.sh
+```
 
-- Сайт: `https://blacksquare72.ru`
-- Логин: `director`
-- Пароль: `blacksquare`
+Файл `main.py` в репозитории добавлен как запасной вариант (`gunicorn main:app`), но S3-восстановление БД работает только через `docker-entrypoint.sh`.
+
+### Переменные окружения
+
+- `PUBLIC_BASE_URL=https://blacksquare72.ru`
+- `DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db`
+- `FLASK_SECRET_KEY`, `PORT=8000`
+- S3: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_DB_KEY`
+- Telegram, OpenAI, VAPID — как в панели
+
+### DNS (Timeweb → Домены → blacksquare72.ru)
+
+- **A** `@` → IP приложения, **привязать к сервису** BlackSquare CRM Prod
+- **A** `www` → тот же IP (редирект на основной домен в приложении)
+
+### После push в `main`
+
+App Platform → BlackSquare CRM Prod → **Деплой** → запустить с последним коммитом `main`.
 
 ## Локальная проверка
 
 ```bash
 pip install -r requirements.txt
-python app.py
+export DATABASE_PATH=./data/blacksquare_stock_crm_v2.db
+./docker-entrypoint.sh
 ```
 
-Откройте `http://127.0.0.1:8000`.
+Откройте http://127.0.0.1:8000 — логин `director` / `blacksquare`.
+
+## Ссылки
+
+- Сотрудники: https://blacksquare72.ru/login
+- Онлайн-запись: https://blacksquare72.ru/booking

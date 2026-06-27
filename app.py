@@ -2126,6 +2126,24 @@ def ensure_db():
         start_scheduler()
         _db_initialized = True
 
+def canonical_site_host():
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if not explicit:
+        return ''
+    from urllib.parse import urlparse
+    return (urlparse(explicit).hostname or '').lower()
+
+@app.before_request
+def canonical_host_redirect():
+    if request.endpoint in ('healthz', 'health'):
+        return None
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    canonical = canonical_site_host()
+    if canonical and request.host.lower() == f'www.{canonical}':
+        from urllib.parse import urlparse
+        scheme = urlparse(explicit).scheme if explicit else 'https'
+        return redirect(f'{scheme}://{canonical}{request.full_path}', code=301)
+
 @app.before_request
 def prepare_db():
     if request.endpoint not in ('healthz', 'health'):
