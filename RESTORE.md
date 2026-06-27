@@ -19,11 +19,12 @@ python app.py
 Откройте http://127.0.0.1:8000  
 Логин: `director` / пароль: `blacksquare` (если не меняли на проде).
 
-## Timeweb Cloud (Docker)
+## Timeweb Cloud (Flask / Docker)
 
 1. Загрузите репозиторий или распакуйте архив в GitHub.
-2. App Platform → Docker → репозиторий `blacksquare`, ветка `main`.
+2. App Platform → Flask (или Docker) → репозиторий `blacksquare`, ветка `main`.
 3. Порт: `8000`, health: `/healthz`.
+4. **Run command (обязательно):** `./docker-entrypoint.sh` — не используйте голый `gunicorn`, иначе контейнер падает и сайт отдаёт пустую страницу.
 4. Переменные окружения (из старого приложения):
    - `DATABASE_PATH=/data/blacksquare_stock_crm_v2.db`
    - `FLASK_SECRET_KEY=...`
