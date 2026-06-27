@@ -40,7 +40,7 @@
   <section class="calendar-booking-wrap">
     <div class="panel calendar-booking-panel">
       <h2>Записать клиента вручную</h2>
-      <p class="calendar-booking-note">Любое время — ограничения графика только для онлайн-записи. Мастера выбираются вручную.</p>
+      <p class="calendar-booking-note">Любое время — ограничения графика только для онлайн-записи. Все активные мастера доступны, в том числе без онлайн-записи.</p>
       <form method="post" class="form-grid calendar-booking-form" id="manualBookingForm" autocomplete="off">
         <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
         <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>

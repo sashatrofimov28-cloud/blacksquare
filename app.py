@@ -218,8 +218,18 @@ EMPLOYEE_NAME_SQL = """COALESCE(
     u.full_name
 ) AS employee_name"""
 
-def list_masters(con):
-    return con.execute("SELECT * FROM users WHERE active=1 AND role='master' ORDER BY full_name").fetchall()
+def list_masters(con, online_only=False):
+    sql = "SELECT * FROM users WHERE active=1 AND role='master'"
+    if online_only:
+        sql += " AND COALESCE(online_booking,1)=1"
+    sql += " ORDER BY full_name"
+    return con.execute(sql).fetchall()
+
+def user_online_booking_enabled(con, uid):
+    row = con.execute("SELECT online_booking FROM users WHERE id=?", (uid,)).fetchone()
+    if not row:
+        return False
+    return bool(row['online_booking'] if row['online_booking'] is not None else 1)
 
 def parse_employee_ids(form):
     ids = []
@@ -234,15 +244,17 @@ def parse_employee_ids(form):
             out.append(eid)
     return out
 
-def validate_master_ids(con, employee_ids):
+def validate_master_ids(con, employee_ids, online_only=False):
     if not employee_ids:
         return False, 'Укажите хотя бы одного мастера'
     placeholders = ','.join('?' * len(employee_ids))
-    found = con.execute(
-        f"SELECT id FROM users WHERE active=1 AND role='master' AND id IN ({placeholders})",
-        employee_ids,
-    ).fetchall()
+    sql = f"SELECT id FROM users WHERE active=1 AND role='master' AND id IN ({placeholders})"
+    if online_only:
+        sql += " AND COALESCE(online_booking,1)=1"
+    found = con.execute(sql, employee_ids).fetchall()
     if len(found) != len(employee_ids):
+        if online_only:
+            return False, 'Выбран мастер, недоступный для онлайн-записи'
         return False, 'Выбран недопустимый мастер'
     return True, ''
 
@@ -633,6 +645,10 @@ def migrate_db(c):
         c.execute("ALTER TABLE services ADD COLUMN category_id INTEGER")
     if 'online_calendar' not in service_cols:
         c.execute("ALTER TABLE services ADD COLUMN online_calendar INTEGER DEFAULT 1")
+    user_cols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+    if 'online_booking' not in user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN online_booking INTEGER DEFAULT 1")
+        c.execute("UPDATE users SET online_booking=1 WHERE role='master'")
     if c.execute("SELECT COUNT(*) c FROM service_categories").fetchone()['c'] == 0:
         c.execute("INSERT INTO service_categories(name,sort_order,created_at) VALUES(?,?,?)", ('Тонировка', 1, now()))
         tint_id = c.execute("SELECT id FROM service_categories WHERE name='Тонировка'").fetchone()['id']
@@ -896,6 +912,8 @@ def available_slots(con, uid, sid, d):
 
 def online_slot_allowed(con, uid, service_ids, d, start):
     start = normalize_hm(start)
+    if not user_online_booking_enabled(con, uid):
+        return False
     bundle = resolve_services_bundle(con, service_ids)
     if not start or not bundle or not employee_can_all_services(con, uid, service_ids):
         return False
@@ -2259,6 +2277,10 @@ def booking():
             con.close()
             flash('Мастер не выполняет выбранные услуги')
             return redirect(url_for('booking'))
+        if not user_online_booking_enabled(con, uid):
+            con.close()
+            flash('Этот мастер недоступен для онлайн-записи')
+            return redirect(url_for('booking'))
         end = m2hm(hm2m(start) + int(bundle['duration_min']))
         if not online_slot_allowed(con, uid, service_ids, d, start):
             con.close()
@@ -2298,7 +2320,7 @@ def api_masters():
         return jsonify([])
     placeholders = ','.join('?' * len(service_ids))
     rows = con.execute(
-        f"SELECT u.id,u.full_name FROM users u WHERE u.active=1 AND u.role='master' "
+        f"SELECT u.id,u.full_name FROM users u WHERE u.active=1 AND u.role='master' AND COALESCE(u.online_booking,1)=1 "
         f"AND (SELECT COUNT(*) FROM user_services us WHERE us.user_id=u.id AND us.service_id IN ({placeholders}) AND us.allowed=1) = ? "
         f"ORDER BY u.full_name",
         service_ids + [len(service_ids)],
@@ -3422,7 +3444,11 @@ def employees():
             con.close()
             return redirect(url_for('employees'))
         try:
-            con.execute("INSERT INTO users(username,password_hash,role,full_name,active,hired_at,created_at) VALUES(?,?,?,?,1,?,?)", (request.form['username'].strip(),generate_password_hash(password),role,request.form['full_name'],today(),now()))
+            online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
+            con.execute(
+                "INSERT INTO users(username,password_hash,role,full_name,active,online_booking,hired_at,created_at) VALUES(?,?,?,?,1,?,?,?)",
+                (request.form['username'].strip(), generate_password_hash(password), role, request.form['full_name'], online_booking, today(), now()),
+            )
             uid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
             for p in PERMS:
                 con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
@@ -3463,7 +3489,8 @@ def employee_update(uid):
             flash('Пароль другого пользователя может менять только директор')
             return redirect(url_for('employees'))
         con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_password), uid))
-    con.execute("UPDATE users SET full_name=?,role=?,active=?,fired_at=? WHERE id=?", (full_name, role, active, None if active else today(), uid))
+    online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
+    con.execute("UPDATE users SET full_name=?,role=?,active=?,online_booking=?,fired_at=? WHERE id=?", (full_name, role, active, online_booking, None if active else today(), uid))
     for p in PERMS:
         con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))
@@ -3471,16 +3498,22 @@ def employee_update(uid):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
     con.commit(); con.close(); flash('Сотрудник обновлен'); return redirect(url_for('employees'))
 
+def detach_user_on_delete(con, uid):
+    con.execute("DELETE FROM appointment_employees WHERE employee_id=?", (uid,))
+    for ap in con.execute("SELECT id FROM appointments WHERE employee_id=?", (uid,)).fetchall():
+        other = con.execute(
+            "SELECT employee_id FROM appointment_employees WHERE appointment_id=? ORDER BY id LIMIT 1",
+            (ap['id'],),
+        ).fetchone()
+        new_primary = other['employee_id'] if other else None
+        con.execute("UPDATE appointments SET employee_id=? WHERE id=?", (new_primary, ap['id']))
+
 @app.route('/employees/<int:uid>/delete', methods=['POST'])
 @login_required
 @perm_required('employees')
 def employee_delete(uid):
     con = db()
     u = current_user()
-    if u['role'] != 'director':
-        con.close()
-        flash('Удалять аккаунты может только директор')
-        return redirect(url_for('employees'))
     target = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not target:
         con.close()
@@ -3496,16 +3529,7 @@ def employee_delete(uid):
             con.close()
             flash('Нельзя удалить последнего директора')
             return redirect(url_for('employees'))
-    ap_count = con.execute(
-        "SELECT COUNT(*) c FROM appointments WHERE employee_id=? "
-        "OR id IN (SELECT appointment_id FROM appointment_employees WHERE employee_id=?)",
-        (uid, uid),
-    ).fetchone()['c']
-    sal_count = con.execute("SELECT COUNT(*) c FROM salary WHERE employee_id=?", (uid,)).fetchone()['c']
-    if ap_count > 0 or sal_count > 0:
-        con.close()
-        flash(f'У «{target["full_name"]}» есть история ({ap_count} записей). Снимите галочку «работает» — аккаунт скроется из списков.')
-        return redirect(url_for('employees'))
+    detach_user_on_delete(con, uid)
     for table, col in (
         ('push_subscriptions', 'user_id'),
         ('user_permissions', 'user_id'),
@@ -3517,7 +3541,6 @@ def employee_delete(uid):
     ):
         con.execute(f"DELETE FROM {table} WHERE {col}=?", (uid,))
     con.execute("DELETE FROM director_employee_notify WHERE director_id=? OR employee_id=?", (uid, uid))
-    con.execute("DELETE FROM appointment_employees WHERE employee_id=?", (uid,))
     con.execute("DELETE FROM users WHERE id=?", (uid,))
     con.commit()
     con.close()
