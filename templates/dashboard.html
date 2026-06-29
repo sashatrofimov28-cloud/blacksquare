@@ -17,22 +17,22 @@
 
   <div class="dash-strip">
     <div class="dash-strip-card tone-green">
-      <span class="dash-strip-icon">💰</span>
+      <div class="dash-strip-ring" aria-hidden="true">💰</div>
       <span class="dash-strip-label">Касса</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.revenue) }}<span class="dash-strip-cur">₽</span></strong>
     </div>
     <div class="dash-strip-card tone-blue">
-      <span class="dash-strip-icon">📈</span>
+      <div class="dash-strip-ring" aria-hidden="true">📈</div>
       <span class="dash-strip-label">Прибыль</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.profit) }} ₽</strong>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.profit) }}<span class="dash-strip-cur">₽</span></strong>
     </div>
     <div class="dash-strip-card tone-orange">
-      <span class="dash-strip-icon">👤</span>
+      <div class="dash-strip-ring" aria-hidden="true">👤</div>
       <span class="dash-strip-label">ЗП</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.salary) }} ₽</strong>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.salary) }}<span class="dash-strip-cur">₽</span></strong>
     </div>
     <div class="dash-strip-card tone-purple">
-      <span class="dash-strip-icon">🎞</span>
+      <div class="dash-strip-ring" aria-hidden="true">📐</div>
       <span class="dash-strip-label">м²</span>
       <strong class="dash-strip-value">{{ "%.1f"|format(stats.material_m2) }}</strong>
     </div>
