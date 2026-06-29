@@ -1,10 +1,4 @@
 {% extends "base.html" %}
-{% macro trend_badge(val) %}
-  {% if val is not none %}
-  <span class="dash-trend {% if val >= 0 %}up{% else %}down{% endif %}">{{ "%+.0f"|format(val) }}%{% if period == 'today' %} к вчера{% endif %}</span>
-  {% endif %}
-{% endmacro %}
-
 {% block content %}
 <div class="dash-page">
   <header class="dash-header">
@@ -12,29 +6,27 @@
       <h1>Главная</h1>
       <p class="dash-date">{{ format_date_long_ru() }}</p>
     </div>
-    <a href="{{ url_for('profile') }}" class="dash-bell" aria-label="Профиль">🔔</a>
+    <a href="{{ url_for('profile') }}" class="dash-bell" aria-label="Профиль">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+    </a>
   </header>
 
-  <div class="dash-strip">
-    <div class="dash-strip-card tone-green">
-      <div class="dash-strip-ring" aria-hidden="true">💰</div>
-      <span class="dash-strip-label">Касса</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.revenue) }}<span class="dash-strip-cur">₽</span></strong>
+  <div class="m-strip">
+    <div class="m-card tone-green">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M7 15h.01"/><path d="M11 15h2"/></svg></div>
+      <div class="m-text"><span class="m-label">Касса</span><strong class="m-value">{{ format_money(stats.revenue) }} ₽</strong></div>
     </div>
-    <div class="dash-strip-card tone-blue">
-      <div class="dash-strip-ring" aria-hidden="true">📈</div>
-      <span class="dash-strip-label">Прибыль</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.profit) }}<span class="dash-strip-cur">₽</span></strong>
+    <div class="m-card tone-blue">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-10"/><path d="M17 5h4v4"/></svg></div>
+      <div class="m-text"><span class="m-label">Прибыль</span><strong class="m-value">{{ format_money(stats.profit) }} ₽</strong></div>
     </div>
-    <div class="dash-strip-card tone-orange">
-      <div class="dash-strip-ring" aria-hidden="true">👤</div>
-      <span class="dash-strip-label">ЗП</span>
-      <strong class="dash-strip-value">{{ "%.0f"|format(stats.salary) }}<span class="dash-strip-cur">₽</span></strong>
+    <div class="m-card tone-orange">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
+      <div class="m-text"><span class="m-label">ЗП</span><strong class="m-value">{{ format_money(stats.salary) }} ₽</strong></div>
     </div>
-    <div class="dash-strip-card tone-purple">
-      <div class="dash-strip-ring" aria-hidden="true">📐</div>
-      <span class="dash-strip-label">м²</span>
-      <strong class="dash-strip-value">{{ "%.1f"|format(stats.material_m2) }}</strong>
+    <div class="m-card tone-purple">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+      <div class="m-text"><span class="m-label">м²</span><strong class="m-value">{{ format_money(stats.material_m2, 1) }}</strong></div>
     </div>
   </div>
 
@@ -45,41 +37,6 @@
     <a href="{{ url_for('dashboard', period='month') }}" class="dash-period{% if period == 'month' %} active{% endif %}">Месяц</a>
     <a href="{{ url_for('dashboard', period='year') }}" class="dash-period{% if period == 'year' %} active{% endif %}">Год</a>
   </nav>
-
-  <div class="dash-kpi-grid">
-    <div class="dash-kpi tone-green">
-      <div class="dash-kpi-top">
-        <span class="dash-kpi-icon">💵</span>
-        {{ trend_badge(trends.revenue) }}
-      </div>
-      <span class="dash-kpi-label">Выручка</span>
-      <strong class="dash-kpi-value">{{ "%.0f"|format(stats.revenue) }} ₽</strong>
-    </div>
-    <div class="dash-kpi tone-blue">
-      <div class="dash-kpi-top">
-        <span class="dash-kpi-icon">🧾</span>
-        {{ trend_badge(trends.appointments) }}
-      </div>
-      <span class="dash-kpi-label">Чеки</span>
-      <strong class="dash-kpi-value">{{ stats.appointments }}</strong>
-    </div>
-    <div class="dash-kpi tone-orange">
-      <div class="dash-kpi-top">
-        <span class="dash-kpi-icon">🚗</span>
-        {{ trend_badge(trends.active) }}
-      </div>
-      <span class="dash-kpi-label">Активные</span>
-      <strong class="dash-kpi-value">{{ stats.active }}</strong>
-    </div>
-    <div class="dash-kpi tone-purple">
-      <div class="dash-kpi-top">
-        <span class="dash-kpi-icon">📐</span>
-        {{ trend_badge(trends.m2) }}
-      </div>
-      <span class="dash-kpi-label">Плёнка</span>
-      <strong class="dash-kpi-value">{{ "%.1f"|format(stats.material_m2) }} м²</strong>
-    </div>
-  </div>
 
   {% if requests %}
   <div class="dash-panel">
@@ -116,8 +73,7 @@
         </div>
         <div class="dash-appt-side">
           <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
-          <strong>{{ "%.0f"|format(r.price or 0) }} ₽</strong>
-          <span class="dash-appt-chevron">›</span>
+          <strong>{{ format_money(r.price or 0) }} ₽</strong>
         </div>
       </a>
       {% else %}

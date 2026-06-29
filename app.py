@@ -193,6 +193,13 @@ def format_date_long_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
     return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year}, {WEEKDAYS_LONG[d.weekday()]}"
 
+def format_money(val, decimals=0):
+    v = float(val or 0)
+    if decimals:
+        whole, frac = f"{v:,.1f}".split('.')
+        return whole.replace(',', ' ') + '.' + frac
+    return f"{int(round(v)):,}".replace(',', ' ')
+
 def appt_status_meta(status):
     s = status or 'Записан'
     if s == 'Закрыт':
@@ -2279,6 +2286,7 @@ def inject():
         'today': today(),
         'stock_level_percent': stock_level_percent,
         'format_date_long_ru': format_date_long_ru,
+        'format_money': format_money,
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
         'months_ru': MONTHS_RU,
