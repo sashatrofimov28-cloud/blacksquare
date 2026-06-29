@@ -1,5 +1,6 @@
 (function () {
   const menuBtn = document.getElementById('menuBtn');
+  const menuBtnBottom = document.getElementById('menuBtnBottom');
   const sidebar = document.getElementById('sidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
   const MOBILE_MQ = window.matchMedia('(max-width: 1024px)');
@@ -24,6 +25,15 @@
 
   if (menuBtn && sidebar) {
     menuBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (sidebar.classList.contains('open')) closeSidebar();
+      else openSidebar();
+    });
+  }
+
+  if (menuBtnBottom && sidebar) {
+    menuBtnBottom.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
       if (sidebar.classList.contains('open')) closeSidebar();

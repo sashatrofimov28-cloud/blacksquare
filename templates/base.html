@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=11">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=12">
   <style>
     @media (min-width: 1025px) {
       .app-shell {
@@ -25,7 +25,7 @@
         width: 240px;
       }
       .main-wrap { grid-column: 2; grid-row: 1; }
-      .mobile-top, .mobile-tabs, .sidebar-backdrop { display: none !important; }
+      .mobile-top, .mobile-tabs, .bottom-nav, .sidebar-backdrop { display: none !important; }
     }
     @media (max-width: 1024px) {
       .app-shell { display: block !important; height: 100dvh; overflow: hidden; }
@@ -79,20 +79,7 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
       <div class="wordmark">BlackSquare</div>
     </header>
-    <nav class="mobile-tabs scrollable-x" id="mobileTabs" aria-label="Разделы">
-      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Главная</a>
-      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Календарь</a>{% endif %}
-      {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
-      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
-      {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}
-      {% if has_perm('salary') %}<a href="{{ url_for('salary') }}" class="{% if request.endpoint=='salary' %}active{% endif %}">Зарплата</a>{% endif %}
-      {% if has_perm('analytics') %}<a href="{{ url_for('analytics') }}" class="{% if request.endpoint=='analytics' %}active{% endif %}">Статистика</a>{% endif %}
-      {% if has_perm('finance') %}<a href="{{ url_for('finance') }}" class="{% if request.endpoint=='finance' %}active{% endif %}">Финансы</a>{% endif %}
-      {% if has_perm('employees') %}<a href="{{ url_for('employees') }}" class="{% if request.endpoint=='employees' %}active{% endif %}">Сотрудники</a>{% endif %}
-      {% if user.role=='director' %}<a href="{{ url_for('settings') }}" class="{% if request.endpoint=='settings' %}active{% endif %}">Настройки</a>{% endif %}
-      <a href="{{ url_for('profile') }}" class="{% if request.endpoint=='profile' %}active{% endif %}">Профиль</a>
-    </nav>
-    <main class="main scrollable">
+    <main class="main scrollable has-bottom-nav">
 {% else %}
 <main class="auth-main">
 {% endif %}
@@ -104,6 +91,13 @@
       {% block content %}{% endblock %}
 {% if user %}
     </main>
+    <nav class="bottom-nav" aria-label="Навигация">
+      <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="bottom-nav-item{% if request.endpoint=='calendar_view' %} active{% endif %}"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>{% endif %}
+      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="bottom-nav-item{% if request.endpoint in ['crm','client_card'] %} active{% endif %}"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>{% endif %}
+      {% if has_perm('finance') or has_perm('salary') %}<a href="{{ url_for('finance') if has_perm('finance') else url_for('salary') }}" class="bottom-nav-item{% if request.endpoint in ['finance','salary'] %} active{% endif %}"><span class="bottom-nav-icon">💳</span><span>Финансы</span></a>{% endif %}
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+    </nav>
   </div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 </div>
@@ -111,7 +105,7 @@
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
   window.BS_PUSH_KEY_VERSION = 3;
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=15"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=16"></script>
 {% else %}
 </main>
 {% endif %}

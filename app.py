@@ -186,6 +186,22 @@ PERMS = {
 
 WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 MONTHS_RU = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+MONTHS_RU_GEN = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+WEEKDAYS_LONG = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+
+def format_date_long_ru(day_s=None):
+    d = date.fromisoformat(day_s or today())
+    return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year}, {WEEKDAYS_LONG[d.weekday()]}"
+
+def appt_status_meta(status):
+    s = status or 'Записан'
+    if s == 'Закрыт':
+        return {'bar': 'bar-green', 'pill': 'pill-green', 'label': 'Закрыт'}
+    if s == 'Отменен':
+        return {'bar': 'bar-red', 'pill': 'pill-red', 'label': 'Отменён'}
+    if s in ('В работе', 'Начат'):
+        return {'bar': 'bar-orange', 'pill': 'pill-orange', 'label': s}
+    return {'bar': 'bar-blue', 'pill': 'pill-blue', 'label': s if s != 'Записан' else 'Записан'}
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
@@ -700,7 +716,10 @@ def compute_dashboard_stats(con):
 def period_date_range(period):
     today_s = today()
     today_d = date.fromisoformat(today_s)
-    if period == 'week':
+    if period == 'yesterday':
+        d = today_d - timedelta(days=1)
+        start = end = d
+    elif period == 'week':
         start = today_d - timedelta(days=today_d.weekday())
         end = start + timedelta(days=6)
     elif period == 'month':
@@ -714,7 +733,7 @@ def compute_period_stats(con, period='today'):
     start, end = period_date_range(period)
     closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
     range_args = (start, end)
-    label = {'today': start, 'week': f'{start} — {end}', 'month': start[:7]}.get(period, start)
+    label = {'today': 'Сегодня', 'yesterday': 'Вчера', 'week': f'{start} — {end}', 'month': MONTHS_RU[date.fromisoformat(start).month]}.get(period, start)
     return {
         'period': period,
         'period_label': label,
@@ -2222,6 +2241,9 @@ def inject():
         'weekdays': WEEKDAYS,
         'today': today(),
         'stock_level_percent': stock_level_percent,
+        'format_date_long_ru': format_date_long_ru,
+        'appt_status_meta': appt_status_meta,
+        'months_ru': MONTHS_RU,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -2298,7 +2320,7 @@ def dashboard():
         con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
 
     period = request.args.get('period', 'today')
-    if period not in ('today', 'week', 'month'):
+    if period not in ('today', 'yesterday', 'week', 'month'):
         period = 'today'
     stats, stats_updated = dashboard_stats(period)
     start, end = period_date_range(period)
@@ -2307,8 +2329,14 @@ def dashboard():
         f"WHERE appointment_date>=? AND appointment_date<=? ORDER BY appointment_date DESC,start_time DESC LIMIT 30",
         (start, end),
     ).fetchall()
+    upcoming = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+        f"WHERE appointment_date>=? AND status NOT IN ('Закрыт','Отменен') "
+        f"ORDER BY appointment_date ASC, start_time ASC LIMIT 12",
+        (today(),),
+    ).fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, requests=requests, period=period)
+    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, upcoming=upcoming, requests=requests, period=period)
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():
