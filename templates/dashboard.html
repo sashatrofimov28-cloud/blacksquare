@@ -7,28 +7,26 @@
   </div>
 </header>
 
-<div class="dash-quick scrollable-x">
-  <div class="dash-quick-card accent-green">
-    <span class="dash-quick-icon">💰</span>
-    <span class="dash-quick-label">Касса</span>
-    <strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+<div class="dash-metrics">
+  <div class="dash-metric accent-green">
+    <span class="dash-metric-icon">💰</span>
+    <span class="dash-metric-label">Касса</span>
+    <strong class="dash-metric-value">{{ "%.0f"|format(stats.revenue) }}<small>₽</small></strong>
   </div>
-  {% if has_perm('analytics') %}
-  <div class="dash-quick-card accent-blue">
-    <span class="dash-quick-icon">📈</span>
-    <span class="dash-quick-label">Чистыми</span>
-    <strong>{{ "%.0f"|format(stats.profit) }} ₽</strong>
+  <div class="dash-metric accent-blue">
+    <span class="dash-metric-icon">📈</span>
+    <span class="dash-metric-label">Прибыль</span>
+    <strong class="dash-metric-value">{{ "%.0f"|format(stats.profit) }}<small>₽</small></strong>
   </div>
-  {% endif %}
-  <div class="dash-quick-card accent-orange">
-    <span class="dash-quick-icon">👤</span>
-    <span class="dash-quick-label">ЗП</span>
-    <strong>{{ "%.0f"|format(stats.salary) }} ₽</strong>
+  <div class="dash-metric accent-orange">
+    <span class="dash-metric-icon">👤</span>
+    <span class="dash-metric-label">ЗП</span>
+    <strong class="dash-metric-value">{{ "%.0f"|format(stats.salary) }}<small>₽</small></strong>
   </div>
-  <div class="dash-quick-card accent-purple">
-    <span class="dash-quick-icon">🎁</span>
-    <span class="dash-quick-label">Сертификаты</span>
-    <strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong>
+  <div class="dash-metric accent-purple">
+    <span class="dash-metric-icon">🎞</span>
+    <span class="dash-metric-label">м²</span>
+    <strong class="dash-metric-value">{{ "%.1f"|format(stats.material_m2) }}</strong>
   </div>
 </div>
 
@@ -38,37 +36,6 @@
   <a href="{{ url_for('dashboard', period='week') }}" class="dash-period{% if period == 'week' %} active{% endif %}">Неделя</a>
   <a href="{{ url_for('dashboard', period='month') }}" class="dash-period{% if period == 'month' %} active{% endif %}">Месяц</a>
 </nav>
-
-<div class="dash-kpi-grid">
-  <div class="dash-kpi accent-green">
-    <span class="dash-kpi-icon">💵</span>
-    <div>
-      <span class="dash-kpi-label">Выручка</span>
-      <strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong>
-    </div>
-  </div>
-  <div class="dash-kpi accent-blue">
-    <span class="dash-kpi-icon">🧾</span>
-    <div>
-      <span class="dash-kpi-label">Закрыто</span>
-      <strong>{{ stats.appointments }}</strong>
-    </div>
-  </div>
-  <div class="dash-kpi accent-orange">
-    <span class="dash-kpi-icon">🚗</span>
-    <div>
-      <span class="dash-kpi-label">Активные</span>
-      <strong>{{ stats.active }}</strong>
-    </div>
-  </div>
-  <div class="dash-kpi accent-purple">
-    <span class="dash-kpi-icon">📅</span>
-    <div>
-      <span class="dash-kpi-label">За период</span>
-      <strong>{{ stats.period_label }}</strong>
-    </div>
-  </div>
-</div>
 
 {% if requests %}
 <div class="panel dash-panel">
