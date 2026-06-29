@@ -1,47 +1,147 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top calendar-top">
-  <h1>Календарь</h1>
-  <p>За день: {{ load.c }} записей, {{ load.mins }} минут загрузки.</p>
-</header>
-<div class="notice calendar-toolbar">
-  <form method="get" class="inline">
-    <input type="date" name="date" value="{{ selected }}">
-    <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя / авто">
-    <button class="ghost">Найти</button>
-  </form>
-  <b>Ссылка клиенту:</b><code><a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></code>
-</div>
+<div class="cal-page">
+  <header class="cal-header">
+    <h1>Календарь</h1>
+    <nav class="cal-views" aria-label="Режим">
+      <a href="{{ url_for('calendar_view', date=selected, view='day', q=q) }}" class="cal-view{% if view == 'day' %} active{% endif %}">День</a>
+      <a href="{{ url_for('calendar_view', date=selected, view='week', q=q) }}" class="cal-view{% if view == 'week' %} active{% endif %}">Неделя</a>
+      <a href="{{ url_for('calendar_view', date=selected, view='month', q=q) }}" class="cal-view{% if view == 'month' %} active{% endif %}">Месяц</a>
+    </nav>
+    <label class="cal-pick" title="Выбрать дату">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <input type="date" class="cal-pick-input" value="{{ selected }}" onchange="location.href='{{ url_for('calendar_view') }}?view={{ view }}&date='+this.value{% if q %}+'&q={{ q|urlencode }}'{% endif %}">
+    </label>
+  </header>
 
-<div class="calendar-page-layout">
-  <aside class="calendar-mini-wrap">
-    <div class="calendar-mini-header">
-      <a class="ghost mini-btn calendar-nav" href="{{ url_for('calendar_view', date=prev_month_date, q=q) }}" title="Предыдущий месяц">‹</a>
-      <span>{{ calendar_month_title }}</span>
-      <a class="ghost mini-btn calendar-nav" href="{{ url_for('calendar_view', date=next_month_date, q=q) }}" title="Следующий месяц">›</a>
+  <div class="cal-date-nav">
+    <a class="cal-nav-btn" href="{{ url_for('calendar_view', date=prev_date, view=view, q=q) }}" aria-label="Назад">‹</a>
+    <div class="cal-date-title">
+      <strong>{{ date_title }}</strong>
+      {% if view == 'day' %}<span>{{ load.c }} записей · {{ load.mins }} мин</span>{% endif %}
     </div>
-    <div class="calendar-mini-weekdays">
-      {% for wd in ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}<span>{{ wd }}</span>{% endfor %}
-    </div>
-    <div class="calendar-mini-grid">
-      {% for c in cells %}
-        {% if c %}
-        <a class="day {% if c.date==selected %}active{% endif %}{% if c.count %} has-events{% endif %}" href="{{ url_for('calendar_view', date=c.date, q=q) }}" title="{{ c.count }} записей, {{ c.closed }} закрыто">
-          <b>{{ c.day }}</b>
+    <a class="cal-nav-btn" href="{{ url_for('calendar_view', date=next_date, view=view, q=q) }}" aria-label="Вперёд">›</a>
+  </div>
+
+  <form method="get" class="cal-search">
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="hidden" name="date" value="{{ selected }}">
+    <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя">
+    {% if q %}<a class="cal-search-clear" href="{{ url_for('calendar_view', date=selected, view=view) }}">×</a>{% endif %}
+  </form>
+
+  {% if view == 'day' and timeline %}
+  <div class="cal-timeline-wrap">
+    <div class="cal-timeline" style="--cal-height: {{ timeline.height_px }}px; --cal-hour: {{ timeline.px_per_hour }}px">
+      <div class="cal-hours">
+        {% for h in timeline.hours %}
+        <div class="cal-hour" style="height: var(--cal-hour)">{{ h }}</div>
+        {% endfor %}
+      </div>
+      <div class="cal-grid">
+        {% for h in timeline.hours %}
+        <div class="cal-grid-line" style="height: var(--cal-hour)"></div>
+        {% endfor %}
+        {% for ev in timeline.events %}
+        {% set r = ev.row %}
+        {% set meta = appt_status_meta(r.status) %}
+        <a class="cal-event {{ ev.tone }}{% if r.status == 'Отменен' %} cancelled{% endif %}"
+           style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc({{ ev.col }} * (100% / {{ ev.col_count }})); width: calc(100% / {{ ev.col_count }} - 4px)"
+           href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+          <span class="cal-event-time">{{ r.start_time }} – {{ r.end_time }}</span>
+          <b class="cal-event-name">{{ r.client_name }}</b>
+          <span class="cal-event-service">{{ r.service_name }}</span>
+          {% if r.employee_name %}<span class="cal-event-master">{{ r.employee_name }}</span>{% endif %}
         </a>
         {% else %}
-        <div class="day empty"></div>
-        {% endif %}
+        <p class="cal-empty">Нет записей на этот день</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% elif view == 'week' and week_columns %}
+  <div class="cal-week">
+    {% for col in week_columns %}
+    <a class="cal-week-col{% if col.is_selected %} selected{% endif %}{% if col.is_today %} today{% endif %}"
+       href="{{ url_for('calendar_view', date=col.date, view='day', q=q) }}">
+      <div class="cal-week-head">
+        <span>{{ col.weekday }}</span>
+        <b>{{ col.day }}</b>
+      </div>
+      <div class="cal-week-events">
+        {% for ev in col.events %}
+        <div class="cal-week-event {{ ev.tone }}">
+          <span>{{ ev.time }}</span>
+          <b>{{ ev.row.client_name }}</b>
+          <small>{{ ev.row.service_name }}</small>
+        </div>
+        {% else %}
+        <span class="cal-week-empty">—</span>
+        {% endfor %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% elif view == 'month' %}
+  <div class="cal-month">
+    <div class="cal-month-weekdays">
+      {% for wd in weekdays %}<span>{{ wd }}</span>{% endfor %}
+    </div>
+    <div class="cal-month-grid">
+      {% for c in cells %}
+      {% if c %}
+      <a class="cal-month-day{% if c.date == selected %} active{% endif %}{% if c.count %} has-events{% endif %}{% if c.date == today %} today{% endif %}"
+         href="{{ url_for('calendar_view', date=c.date, view='day', q=q) }}">
+        <b>{{ c.day }}</b>
+        {% if c.count %}<span class="cal-month-count">{{ c.count }}</span>{% endif %}
+      </a>
+      {% else %}
+      <div class="cal-month-day empty"></div>
+      {% endif %}
       {% endfor %}
     </div>
-    <p class="calendar-mini-hint">Точки — есть записи. Нажмите день, чтобы открыть список ниже.</p>
-  </aside>
+  </div>
+  {% endif %}
 
-  <section class="calendar-booking-wrap">
-    <div class="panel calendar-booking-panel">
-      <h2>Записать клиента вручную</h2>
-      <p class="calendar-booking-note">Любое время — ограничения графика только для онлайн-записи. Все активные мастера доступны, в том числе без онлайн-записи.</p>
-      <form method="post" class="form-grid calendar-booking-form" id="manualBookingForm" autocomplete="off">
+  {% if rows %}
+  <details class="cal-day-list">
+    <summary>Список записей ({{ rows|length }})</summary>
+    <div class="dash-appt-list">
+      {% for r in rows %}
+      {% set meta = appt_status_meta(r.status) %}
+      <details class="cal-appt-detail">
+        <summary class="dash-appt {{ meta.bar }}">
+          <div class="dash-appt-time">
+            <strong>{{ r.start_time }}</strong>
+            <span>{{ r.appointment_date }}</span>
+          </div>
+          <div class="dash-appt-body">
+            <b>{{ r.client_name }}</b>
+            <span>{{ r.service_name }}</span>
+            <span>{{ r.employee_name or '—' }}</span>
+          </div>
+          <div class="dash-appt-side">
+            <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
+            <strong>{{ format_money(r.price or 0) }} ₽</strong>
+          </div>
+        </summary>
+        <div class="cal-appt-expanded">
+          <div><b>Телефон:</b> {{ visible_phone(r) }}</div>
+          <div><b>Авто:</b> {{ r.car or '—' }} · {{ r.plate_number or '—' }}</div>
+          <div class="appt-actions">{% include '_appointment_actions.html' %}</div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+
+  <details class="cal-booking-fold">
+    <summary>+ Записать клиента</summary>
+    <div class="panel cal-booking-panel">
+      <p class="cal-booking-note">Любое время — ограничения графика только для онлайн-записи.</p>
+      <p class="cal-booking-link"><b>Ссылка клиенту:</b> <a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></p>
+      <form method="post" class="form-grid cal-booking-form" id="manualBookingForm" autocomplete="off">
         <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
         <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
         <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
@@ -49,11 +149,8 @@
         <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
           <label class="master-picker-label">Услуги *</label>
           <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
-          <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
           <div class="master-add-row">
-            <select id="serviceSelect" class="master-select">
-              <option value="">— Выберите услугу —</option>
-            </select>
+            <select id="serviceSelect" class="master-select"><option value="">— Услуга —</option></select>
             <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
           </div>
           <div id="serviceChips" class="master-chips"></div>
@@ -61,12 +158,9 @@
         </div>
         <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
           <label class="master-picker-label">Мастера *</label>
-          <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
-          <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить». Можно добавить двух и более — это одна запись на всех.</p>
+          <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
           <div class="master-add-row">
-            <select id="masterSelect" class="master-select">
-              <option value="">— Выберите мастера —</option>
-            </select>
+            <select id="masterSelect" class="master-select"><option value="">— Мастер —</option></select>
             <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
           </div>
           <div id="masterChips" class="master-chips"></div>
@@ -74,61 +168,12 @@
         </div>
         <input type="date" name="appointment_date" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
         <input type="time" name="start_time" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
-        <input name="price" type="number" step="0.01" placeholder="Цена заказа ₽ (своя)" value="{{ form_data.get('price', '') if form_data else '' }}">
+        <input name="price" type="number" step="0.01" placeholder="Цена ₽" value="{{ form_data.get('price', '') if form_data else '' }}">
         <input name="comment" placeholder="Комментарий" value="{{ form_data.get('comment', '') if form_data else '' }}">
         <button class="span4">Добавить запись</button>
       </form>
     </div>
-  </section>
-</div>
-
-<div class="panel calendar-day-panel">
-  <h2>Записи на {{ selected }}</h2>
-  <div class="appt-list">
-    {% for r in rows %}
-    <details class="appt-card {% if r.status == 'Отменен' %}appt-cancelled{% endif %}">
-      <summary>
-        <span class="appt-time">{{ r.start_time }}–{{ r.end_time }}</span>
-        <span class="appt-service">{{ r.service_name }}</span>
-        <span class="appt-car">{{ r.car or r.plate_number or '—' }}</span>
-        <span class="appt-master">{{ r.employee_name or '—' }}</span>
-        {% if r.status == 'Отменен' %}<span class="appt-badge cancelled">Отменена</span>{% endif %}
-      </summary>
-      <div class="appt-details">
-        <div><b>Клиент:</b> {{ r.client_name }}</div>
-        <div><b>Телефон:</b> {{ visible_phone(r) }}{% if user.role=='master' and visible_phone(r) != r.phone %}<form method="post" action="{{ url_for('phone_request', aid=r.id) }}" class="inline"><input name="reason" placeholder="зачем номер" required><button class="ghost">Запросить</button></form>{% endif %}</div>
-        <div><b>Госномер:</b> {{ r.plate_number or '—' }}</div>
-        <div><b>Авто:</b> {{ r.car or '—' }}</div>
-        <div><b>Цена:</b> {{ "%.0f"|format(r.price or 0) }} ₽</div>
-        <div><b>Статус:</b> {{ r.status }}</div>
-        <div class="appt-actions">
-          {% include '_appointment_actions.html' %}
-        </div>
-      </div>
-    </details>
-    {% endfor %}
-  </div>
-  <table class="desktop-only appt-table">
-    <tr><th>Время</th><th>Клиент</th><th>Телефон</th><th>Госномер</th><th>Авто</th><th>Услуга</th><th>Мастер</th><th>Цена</th><th>Статус</th><th>Действия</th></tr>
-    {% for r in rows %}
-    <tr class="{% if r.status == 'Отменен' %}row-cancelled{% endif %}">
-      <td><b>{{ r.start_time }}–{{ r.end_time }}</b></td>
-      <td>{{ r.client_name }}</td>
-      <td>{{ visible_phone(r) }}</td>
-      <td>{{ r.plate_number }}</td>
-      <td>{{ r.car }}</td>
-      <td>{{ r.service_name }}</td>
-      <td>{{ r.employee_name or '—' }}</td>
-      <td>{{ "%.0f"|format(r.price or 0) }} ₽</td>
-      <td>{{ r.status }}</td>
-      <td class="appt-actions-cell">
-        <div class="appt-actions compact">
-          {% include '_appointment_actions.html' %}
-        </div>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
+  </details>
 </div>
 <script>
 window.BS_MASTERS = {{ masters_json|safe }};

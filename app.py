@@ -210,6 +210,81 @@ def appt_status_meta(status):
         return {'bar': 'bar-blue', 'pill': 'pill-blue', 'label': s}
     return {'bar': 'bar-orange', 'pill': 'pill-orange', 'label': 'Ожидает' if s == 'Записан' else s}
 
+CAL_TONES = ('tone-green', 'tone-blue', 'tone-purple', 'tone-orange')
+
+def employee_tone(employee_id):
+    return CAL_TONES[(employee_id or 0) % len(CAL_TONES)]
+
+def format_date_calendar_ru(day_s=None):
+    d = date.fromisoformat(day_s or today())
+    return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year} {WEEKDAYS_LONG[d.weekday()].capitalize()}"
+
+def calendar_shift_date(day_s, view, delta):
+    d = date.fromisoformat(day_s)
+    if view == 'day':
+        return (d + timedelta(days=delta)).isoformat()
+    if view == 'week':
+        return (d + timedelta(weeks=delta)).isoformat()
+    m = d.replace(day=1)
+    if delta > 0:
+        m = date(m.year + 1, 1, 1) if m.month == 12 else date(m.year, m.month + 1, 1)
+    else:
+        m = date(m.year - 1, 12, 1) if m.month == 1 else date(m.year, m.month - 1, 1)
+    return m.isoformat()
+
+def week_dates(selected):
+    d = date.fromisoformat(selected)
+    start = d - timedelta(days=d.weekday())
+    return [start + timedelta(days=i) for i in range(7)]
+
+def week_title(selected):
+    days = week_dates(selected)
+    if days[0].month == days[-1].month:
+        return f"{days[0].day} — {days[-1].day} {MONTHS_RU_GEN[days[0].month]} {days[0].year}"
+    if days[0].year == days[-1].year:
+        return f"{days[0].day} {MONTHS_RU_GEN[days[0].month]} — {days[-1].day} {MONTHS_RU_GEN[days[-1].month]} {days[0].year}"
+    return f"{days[0].day} {MONTHS_RU_GEN[days[0].month]} {days[0].year} — {days[-1].day} {MONTHS_RU_GEN[days[-1].month]} {days[-1].year}"
+
+def assign_overlap_columns(events):
+    events = sorted(events, key=lambda e: (e['start_m'], e['end_m']))
+    cols = []
+    for ev in events:
+        for i, end in enumerate(cols):
+            if end <= ev['start_m']:
+                ev['col'] = i
+                cols[i] = ev['end_m']
+                break
+        else:
+            ev['col'] = len(cols)
+            cols.append(ev['end_m'])
+    n = max((e['col'] for e in events), default=-1) + 1
+    for ev in events:
+        ev['col_count'] = max(n, 1)
+    return events
+
+def layout_day_timeline(rows, day_start='09:00', day_end='21:00', px_per_hour=72):
+    start_m = hm2m(day_start)
+    end_m = hm2m(day_end)
+    events = []
+    for r in rows:
+        if r['status'] == 'Отменен':
+            continue
+        sm = hm2m(r['start_time'] or day_start)
+        em = hm2m(r['end_time']) if r['end_time'] else sm + int(r['duration_min'] or 60)
+        if em <= start_m or sm >= end_m:
+            continue
+        events.append({
+            'row': r,
+            'start_m': sm,
+            'end_m': em,
+            'top': round((max(sm, start_m) - start_m) / 60 * px_per_hour, 1),
+            'height': max(round((min(em, end_m) - max(sm, start_m)) / 60 * px_per_hour, 1), 32),
+            'tone': employee_tone(r['employee_id']),
+        })
+    events = assign_overlap_columns(events)
+    hours = [f'{h:02d}:00' for h in range(start_m // 60, (end_m + 59) // 60)]
+    return {'hours': hours, 'events': events, 'height_px': round((end_m - start_m) / 60 * px_per_hour), 'px_per_hour': px_per_hour}
+
 def stat_trend_pct(current, previous):
     cur, prev = float(current or 0), float(previous or 0)
     if prev <= 0:
@@ -2509,31 +2584,80 @@ def calendar_view():
                 notify_employee_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
                 flash('Запись добавлена вручную')
                 con.close()
-                return redirect(url_for('calendar_view', date=d))
+                return redirect(url_for('calendar_view', date=d, view=request.args.get('view', 'day')))
 
-    selected = request.args.get('date') or today(); q = request.args.get('q','').strip()
+    selected = request.args.get('date') or today()
+    view = request.args.get('view', 'day')
+    if view not in ('day', 'week', 'month'):
+        view = 'day'
+    q = request.args.get('q', '').strip()
     month = datetime.strptime(selected, '%Y-%m-%d').date().replace(day=1)
     first, days = pycal.monthrange(month.year, month.month)
     cells = [None] * first
     mf = master_appointment_filter_sql()
-    for day in range(1, days+1):
+    for day in range(1, days + 1):
         ds = date(month.year, month.month, day).isoformat()
         if u['role'] == 'master':
-            cnt = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf}", (ds,u['id'],u['id'])).fetchone()['c']
-            closed = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf} AND status='Закрыт'", (ds,u['id'],u['id'])).fetchone()['c']
+            cnt = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf}", (ds, u['id'], u['id'])).fetchone()['c']
+            closed = con.execute(f"SELECT COUNT(*) c FROM appointments a WHERE appointment_date=? AND {mf} AND status='Закрыт'", (ds, u['id'], u['id'])).fetchone()['c']
         else:
             cnt = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=?", (ds,)).fetchone()['c']
             closed = con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date=? AND status='Закрыт'", (ds,)).fetchone()['c']
-        cells.append({'day':day,'date':ds,'count':cnt,'closed':closed})
-    while len(cells) % 7: cells.append(None)
-    sql = f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE appointment_date=?"
-    params = [selected]
-    if u['role'] == 'master':
-        sql += f" AND {mf}"; params.extend([u['id'], u['id']])
-    if q:
-        sql += " AND (phone LIKE ? OR plate_number LIKE ? OR client_name LIKE ? OR car LIKE ?)"; params += [f'%{q}%']*4
-    sql += " ORDER BY start_time"
-    rows = con.execute(sql, params).fetchall()
+        cells.append({'day': day, 'date': ds, 'count': cnt, 'closed': closed})
+    while len(cells) % 7:
+        cells.append(None)
+
+    def fetch_rows(date_from, date_to=None):
+        if date_to:
+            sql = f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE appointment_date>=? AND appointment_date<=?"
+            params = [date_from, date_to]
+        else:
+            sql = f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE appointment_date=?"
+            params = [date_from]
+        if u['role'] == 'master':
+            sql += f" AND {mf}"
+            params.extend([u['id'], u['id']])
+        if q:
+            sql += " AND (phone LIKE ? OR plate_number LIKE ? OR client_name LIKE ? OR car LIKE ?)"
+            params += [f'%{q}%'] * 4
+        sql += " ORDER BY appointment_date, start_time"
+        return con.execute(sql, params).fetchall()
+
+    if view == 'week':
+        week_days = week_dates(selected)
+        rows = fetch_rows(week_days[0].isoformat(), week_days[-1].isoformat())
+        rows_by_date = {}
+        for r in rows:
+            rows_by_date.setdefault(r['appointment_date'], []).append(r)
+        week_columns = []
+        for wd in week_days:
+            ds = wd.isoformat()
+            day_rows = rows_by_date.get(ds, [])
+            week_columns.append({
+                'date': ds,
+                'day': wd.day,
+                'weekday': WEEKDAYS[wd.weekday()],
+                'is_today': ds == today(),
+                'is_selected': ds == selected,
+                'events': [{
+                    'row': r,
+                    'tone': employee_tone(r['employee_id']),
+                    'time': f"{r['start_time']}–{r['end_time']}",
+                } for r in day_rows if r['status'] != 'Отменен'],
+            })
+        timeline = None
+        date_title = week_title(selected)
+    elif view == 'month':
+        rows = fetch_rows(month.isoformat(), date(month.year, month.month, days).isoformat())
+        timeline = None
+        week_columns = None
+        date_title = f'{MONTHS_RU[month.month]} {month.year}'
+    else:
+        rows = fetch_rows(selected)
+        timeline = layout_day_timeline(rows)
+        week_columns = None
+        date_title = format_date_calendar_ru(selected)
+
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     employees = list_masters(con)
@@ -2550,11 +2674,14 @@ def calendar_view():
     else:
         next_month_start = date(month_start.year, month_start.month + 1, 1)
     calendar_month_title = f'{MONTHS_RU[month_start.month]} {month_start.year}'
+    prev_date = calendar_shift_date(selected, view, -1)
+    next_date = calendar_shift_date(selected, view, 1)
     return render_template(
         'calendar.html',
         cells=cells,
         rows=rows,
         selected=selected,
+        view=view,
         q=q,
         load=load,
         services=services,
@@ -2567,6 +2694,12 @@ def calendar_view():
         calendar_month_title=calendar_month_title,
         prev_month_date=prev_month_start.isoformat(),
         next_month_date=next_month_start.isoformat(),
+        prev_date=prev_date,
+        next_date=next_date,
+        date_title=date_title,
+        timeline=timeline,
+        week_columns=week_columns,
+        format_date_calendar_ru=format_date_calendar_ru,
     )
 
 @app.route('/appointment/<int:aid>/extra', methods=['POST'])
