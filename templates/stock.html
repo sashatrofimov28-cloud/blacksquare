@@ -1,15 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Склад</h1><p>Плёнка — себестоимость за погонный метр или за рулон. Инструменты и расходники — поштучно.</p></header>
+<header class="top">
+  <h1>Склад</h1>
+  <p>Плёнка — себестоимость за погонный метр или за рулон. Фото и шкала остатка для каждой позиции.</p>
+</header>
+
 <div class="panel">
   <h2>Добавить позицию</h2>
-  <form method="post" class="form-grid" id="addStockForm">
+  <form method="post" class="form-grid" id="addStockForm" enctype="multipart/form-data">
     <input type="hidden" name="action" value="add">
     <input name="name" placeholder="Название" required>
     <select name="category" id="stockCategory"><option value="film">Плёнка</option><option value="tool">Инструмент</option><option value="consumable">Расходник</option></select>
     <input name="width_m" type="number" step="0.01" value="1.52" placeholder="Ширина, м" class="film-field">
     <input name="length_m" type="number" step="0.01" placeholder="Длина рулона, м" class="film-field">
     <input name="balance" type="number" step="0.01" placeholder="Остаток м² или шт">
+    <label class="file-upload">
+      <span>Фото материала</span>
+      <input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif">
+    </label>
     {% if is_director %}
     <select name="cost_mode" class="film-field" id="costMode">
       <option value="per_meter">Цена за погонный метр</option>
@@ -18,15 +26,141 @@
     <input name="cost_per_meter" type="number" step="0.01" placeholder="₽ за пог. метр" class="film-field cost-meter">
     <input name="cost_total" type="number" step="0.01" placeholder="₽ за рулон / партию" class="film-field cost-roll">
     {% endif %}
-    <label class="check"><input type="checkbox" name="visible_to_staff"> показывать в старом режиме (не требуется для закрытия заказов)</label>
+    <label class="check"><input type="checkbox" name="visible_to_staff"> показывать в старом режиме</label>
     <input name="comment" placeholder="Комментарий">
     <button>Добавить</button>
   </form>
 </div>
-<div class="panel"><h2>Списать вручную</h2><form method="post" class="form-grid"><input type="hidden" name="action" value="writeoff"><select name="item_id">{% for r in film if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}{% for r in tools if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}</select><input name="qty" type="number" step="0.01" placeholder="Сколько списать"><input name="comment" placeholder="Причина" required><button>Списать</button></form></div>
-<div class="panel"><h2>Плёнка</h2><table><tr><th>Название</th><th>Остаток</th><th>Доступ</th>{% if is_director %}<th>₽/м²</th><th>Учёт</th>{% endif %}<th></th></tr>{% for r in film if r.active %}<tr><td>{{ r.name }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td><td>{{ 'Да' if r.visible_to_staff else 'Нет' }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td>{% if r.cost_mode=='per_meter' %}за метр{% else %}за рулон{% endif %}</td>{% endif %}<td>{% if is_director %}<form method="post" onsubmit="return confirm('Удалить позицию?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="{{ r.id }}"><button class="danger">Удалить</button></form>{% endif %}</td></tr>{% endfor %}</table></div>
-<div class="panel"><h2>Инструмент и расходники</h2><table><tr><th>Название</th><th>Категория</th><th>Остаток</th>{% if is_director %}<th>₽/шт</th><th></th>{% endif %}</tr>{% for r in tools if r.active %}<tr><td>{{ r.name }}</td><td>{{ r.category }}</td><td>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</td>{% if is_director %}<td>{{ "%.0f"|format(r.cost_per_unit) }} ₽</td><td><form method="post" onsubmit="return confirm('Удалить?')"><input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="{{ r.id }}"><button class="danger">Удалить</button></form></td>{% endif %}</tr>{% endfor %}</table></div>
-<div class="panel"><h2>Движение склада</h2><table><tr><th>Дата</th><th>Позиция</th><th>Изменение</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>{% for m in moves %}<tr><td>{{ m.created_at }}</td><td>{{ m.item_name }}</td><td>{{ "%.2f"|format(m.change_qty) }} {{ m.unit }}</td><td>{{ m.move_type }}</td><td>{{ m.user_name }}</td><td>{{ m.comment }}</td></tr>{% endfor %}</table></div>
+
+<div class="panel">
+  <h2>Списать вручную</h2>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="action" value="writeoff">
+    <select name="item_id">
+      {% for r in film if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}
+      {% for r in tools if r.active %}<option value="{{ r.id }}">{{ r.name }} — {{ "%.2f"|format(r.balance) }} {{ r.unit }}</option>{% endfor %}
+    </select>
+    <input name="qty" type="number" step="0.01" placeholder="Сколько списать">
+    <input name="comment" placeholder="Причина" required>
+    <button>Списать</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Плёнка</h2>
+  <div class="stock-grid">
+    {% for r in film if r.active %}
+    {% set pct = stock_level_percent(r) %}
+    {% set bar_class = 'stock-bar-high' if pct > 50 else ('stock-bar-mid' if pct > 20 else 'stock-bar-low') %}
+    <article class="stock-card">
+      <div class="stock-card-photo">
+        {% if r.photo_path %}
+        <img src="{{ url_for('static', filename=r.photo_path) }}" alt="{{ r.name }}">
+        {% else %}
+        <div class="stock-card-placeholder">🎞</div>
+        {% endif %}
+      </div>
+      <div class="stock-card-body">
+        <div class="stock-card-head">
+          <h3>{{ r.name }}</h3>
+          <strong>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</strong>
+        </div>
+        <div class="stock-bar-wrap">
+          <div class="stock-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
+        </div>
+        <div class="stock-card-meta">
+          <span>{{ pct }}% осталось</span>
+          {% if is_director %}<span>{{ "%.0f"|format(r.cost_per_unit) }} ₽/м²</span>{% endif %}
+        </div>
+        {% if is_director %}
+        <div class="stock-card-actions">
+          <form method="post" enctype="multipart/form-data" class="stock-photo-form">
+            <input type="hidden" name="action" value="upload_photo">
+            <input type="hidden" name="item_id" value="{{ r.id }}">
+            <input type="file" name="photo" accept="image/*" onchange="this.form.submit()">
+            <span class="mini-btn ghost">Фото</span>
+          </form>
+          <form method="post" onsubmit="return confirm('Удалить позицию?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="item_id" value="{{ r.id }}">
+            <button class="danger">Удалить</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p class="tab-empty">Нет плёнки на складе</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Инструмент и расходники</h2>
+  <div class="stock-grid">
+    {% for r in tools if r.active %}
+    {% set pct = stock_level_percent(r) %}
+    {% set bar_class = 'stock-bar-high' if pct > 50 else ('stock-bar-mid' if pct > 20 else 'stock-bar-low') %}
+    <article class="stock-card">
+      <div class="stock-card-photo">
+        {% if r.photo_path %}
+        <img src="{{ url_for('static', filename=r.photo_path) }}" alt="{{ r.name }}">
+        {% else %}
+        <div class="stock-card-placeholder">🔧</div>
+        {% endif %}
+      </div>
+      <div class="stock-card-body">
+        <div class="stock-card-head">
+          <h3>{{ r.name }}</h3>
+          <strong>{{ "%.2f"|format(r.balance) }} {{ r.unit }}</strong>
+        </div>
+        <div class="stock-card-meta"><span>{{ r.category }}</span></div>
+        {% if r.initial_balance and r.initial_balance > 0 %}
+        <div class="stock-bar-wrap">
+          <div class="stock-bar {{ bar_class }}" style="width:{{ pct }}%"></div>
+        </div>
+        <div class="stock-card-meta"><span>{{ pct }}% осталось</span></div>
+        {% endif %}
+        {% if is_director %}
+        <div class="stock-card-actions">
+          <form method="post" enctype="multipart/form-data" class="stock-photo-form">
+            <input type="hidden" name="action" value="upload_photo">
+            <input type="hidden" name="item_id" value="{{ r.id }}">
+            <input type="file" name="photo" accept="image/*" onchange="this.form.submit()">
+            <span class="mini-btn ghost">Фото</span>
+          </form>
+          <form method="post" onsubmit="return confirm('Удалить?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="item_id" value="{{ r.id }}">
+            <button class="danger">Удалить</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p class="tab-empty">Нет инструментов</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Движение склада</h2>
+  <table>
+    <tr><th>Дата</th><th>Позиция</th><th>Изменение</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>
+    {% for m in moves %}
+    <tr>
+      <td>{{ m.created_at }}</td>
+      <td>{{ m.item_name }}</td>
+      <td>{{ "%.2f"|format(m.change_qty) }} {{ m.unit }}</td>
+      <td>{{ m.move_type }}</td>
+      <td>{{ m.user_name }}</td>
+      <td>{{ m.comment }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
 <script>
 const cat = document.getElementById('stockCategory');
 const mode = document.getElementById('costMode');
@@ -43,5 +177,10 @@ function toggleCostFields() {
 }
 if (cat) { cat.addEventListener('change', toggleStockFields); toggleStockFields(); }
 if (mode) { mode.addEventListener('change', toggleCostFields); }
+document.querySelectorAll('.stock-photo-form input[type=file]').forEach(inp => {
+  inp.style.display = 'none';
+  const btn = inp.parentElement.querySelector('.mini-btn');
+  if (btn) btn.addEventListener('click', () => inp.click());
+});
 </script>
 {% endblock %}

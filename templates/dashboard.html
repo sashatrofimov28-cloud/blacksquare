@@ -1,17 +1,72 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
+<header class="top dash-top">
   <h1>Главная</h1>
-  <p>Записи и касса за сегодня ({{ stats.today }}){% if stats_updated %} · обновлено {{ stats_updated }}{% endif %}</p>
+  <p class="dash-sub">
+    {% if period == 'today' %}Сегодня, {{ stats.period_label }}{% elif period == 'week' %}Неделя: {{ stats.period_label }}{% else %}Месяц {{ stats.period_label }}{% endif %}
+    {% if stats_updated %} · обновлено {{ stats_updated }}{% endif %}
+  </p>
 </header>
 
-<section class="cards">
-  <div class="card"><span>Всего записей</span><strong>{{ stats.appointments }}</strong></div>
-  <div class="card"><span>Активные</span><strong>{{ stats.active }}</strong></div>
-  <div class="card"><span>Касса сегодня</span><strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong></div>
-  <div class="card"><span>ЗП сегодня</span><strong>{{ "%.0f"|format(stats.salary) }} ₽</strong></div>
-  <div class="card"><span>Сертификатами сегодня</span><strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong></div>
-</section>
+<nav class="period-tabs" aria-label="Период">
+  <a href="{{ url_for('dashboard', period='today') }}" class="period-tab{% if period == 'today' %} active{% endif %}">Сегодня</a>
+  <a href="{{ url_for('dashboard', period='week') }}" class="period-tab{% if period == 'week' %} active{% endif %}">Неделя</a>
+  <a href="{{ url_for('dashboard', period='month') }}" class="period-tab{% if period == 'month' %} active{% endif %}">Месяц</a>
+</nav>
+
+<div class="metric-chips scrollable-x">
+  <div class="metric-chip chip-green">
+    <span>Касса</span>
+    <strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+  </div>
+  <div class="metric-chip chip-blue">
+    <span>Закрыто</span>
+    <strong>{{ stats.appointments }}</strong>
+  </div>
+  <div class="metric-chip chip-orange">
+    <span>Активные</span>
+    <strong>{{ stats.active }}</strong>
+  </div>
+  <div class="metric-chip chip-red">
+    <span>ЗП</span>
+    <strong>{{ "%.0f"|format(stats.salary) }} ₽</strong>
+  </div>
+  <div class="metric-chip chip-purple">
+    <span>Сертификаты</span>
+    <strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong>
+  </div>
+  {% if has_perm('analytics') %}
+  <div class="metric-chip chip-green">
+    <span>Прибыль</span>
+    <strong>{{ "%.0f"|format(stats.profit) }} ₽</strong>
+  </div>
+  {% endif %}
+</div>
+
+<div class="dash-summary panel">
+  <div class="dash-summary-row">
+    <div>
+      <span class="dash-summary-label">Выручка</span>
+      <strong class="dash-summary-value accent-green">{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+    </div>
+    <div>
+      <span class="dash-summary-label">Зарплата</span>
+      <strong class="dash-summary-value accent-red">{{ "%.0f"|format(stats.salary) }} ₽</strong>
+    </div>
+  </div>
+  <div class="dash-summary-row">
+    <div>
+      <span class="dash-summary-label">Сертификаты</span>
+      <strong class="dash-summary-value accent-purple">{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong>
+    </div>
+  {% if has_perm('analytics') %}
+    <div>
+      <span class="dash-summary-label">Прибыль</span>
+      <strong class="dash-summary-value accent-green">{{ "%.0f"|format(stats.profit) }} ₽</strong>
+    </div>
+  {% endif %}
+  </div>
+</div>
 
 {% if requests %}
 <div class="panel">
@@ -32,15 +87,17 @@
 {% endif %}
 
 <div class="panel">
-  <h2>Последние записи</h2>
+  <h2>Записи за период</h2>
   <div class="appt-list">
     {% for r in rows %}
-    <details class="appt-card">
+    {% set bar = 'bar-green' if r.status == 'Закрыт' else ('bar-red' if r.status == 'Отменен' else 'bar-blue') %}
+    <details class="appt-card dash-appt-card {{ bar }}">
       <summary>
         <span class="appt-time">{{ r.start_time }}–{{ r.end_time }}</span>
         <span class="appt-service">{{ r.service_name }}</span>
         <span class="appt-car">{{ r.car or r.plate_number or '—' }}</span>
         <span class="appt-master">{{ r.employee_name }}</span>
+        <span class="appt-status-pill">{{ r.status }}</span>
       </summary>
       <div class="appt-details">
         <div><b>Дата:</b> {{ r.appointment_date }}</div>
@@ -61,6 +118,8 @@
         </div>
       </div>
     </details>
+    {% else %}
+    <p class="tab-empty">Нет записей за выбранный период</p>
     {% endfor %}
   </div>
   <table class="desktop-only appt-table">

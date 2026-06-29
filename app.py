@@ -571,6 +571,19 @@ def migrate_db(c):
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_mode TEXT DEFAULT 'per_roll'")
     if 'cost_per_meter' not in cols:
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_per_meter REAL DEFAULT 0")
+    if 'photo_path' not in cols:
+        c.execute("ALTER TABLE stock_items ADD COLUMN photo_path TEXT")
+    if 'initial_balance' not in cols:
+        c.execute("ALTER TABLE stock_items ADD COLUMN initial_balance REAL DEFAULT 0")
+    for row in c.execute("SELECT id,category,width_m,length_m,balance FROM stock_items WHERE COALESCE(initial_balance,0)<=0").fetchall():
+        bal = float(row['balance'] or 0)
+        if row['category'] == 'film':
+            cap = float(row['width_m'] or 1.52) * float(row['length_m'] or 0)
+            init = max(bal, cap) if cap > 0 else bal
+        else:
+            init = bal
+        if init > 0:
+            c.execute("UPDATE stock_items SET initial_balance=? WHERE id=?", (init, row['id']))
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_refresh','live')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_cached','{}')")
     for p in PERMS:
@@ -682,19 +695,44 @@ def film_cost_per_unit(width_m, length_m, balance, cost_mode, cost_total, cost_p
     return 0
 
 def compute_dashboard_stats(con):
+    return compute_period_stats(con, 'today')
+
+def period_date_range(period):
     today_s = today()
-    closed_today = "status='Закрыт' AND appointment_date=?"
+    today_d = date.fromisoformat(today_s)
+    if period == 'week':
+        start = today_d - timedelta(days=today_d.weekday())
+        end = start + timedelta(days=6)
+    elif period == 'month':
+        start = today_d.replace(day=1)
+        end = today_d.replace(day=pycal.monthrange(today_d.year, today_d.month)[1])
+    else:
+        start = end = today_d
+    return start.isoformat(), end.isoformat()
+
+def compute_period_stats(con, period='today'):
+    start, end = period_date_range(period)
+    closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
+    range_args = (start, end)
+    label = {'today': start, 'week': f'{start} — {end}', 'month': start[:7]}.get(period, start)
     return {
-        'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
+        'period': period,
+        'period_label': label,
+        'date_from': start,
+        'date_to': end,
+        'appointments': con.execute(
+            "SELECT COUNT(*) c FROM appointments WHERE status='Закрыт' AND appointment_date>=? AND appointment_date<=?",
+            range_args,
+        ).fetchone()['c'],
         'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
-        'revenue': con.execute(f"SELECT COALESCE(SUM(price),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
-        'certificate_paid': con.execute(f"SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
-        'material_m2': con.execute(f"SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
-        'material_cost': con.execute(f"SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
-        'salary': con.execute(f"SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
-        'profit': con.execute(f"SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE {closed_today}", (today_s,)).fetchone()['s'],
+        'revenue': con.execute(f"SELECT COALESCE(SUM(price),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'certificate_paid': con.execute(f"SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'material_m2': con.execute(f"SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'material_cost': con.execute(f"SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'salary': con.execute(f"SELECT COALESCE(SUM(salary_amount),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'profit': con.execute(f"SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
         'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
-        'today': today_s,
+        'today': today(),
     }
 
 def compute_day_stats(con, day):
@@ -742,11 +780,11 @@ def refresh_dashboard_stats():
     set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
     return stats
 
-def dashboard_stats():
+def dashboard_stats(period='today'):
     interval = get_setting('stats_refresh', 'live')
     if interval == 'live':
         con = db()
-        stats = compute_dashboard_stats(con)
+        stats = compute_period_stats(con, period)
         con.close()
         return stats, now()
     cached_raw = get_setting('stats_cached', '{}')
@@ -767,11 +805,16 @@ def dashboard_stats():
             need_refresh = False
     if need_refresh:
         con = db()
-        stats = compute_dashboard_stats(con)
+        stats = compute_period_stats(con, period)
         con.close()
         set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
         return stats, now()
-    return cached.get('stats', {}), cached.get('at', '')
+    stats = cached.get('stats', {})
+    if stats.get('period') != period:
+        con = db()
+        stats = compute_period_stats(con, period)
+        con.close()
+    return stats, cached.get('at', '')
 
 def service_price_label(price):
     p = float(price or 0)
@@ -2178,6 +2221,7 @@ def inject():
         'service_price_label': service_price_label,
         'weekdays': WEEKDAYS,
         'today': today(),
+        'stock_level_percent': stock_level_percent,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -2253,10 +2297,18 @@ def dashboard():
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
         con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
 
-    stats, stats_updated = dashboard_stats()
-    rows = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id ORDER BY appointment_date DESC,start_time DESC LIMIT 20").fetchall()
+    period = request.args.get('period', 'today')
+    if period not in ('today', 'week', 'month'):
+        period = 'today'
+    stats, stats_updated = dashboard_stats(period)
+    start, end = period_date_range(period)
+    rows = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+        f"WHERE appointment_date>=? AND appointment_date<=? ORDER BY appointment_date DESC,start_time DESC LIMIT 30",
+        (start, end),
+    ).fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, requests=requests)
+    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, requests=requests, period=period)
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():
@@ -2789,6 +2841,32 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
 
 CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
 CERT_LAYOUT_PATH = BASE_DIR / 'static' / 'certificate_layout.json'
+STOCK_UPLOAD_DIR = BASE_DIR / 'static' / 'uploads' / 'stock'
+STOCK_PHOTO_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+def save_stock_photo(file_storage):
+    if not file_storage or not file_storage.filename:
+        return None
+    ext = Path(secure_filename(file_storage.filename)).suffix.lower()
+    if ext not in STOCK_PHOTO_EXT:
+        return None
+    STOCK_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{int(time.time())}_{hashlib.md5(file_storage.filename.encode()).hexdigest()[:8]}{ext}"
+    path = STOCK_UPLOAD_DIR / name
+    file_storage.save(str(path))
+    return f"uploads/stock/{name}"
+
+def stock_level_percent(item):
+    bal = float(item['balance'] or 0)
+    init = float(item['initial_balance'] or 0)
+    if init <= 0:
+        if item['category'] == 'film':
+            init = float(item['width_m'] or 1.52) * float(item['length_m'] or 0)
+        if init <= 0:
+            init = bal
+    if init <= 0:
+        return 0
+    return min(100, max(0, round(bal / init * 100)))
 
 # Запасные координаты (доли страницы), если линии не найдены.
 CERT_PDF_LAYOUT = {
@@ -3568,11 +3646,27 @@ def stock():
                 cost = float(request.form.get('cost_total') or 0) if is_director else 0
                 cpm = cost / bal if cost and bal > 0 else 0
             visible = 1 if request.form.get('visible_to_staff') else 0
-            con.execute("INSERT INTO stock_items(name,category,unit,width_m,length_m,balance,cost_total,cost_per_unit,cost_mode,cost_per_meter,visible_to_staff,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                        (request.form['name'],category,unit,w,l,bal,cost,cpm,cost_mode,cost_per_meter,visible,request.form.get('comment',''),now()))
+            photo_path = save_stock_photo(request.files.get('photo'))
+            init_bal = bal if bal > 0 else (w * l if category == 'film' else 0)
+            con.execute("INSERT INTO stock_items(name,category,unit,width_m,length_m,balance,initial_balance,cost_total,cost_per_unit,cost_mode,cost_per_meter,visible_to_staff,comment,photo_path,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (request.form['name'],category,unit,w,l,bal,init_bal,cost,cpm,cost_mode,cost_per_meter,visible,request.form.get('comment',''),photo_path,now()))
             item_id = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
             con.execute("INSERT INTO stock_moves(item_id,user_id,change_qty,move_type,comment,created_at) VALUES(?,?,?,?,?,?)", (item_id,u['id'],bal,'Поступление','Добавлено на склад',now()))
             con.commit(); flash('Позиция добавлена')
+        elif action == 'upload_photo':
+            item_id = request.form.get('item_id')
+            item = con.execute("SELECT * FROM stock_items WHERE id=?", (item_id,)).fetchone()
+            photo_path = save_stock_photo(request.files.get('photo'))
+            if item and photo_path:
+                if item['photo_path']:
+                    old = BASE_DIR / 'static' / item['photo_path']
+                    if old.exists():
+                        old.unlink()
+                con.execute("UPDATE stock_items SET photo_path=? WHERE id=?", (photo_path, item_id))
+                con.commit()
+                flash('Фото обновлено')
+            else:
+                flash('Не удалось загрузить фото')
         elif action == 'writeoff':
             item_id = request.form.get('item_id'); qty = float(request.form.get('qty') or 0); comment = request.form.get('comment','')
             item = con.execute("SELECT * FROM stock_items WHERE id=?", (item_id,)).fetchone()
