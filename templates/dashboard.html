@@ -1,117 +1,129 @@
 {% extends "base.html" %}
+{% macro trend_badge(val) %}
+  {% if val is not none %}
+  <span class="dash-trend {% if val >= 0 %}up{% else %}down{% endif %}">{{ "%+.0f"|format(val) }}%{% if period == 'today' %} к вчера{% endif %}</span>
+  {% endif %}
+{% endmacro %}
+
 {% block content %}
-<header class="dash-header">
-  <div>
-    <h1>Главная</h1>
-    <p class="dash-date">{{ format_date_long_ru() }}</p>
-  </div>
-</header>
+<div class="dash-page">
+  <header class="dash-header">
+    <div>
+      <h1>Главная</h1>
+      <p class="dash-date">{{ format_date_long_ru() }}</p>
+    </div>
+    <a href="{{ url_for('profile') }}" class="dash-bell" aria-label="Профиль">🔔</a>
+  </header>
 
-<div class="dash-metrics">
-  <div class="dash-metric accent-green">
-    <span class="dash-metric-icon">💰</span>
-    <span class="dash-metric-label">Касса</span>
-    <strong class="dash-metric-value">{{ "%.0f"|format(stats.revenue) }}<small>₽</small></strong>
-  </div>
-  <div class="dash-metric accent-blue">
-    <span class="dash-metric-icon">📈</span>
-    <span class="dash-metric-label">Прибыль</span>
-    <strong class="dash-metric-value">{{ "%.0f"|format(stats.profit) }}<small>₽</small></strong>
-  </div>
-  <div class="dash-metric accent-orange">
-    <span class="dash-metric-icon">👤</span>
-    <span class="dash-metric-label">ЗП</span>
-    <strong class="dash-metric-value">{{ "%.0f"|format(stats.salary) }}<small>₽</small></strong>
-  </div>
-  <div class="dash-metric accent-purple">
-    <span class="dash-metric-icon">🎞</span>
-    <span class="dash-metric-label">м²</span>
-    <strong class="dash-metric-value">{{ "%.1f"|format(stats.material_m2) }}</strong>
-  </div>
-</div>
-
-<nav class="dash-periods" aria-label="Период">
-  <a href="{{ url_for('dashboard', period='today') }}" class="dash-period{% if period == 'today' %} active{% endif %}">Сегодня</a>
-  <a href="{{ url_for('dashboard', period='yesterday') }}" class="dash-period{% if period == 'yesterday' %} active{% endif %}">Вчера</a>
-  <a href="{{ url_for('dashboard', period='week') }}" class="dash-period{% if period == 'week' %} active{% endif %}">Неделя</a>
-  <a href="{{ url_for('dashboard', period='month') }}" class="dash-period{% if period == 'month' %} active{% endif %}">Месяц</a>
-</nav>
-
-{% if requests %}
-<div class="panel dash-panel">
-  <h2>Запросы на номер</h2>
-  {% for r in requests %}
-  <div class="dash-request">
-    <div><b>{{ r.user_name }}</b> → {{ r.client_name }} ({{ r.plate_number }})</div>
-    <div class="dash-request-actions">
-      <form method="post" action="{{ url_for('approve_phone_request', rid=r.id) }}" class="inline"><button class="ghost">Одобрить</button></form>
-      <form method="post" action="{{ url_for('deny_phone_request', rid=r.id) }}" class="inline"><button class="danger">Отклонить</button></form>
+  <div class="dash-strip">
+    <div class="dash-strip-card tone-green">
+      <span class="dash-strip-icon">💰</span>
+      <span class="dash-strip-label">Касса</span>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+    </div>
+    <div class="dash-strip-card tone-blue">
+      <span class="dash-strip-icon">📈</span>
+      <span class="dash-strip-label">Прибыль</span>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.profit) }} ₽</strong>
+    </div>
+    <div class="dash-strip-card tone-orange">
+      <span class="dash-strip-icon">👤</span>
+      <span class="dash-strip-label">ЗП</span>
+      <strong class="dash-strip-value">{{ "%.0f"|format(stats.salary) }} ₽</strong>
+    </div>
+    <div class="dash-strip-card tone-purple">
+      <span class="dash-strip-icon">🎞</span>
+      <span class="dash-strip-label">м²</span>
+      <strong class="dash-strip-value">{{ "%.1f"|format(stats.material_m2) }}</strong>
     </div>
   </div>
-  {% endfor %}
+
+  <nav class="dash-periods scrollable-x" aria-label="Период">
+    <a href="{{ url_for('dashboard', period='today') }}" class="dash-period{% if period == 'today' %} active{% endif %}">Сегодня</a>
+    <a href="{{ url_for('dashboard', period='yesterday') }}" class="dash-period{% if period == 'yesterday' %} active{% endif %}">Вчера</a>
+    <a href="{{ url_for('dashboard', period='week') }}" class="dash-period{% if period == 'week' %} active{% endif %}">Неделя</a>
+    <a href="{{ url_for('dashboard', period='month') }}" class="dash-period{% if period == 'month' %} active{% endif %}">Месяц</a>
+    <a href="{{ url_for('dashboard', period='year') }}" class="dash-period{% if period == 'year' %} active{% endif %}">Год</a>
+  </nav>
+
+  <div class="dash-kpi-grid">
+    <div class="dash-kpi tone-green">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-icon">💵</span>
+        {{ trend_badge(trends.revenue) }}
+      </div>
+      <span class="dash-kpi-label">Выручка</span>
+      <strong class="dash-kpi-value">{{ "%.0f"|format(stats.revenue) }} ₽</strong>
+    </div>
+    <div class="dash-kpi tone-blue">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-icon">🧾</span>
+        {{ trend_badge(trends.appointments) }}
+      </div>
+      <span class="dash-kpi-label">Чеки</span>
+      <strong class="dash-kpi-value">{{ stats.appointments }}</strong>
+    </div>
+    <div class="dash-kpi tone-orange">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-icon">🚗</span>
+        {{ trend_badge(trends.active) }}
+      </div>
+      <span class="dash-kpi-label">Активные</span>
+      <strong class="dash-kpi-value">{{ stats.active }}</strong>
+    </div>
+    <div class="dash-kpi tone-purple">
+      <div class="dash-kpi-top">
+        <span class="dash-kpi-icon">📐</span>
+        {{ trend_badge(trends.m2) }}
+      </div>
+      <span class="dash-kpi-label">Плёнка</span>
+      <strong class="dash-kpi-value">{{ "%.1f"|format(stats.material_m2) }} м²</strong>
+    </div>
+  </div>
+
+  {% if requests %}
+  <div class="dash-panel">
+    <h2 class="dash-panel-title">Запросы на номер</h2>
+    {% for r in requests %}
+    <div class="dash-request">
+      <div><b>{{ r.user_name }}</b> → {{ r.client_name }}</div>
+      <div class="dash-request-actions">
+        <form method="post" action="{{ url_for('approve_phone_request', rid=r.id) }}" class="inline"><button class="ghost">Одобрить</button></form>
+        <form method="post" action="{{ url_for('deny_phone_request', rid=r.id) }}" class="inline"><button class="danger">Отклонить</button></form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <section class="dash-section">
+    <div class="dash-section-head">
+      <h2>Ближайшие записи</h2>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="dash-link">Смотреть все ›</a>{% endif %}
+    </div>
+    <div class="dash-appt-list">
+      {% for r in upcoming %}
+      {% set meta = appt_status_meta(r.status) %}
+      <a class="dash-appt {{ meta.bar }}" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <div class="dash-appt-time">
+          <strong>{{ r.start_time }}</strong>
+          <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
+        </div>
+        <div class="dash-appt-body">
+          <b>{{ r.client_name }}</b>
+          <span>{{ r.service_name }}</span>
+          <span>{{ r.employee_name }}</span>
+        </div>
+        <div class="dash-appt-side">
+          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
+          <strong>{{ "%.0f"|format(r.price or 0) }} ₽</strong>
+          <span class="dash-appt-chevron">›</span>
+        </div>
+      </a>
+      {% else %}
+      <p class="dash-empty">Нет ближайших записей</p>
+      {% endfor %}
+    </div>
+  </section>
 </div>
-{% endif %}
-
-<section class="dash-section">
-  <div class="dash-section-head">
-    <h2>Ближайшие записи</h2>
-    {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="dash-link">Все →</a>{% endif %}
-  </div>
-  <div class="dash-appt-list">
-    {% for r in upcoming %}
-    {% set meta = appt_status_meta(r.status) %}
-    <a class="dash-appt {{ meta.bar }}" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-      <div class="dash-appt-time">
-        <strong>{{ r.start_time }}</strong>
-        <span>{{ r.appointment_date }}</span>
-      </div>
-      <div class="dash-appt-body">
-        <div class="dash-appt-top">
-          <b>{{ r.client_name }}</b>
-          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
-        </div>
-        <div class="dash-appt-sub">{{ r.service_name }}</div>
-        <div class="dash-appt-sub">{{ r.car or r.plate_number or '—' }} · {{ r.employee_name }}</div>
-      </div>
-      <div class="dash-appt-price">
-        <strong>{{ "%.0f"|format(r.price or 0) }} ₽</strong>
-        <span>›</span>
-      </div>
-    </a>
-    {% else %}
-    <p class="tab-empty">Нет ближайших записей</p>
-    {% endfor %}
-  </div>
-</section>
-
-{% if rows %}
-<section class="dash-section">
-  <div class="dash-section-head">
-    <h2>За выбранный период</h2>
-  </div>
-  <div class="dash-appt-list">
-    {% for r in rows %}
-    {% set meta = appt_status_meta(r.status) %}
-    <a class="dash-appt {{ meta.bar }}" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-      <div class="dash-appt-time">
-        <strong>{{ r.start_time }}</strong>
-        <span>{{ r.appointment_date }}</span>
-      </div>
-      <div class="dash-appt-body">
-        <div class="dash-appt-top">
-          <b>{{ r.client_name }}</b>
-          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
-        </div>
-        <div class="dash-appt-sub">{{ r.service_name }}</div>
-        <div class="dash-appt-sub">{{ r.car or r.plate_number or '—' }} · {{ r.employee_name }}</div>
-      </div>
-      <div class="dash-appt-price">
-        <strong>{{ "%.0f"|format(r.price or 0) }} ₽</strong>
-        <span>›</span>
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 {% endblock %}

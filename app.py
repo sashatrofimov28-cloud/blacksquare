@@ -200,8 +200,42 @@ def appt_status_meta(status):
     if s == 'Отменен':
         return {'bar': 'bar-red', 'pill': 'pill-red', 'label': 'Отменён'}
     if s in ('В работе', 'Начат'):
-        return {'bar': 'bar-orange', 'pill': 'pill-orange', 'label': s}
-    return {'bar': 'bar-blue', 'pill': 'pill-blue', 'label': s if s != 'Записан' else 'Записан'}
+        return {'bar': 'bar-blue', 'pill': 'pill-blue', 'label': s}
+    return {'bar': 'bar-orange', 'pill': 'pill-orange', 'label': 'Ожидает' if s == 'Записан' else s}
+
+def stat_trend_pct(current, previous):
+    cur, prev = float(current or 0), float(previous or 0)
+    if prev <= 0:
+        return None if cur <= 0 else 100.0
+    return round((cur - prev) / prev * 100, 1)
+
+def dashboard_trends(con, period, stats):
+    prev_key = {'today': 'yesterday'}.get(period)
+    if not prev_key:
+        return {}
+    prev = compute_period_stats(con, prev_key)
+    return {
+        'revenue': stat_trend_pct(stats['revenue'], prev['revenue']),
+        'appointments': stat_trend_pct(stats['appointments'], prev['appointments']),
+        'active': stat_trend_pct(stats['active'], prev['active']),
+        'm2': stat_trend_pct(stats['material_m2'], prev['material_m2']),
+        'profit': stat_trend_pct(stats['profit'], prev['profit']),
+        'salary': stat_trend_pct(stats['salary'], prev['salary']),
+    }
+
+def appt_countdown_label(appt_date, start_time):
+    try:
+        start = datetime.strptime(f"{appt_date} {normalize_hm(start_time)}", '%Y-%m-%d %H:%M')
+    except ValueError:
+        return ''
+    delta = int((start - datetime.now()).total_seconds() // 60)
+    if delta < 0:
+        return 'Сейчас'
+    if delta < 60:
+        return f'Через {delta} мин'
+    if delta < 24 * 60:
+        return f'Через {delta // 60} ч'
+    return appt_date
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
@@ -725,6 +759,9 @@ def period_date_range(period):
     elif period == 'month':
         start = today_d.replace(day=1)
         end = today_d.replace(day=pycal.monthrange(today_d.year, today_d.month)[1])
+    elif period == 'year':
+        start = today_d.replace(month=1, day=1)
+        end = today_d.replace(month=12, day=31)
     else:
         start = end = today_d
     return start.isoformat(), end.isoformat()
@@ -733,7 +770,7 @@ def compute_period_stats(con, period='today'):
     start, end = period_date_range(period)
     closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
     range_args = (start, end)
-    label = {'today': 'Сегодня', 'yesterday': 'Вчера', 'week': f'{start} — {end}', 'month': MONTHS_RU[date.fromisoformat(start).month]}.get(period, start)
+    label = {'today': 'Сегодня', 'yesterday': 'Вчера', 'week': f'{start} — {end}', 'month': MONTHS_RU[date.fromisoformat(start).month], 'year': str(date.fromisoformat(start).year)}.get(period, start)
     return {
         'period': period,
         'period_label': label,
@@ -2243,6 +2280,7 @@ def inject():
         'stock_level_percent': stock_level_percent,
         'format_date_long_ru': format_date_long_ru,
         'appt_status_meta': appt_status_meta,
+        'appt_countdown_label': appt_countdown_label,
         'months_ru': MONTHS_RU,
     }
 
@@ -2320,9 +2358,10 @@ def dashboard():
         con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
 
     period = request.args.get('period', 'today')
-    if period not in ('today', 'yesterday', 'week', 'month'):
+    if period not in ('today', 'yesterday', 'week', 'month', 'year'):
         period = 'today'
     stats, stats_updated = dashboard_stats(period)
+    trends = dashboard_trends(con, period, stats)
     start, end = period_date_range(period)
     rows = con.execute(
         f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
@@ -2336,7 +2375,7 @@ def dashboard():
         (today(),),
     ).fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, rows=rows, upcoming=upcoming, requests=requests, period=period)
+    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, trends=trends, rows=rows, upcoming=upcoming, requests=requests, period=period)
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():
