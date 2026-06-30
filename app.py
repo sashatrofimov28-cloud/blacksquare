@@ -2755,7 +2755,7 @@ def design_hub():
 
 @app.route('/design/close')
 def design_close_variants():
-    return app.send_static_file('mockups/close-variants.html')
+    return render_template('design_close.html')
 
 @app.route('/design/v1')
 def design_roadmap():

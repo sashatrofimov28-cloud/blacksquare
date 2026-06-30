@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Закрытие записи — варианты дизайна</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=23">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
+</head>
+<body class="theme-dark close-gallery">
+  <header class="close-gallery-hero">
+    <a class="close-gallery-back" href="/design">← Все макеты</a>
+    <h1>Закрытие записи — 3 варианта</h1>
+    <p>Сейчас всё в одной длинной ленте — мастера, зарплата, плёнка, сертификат, бонусы… Ниже три способа разложить по полочкам. Листайте вниз — под каждым вариантом живой макет в рамке телефона.</p>
+    <img class="close-collage-img" src="{{ url_for('static', filename='mockups/close-variants-collage.png') }}" alt="Три варианта экрана закрытия записи">
+  </header>
+
+  <div class="close-variant-grid">
+
+    <!-- A: STEPS -->
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант A — по шагам</b>
+        <span>Три экрана внутри одной формы: визит → работа → оплата. Видно только нужное сейчас.</span>
+        <span class="close-variant-tag a">Меньше скролла</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">A · Шаг 2 из 3</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Закрытие</h2><p>№42 · 19 июня · 14:00</p></div>
+          </div>
+          <div class="mk-steps">
+            <div class="mk-step">1 Визит</div>
+            <div class="mk-step on">2 Работа</div>
+            <div class="mk-step">3 Оплата</div>
+          </div>
+          <div class="mk-client">
+            <div class="mk-av">АК</div>
+            <div><b>Алексей К.</b><span>Audi A6 · С789МН77</span><span class="mk-svc">Тонировка задней части</span></div>
+            <span class="mk-price">5 500 ₽</span>
+          </div>
+          <details class="mk-fold" open>
+            <summary>Мастера <em>Стас</em></summary>
+            <div class="mk-fold-body">
+              <span class="mk-chip">Стас ×</span>
+              <div class="mk-row2"><input class="mk-inp" placeholder="Добавить мастера"><button class="mk-inp" style="width:auto">+</button></div>
+            </div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Зарплата <em>2 200 ₽</em></summary>
+            <div class="mk-fold-body">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Стас</span><strong style="color:#fff">2 200 ₽</strong></div>
+            </div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Материалы <em>840 ₽</em></summary>
+            <div class="mk-fold-body">
+              <div class="mk-mat"><b>LLumar ATC 5%</b><div class="mk-row2"><input class="mk-inp" value="3.2" placeholder="м"><input class="mk-inp" value="150" placeholder="см"></div></div>
+              <button style="margin-top:8px;background:transparent;border:0;color:#5b9cff;font-weight:700;font-size:12px">+ материал</button>
+            </div>
+          </details>
+          <div class="mk-sticky">
+            <div class="mk-total-bar"><span>Итого</span><strong>6 340 ₽</strong></div>
+            <button class="mk-btn">Далее: оплата →</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Шаг 1: клиент, цена, доп. услуги</li>
+          <li>Шаг 2: мастера, ЗП, материалы</li>
+          <li>Шаг 3: сертификат, бонусы, скидка, комментарий</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- B: ACCORDION + STICKY -->
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант B — всё свёрнуто</b>
+        <span>Крупная карточка клиента и итог внизу. Редкие блоки (сертификат, бонусы) — по тапу.</span>
+        <span class="close-variant-tag b">Быстрое закрытие</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Компактный</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Закрыть визит</h2><p>Алексей К. · 14:00</p></div>
+          </div>
+          <div class="mk-hero-total">
+            <span>К оплате</span>
+            <strong>6 340 ₽</strong>
+            <span style="font-size:11px;margin-top:6px">услуга 5 500 + материалы 840</span>
+          </div>
+          <div class="mk-client" style="margin-bottom:8px">
+            <div class="mk-av">АК</div>
+            <div><b>Тонировка задней части</b><span>+7 900 777-88-99</span></div>
+            <input class="mk-inp" style="width:72px;text-align:right;padding:8px" value="5500">
+          </div>
+          <details class="mk-fold" open>
+            <summary>Мастера и зарплата <em>Стас · 2 200 ₽</em></summary>
+            <div class="mk-fold-body"><span class="mk-chip">Стас</span></div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Материалы <em>1 поз.</em></summary>
+            <div class="mk-fold-body"><div class="mk-mat"><b>LLumar 3.2×150 см</b></div></div>
+          </details>
+          <details class="mk-fold">
+            <summary>Доп. услуги <em>нет</em></summary>
+            <div class="mk-fold-body"><input class="mk-inp" placeholder="Название"><input class="mk-inp" placeholder="₽" style="margin-top:6px"></div>
+          </details>
+          <details class="mk-fold">
+            <summary>Скидки и оплата <em>серт · бонусы</em></summary>
+            <div class="mk-fold-body">
+              <input class="mk-inp" placeholder="Сертификат"><input class="mk-inp" placeholder="Бонусы" style="margin-top:6px">
+            </div>
+          </details>
+          <details class="mk-fold">
+            <summary>Комментарий</summary>
+            <div class="mk-fold-body"><input class="mk-inp" placeholder="Необязательно"></div>
+          </details>
+          <div class="mk-sticky">
+            <button class="mk-btn">Закрыть и сохранить ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>80% закрытий — только мастер + материал + цена</li>
+          <li>Серт/бонусы не занимают место, пока не нужны</li>
+          <li>Итог всегда виден сверху и внизу</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- C: TABS -->
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант C — вкладки</b>
+        <span>Как в сертификатах: Визит · Работа · Оплата. Переключение без длинного скролла.</span>
+        <span class="close-variant-tag c">Привычный паттерн</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">C · Вкладка «Работа»</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>№42</h2><p>Алексей К. · 5 500 ₽</p></div>
+          </div>
+          <div class="mk-tabs">
+            <span class="mk-tab">Визит</span>
+            <span class="mk-tab on">Работа</span>
+            <span class="mk-tab">Оплата</span>
+          </div>
+          <details class="mk-fold" open>
+            <summary>Мастера</summary>
+            <div class="mk-fold-body"><span class="mk-chip">Стас</span></div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Зарплата мастеров</summary>
+            <div class="mk-fold-body" style="display:flex;justify-content:space-between"><span>Стас</span><strong style="color:#fff">2 200 ₽</strong></div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Материалы</summary>
+            <div class="mk-fold-body">
+              <div class="mk-mat"><b>LLumar ATC 5%</b><span>3.2 м × 150 см</span></div>
+              <button style="margin-top:8px;background:transparent;border:0;color:#5b9cff;font-weight:700;font-size:12px">+ Добавить</button>
+            </div>
+          </details>
+          <div style="height:120px"></div>
+          <div class="mk-sticky">
+            <div class="mk-total-bar"><span>Итого</span><strong>6 340 ₽</strong></div>
+            <div class="mk-row2">
+              <button class="mk-btn" style="background:#222;color:#fff;border:1px solid #333">← Визит</button>
+              <button class="mk-btn">Оплата →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li><b>Визит</b> — клиент, цена, доп. услуги</li>
+          <li><b>Работа</b> — мастера, ЗП, плёнка</li>
+          <li><b>Оплата</b> — сертификат, бонусы, итог</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+</body>
+</html>
