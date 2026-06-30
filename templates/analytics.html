@@ -1,79 +1,112 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
-  <h1>Статистика</h1>
-  <p>{% if start == end %}День {{ start }}{% else %}Период {{ start }} — {{ end }}{% endif %}</p>
-</header>
-<div class="notice">
-  <form method="get" class="inline">
-    <input type="date" name="start" value="{{ start }}">
-    <input type="date" name="end" value="{{ end }}">
-    <button class="ghost">Показать</button>
-  </form>
-  <a class="mini-btn ghost" href="{{ url_for('analytics') }}">Текущий месяц</a>
-  <a class="mini-btn ghost" href="{{ url_for('analytics', start=today, end=today) }}">Сегодня</a>
-</div>
+<div class="an-page">
+  <header class="an-header">
+    <div>
+      <p class="an-kicker">Отчёты</p>
+      <h1>Аналитика</h1>
+      <p class="an-sub">{{ start }}{% if start != end %} — {{ end }}{% endif %}</p>
+    </div>
+    <a href="{{ url_for('analytics', period=period) }}" class="an-cal-btn" title="Обновить">📅</a>
+  </header>
 
-{% if day_detail %}
-<div class="panel">
-  <h2>Отчёт за {{ start }}{% if day_archived %} <span class="appt-badge" style="background:#e8f5e9;color:#2e7d32">день закрыт {{ day_archived.created_at[:16] }}</span>{% endif %}</h2>
-  <section class="cards">
-    <div class="card"><span>Касса</span><strong>{{ "%.0f"|format(day_detail.revenue) }} ₽</strong></div>
-    <div class="card"><span>ЗП всего</span><strong>{{ "%.0f"|format(day_detail.salary) }} ₽</strong></div>
-    <div class="card"><span>Прибыль</span><strong>{{ "%.0f"|format(day_detail.profit) }} ₽</strong></div>
-    <div class="card"><span>Записей закрыто</span><strong>{{ day_detail.appointments }}</strong></div>
+  <nav class="an-periods scrollable-x" aria-label="Период">
+    <a href="{{ url_for('analytics', period='today') }}" class="an-period{% if period == 'today' %} active{% endif %}">Сегодня</a>
+    <a href="{{ url_for('analytics', period='week') }}" class="an-period{% if period == 'week' %} active{% endif %}">Неделя</a>
+    <a href="{{ url_for('analytics', period='month') }}" class="an-period{% if period == 'month' %} active{% endif %}">Месяц</a>
+  </nav>
+
+  <div class="an-hero">
+    <div class="an-hero-card tone-green">
+      <span>Выручка</span>
+      <strong>{{ format_money(stats.revenue) }} ₽</strong>
+      {% if trends.revenue is not none %}<em class="{% if trends.revenue >= 0 %}up{% else %}down{% endif %}">{{ trends.revenue|abs }}%</em>{% endif %}
+    </div>
+    <div class="an-hero-card tone-purple">
+      <span>Записей</span>
+      <strong>{{ stats.appointments }}</strong>
+      {% if trends.appointments is not none %}<em class="{% if trends.appointments >= 0 %}up{% else %}down{% endif %}">{{ trends.appointments|abs }}%</em>{% endif %}
+    </div>
+  </div>
+
+  {% if master_bars %}
+  <section class="an-section card-surface">
+    <h2>Выручка по мастерам</h2>
+    <div class="an-bars">
+      {% for m in master_bars %}
+      <div class="an-bar-row">
+        <div class="an-bar-head">
+          <span class="an-bar-avatar {{ m.tone }}">{{ client_initials(m.name) }}</span>
+          <b>{{ m.name }}</b>
+          <strong>{{ format_money(m.revenue) }} ₽</strong>
+        </div>
+        <div class="an-bar-track"><i class="{{ m.tone }}" style="width:{{ m.pct }}%"></i></div>
+      </div>
+      {% endfor %}
+    </div>
   </section>
-  {% if day_detail.by_employee %}
-  <table style="margin-top:16px">
-    <tr><th>Мастер</th><th>Записей</th><th>Выручка</th><th>ЗП</th></tr>
-    {% for e in day_detail.by_employee %}
-    <tr><td>{{ e.name }}</td><td>{{ e.cnt }}</td><td>{{ "%.0f"|format(e.revenue) }} ₽</td><td>{{ "%.0f"|format(e.salary) }} ₽</td></tr>
-    {% endfor %}
-  </table>
-  {% else %}
-  <p class="hint" style="margin-top:12px">За этот день нет закрытых записей.</p>
   {% endif %}
-</div>
-{% endif %}
 
-<section class="cards">
-  <div class="card"><span>Выручка за период</span><strong>{{ "%.0f"|format(stats.revenue) }} ₽</strong></div>
-  <div class="card"><span>Чистыми</span><strong>{{ "%.0f"|format(stats.profit) }} ₽</strong></div>
-  <div class="card"><span>Сертификатами</span><strong>{{ "%.0f"|format(stats.certificate_paid) }} ₽</strong></div>
-  <div class="card"><span>Материал деньгами</span><strong>{{ "%.0f"|format(stats.mat) }} ₽</strong></div>
-  <div class="card"><span>Материал ушло</span><strong>{{ "%.2f"|format(stats.m2) }} м²</strong></div>
-  <div class="card"><span>ЗП</span><strong>{{ "%.0f"|format(stats.salary) }} ₽</strong></div>
-  <div class="card"><span>Записей закрыто</span><strong>{{ stats.appointments }}</strong></div>
-</section>
+  <div class="an-metrics">
+    <div class="an-metric card-surface">
+      <span>Средний чек</span>
+      <strong>{{ format_money(extra.avg_check) }} ₽</strong>
+      {% if extra_trends.avg_check is not none %}<em class="{% if extra_trends.avg_check >= 0 %}up{% else %}down{% endif %}">{{ extra_trends.avg_check|abs }}%</em>{% endif %}
+    </div>
+    <div class="an-metric card-surface">
+      <span>Конверсия</span>
+      <strong>{{ extra.conversion }}%</strong>
+      {% if extra_trends.conversion is not none %}<em class="{% if extra_trends.conversion >= 0 %}up{% else %}down{% endif %}">{{ extra_trends.conversion|abs }}%</em>{% endif %}
+    </div>
+    <div class="an-metric card-surface">
+      <span>Новые клиенты</span>
+      <strong>{{ extra.new_clients }}</strong>
+      {% if extra_trends.new_clients is not none %}<em class="{% if extra_trends.new_clients >= 0 %}up{% else %}down{% endif %}">{{ extra_trends.new_clients|abs }}%</em>{% endif %}
+    </div>
+    <div class="an-metric card-surface">
+      <span>Отмены</span>
+      <strong>{{ extra.cancelled }}</strong>
+      {% if extra_trends.cancelled is not none %}<em class="{% if extra_trends.cancelled <= 0 %}up{% else %}down{% endif %}">{{ extra_trends.cancelled|abs }}%</em>{% endif %}
+    </div>
+  </div>
 
-<div class="panel">
-  <h2>По дням</h2>
-  <p style="color:#666;font-size:14px;margin-top:0">Нажмите на дату, чтобы открыть подробный отчёт за день.</p>
-  <table>
-    <tr><th>Дата</th><th>Записей</th><th>Касса</th><th>ЗП</th><th>Прибыль</th><th>Материал</th><th></th></tr>
-    {% for r in by_day %}
-    <tr>
-      <td><a href="{{ url_for('analytics', start=r.appointment_date, end=r.appointment_date) }}"><b>{{ r.appointment_date }}</b></a></td>
-      <td>{{ r.cnt }}</td>
-      <td>{{ "%.0f"|format(r.revenue) }} ₽</td>
-      <td>{{ "%.0f"|format(r.salary) }} ₽</td>
-      <td>{{ "%.0f"|format(r.profit) }} ₽</td>
-      <td>{{ "%.2f"|format(r.m2) }} м²</td>
-      <td>{% if r.appointment_date in archived_days %}<span class="appt-badge" style="background:#e8f5e9;color:#2e7d32">отчёт</span>{% endif %}</td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
+  <section class="an-section card-surface">
+    <h2>Сводка за период</h2>
+    <div class="an-summary-grid">
+      <div><span>Прибыль</span><strong>{{ format_money(stats.profit) }} ₽</strong></div>
+      <div><span>ЗП</span><strong>{{ format_money(stats.salary) }} ₽</strong></div>
+      <div><span>Материал</span><strong>{{ format_money(stats.mat) }} ₽</strong></div>
+      <div><span>м² плёнки</span><strong>{{ format_money(stats.m2, 1) }}</strong></div>
+      <div><span>Сертификаты</span><strong>{{ format_money(stats.certificate_paid) }} ₽</strong></div>
+    </div>
+  </section>
 
-<div class="panel">
-  <h2>По сотрудникам за период</h2>
-  <table>
-    <tr><th>Сотрудник</th><th>Записей</th><th>Выручка</th><th>ЗП</th><th>Материал</th><th>Прибыль</th></tr>
-    {% for r in by_employee %}
-    {% if r.cnt %}
-    <tr><td>{{ r.full_name }}</td><td>{{ r.cnt }}</td><td>{{ "%.0f"|format(r.revenue) }} ₽</td><td>{{ "%.0f"|format(r.salary) }} ₽</td><td>{{ "%.2f"|format(r.m2) }} м²</td><td>{{ "%.0f"|format(r.profit) }} ₽</td></tr>
-    {% endif %}
-    {% endfor %}
-  </table>
+  {% if day_detail and start == end %}
+  <section class="an-section card-surface">
+    <h2>День {{ start }}{% if day_archived %} · отчёт закрыт{% endif %}</h2>
+    <div class="an-summary-grid">
+      <div><span>Касса</span><strong>{{ format_money(day_detail.revenue) }} ₽</strong></div>
+      <div><span>ЗП</span><strong>{{ format_money(day_detail.salary) }} ₽</strong></div>
+      <div><span>Прибыль</span><strong>{{ format_money(day_detail.profit) }} ₽</strong></div>
+      <div><span>Записей</span><strong>{{ day_detail.appointments }}</strong></div>
+    </div>
+  </section>
+  {% endif %}
+
+  <details class="an-fold card-surface">
+    <summary>По дням ({{ by_day|length }})</summary>
+    <div class="an-days">
+      {% for r in by_day %}
+      <a class="an-day-row" href="{{ url_for('analytics', start=r.appointment_date, end=r.appointment_date) }}">
+        <b>{{ r.appointment_date }}</b>
+        <span>{{ r.cnt }} зап.</span>
+        <strong>{{ format_money(r.revenue) }} ₽</strong>
+        {% if r.appointment_date in archived_days %}<em class="an-day-badge">отчёт</em>{% endif %}
+      </a>
+      {% else %}
+      <p class="an-empty">Нет закрытых записей за период</p>
+      {% endfor %}
+    </div>
+  </details>
 </div>
 {% endblock %}

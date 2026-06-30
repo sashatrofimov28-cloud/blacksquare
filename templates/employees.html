@@ -1,133 +1,153 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Сотрудники</h1><p>Права, услуги и графики</p></header>
-
-<div class="panel">
-  <h2>Создать сотрудника</h2>
-  <form method="post" class="form-grid">
-    <input name="full_name" placeholder="Имя" required>
-    <input name="username" placeholder="Логин" required>
-    <input name="password" type="password" placeholder="Пароль" required>
-    <select name="role">
-      <option value="master">Мастер</option>
-      <option value="admin">Администратор</option>
-      <option value="director">Директор</option>
-    </select>
-    <label class="check"><input type="checkbox" name="online_booking" checked> Участвует в онлайн-записи</label>
-    <p class="hint span4" style="margin:0">Снимите галочку, если мастер работает только на ручных заказах в календаре — клиенты его не увидят на сайте.</p>
-    <div class="span4 employee-section"><h4>Права доступа</h4>
-      <div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}"> {{ title }}</label>{% endfor %}</div>
+<div class="emp-page">
+  <header class="emp-header">
+    <div>
+      <p class="emp-kicker">Команда</p>
+      <h1>Сотрудники</h1>
     </div>
-    <div class="span4 employee-section"><h4>Услуги</h4>
-      <div class="perm-list">{% for s in services %}<label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" checked> {{ s.name }}</label>{% endfor %}</div>
-    </div>
-    <button>Создать</button>
-  </form>
-</div>
+    <a href="#empAdd" class="emp-add-btn" aria-label="Добавить">+</a>
+  </header>
 
-<div class="panel">
-  <h2>Недельный график сотрудника</h2>
-  <form method="post">
-    <input type="hidden" name="form_type" value="weekly">
-    <select name="user_id" onchange="location.href='{{ url_for('employees') }}?user_id='+this.value">
-      {% for r in rows if r.active %}
-      <option value="{{ r.id }}" {% if selected_user==r.id %}selected{% endif %}>{{ r.full_name }}</option>
-      {% endfor %}
-    </select>
-    <table style="margin-top:12px">
-      <tr><th>День</th><th>Начало</th><th>Конец</th><th>Выходной</th></tr>
-      {% for wd in range(7) %}
-      {% set w = weekly.get(selected_user, {}).get(wd) %}
-      <tr>
-        <td>{{ weekdays[wd] }}</td>
-        <td><input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}"></td>
-        <td><input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}"></td>
-        <td><label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}></label></td>
-      </tr>
-      {% endfor %}
-    </table>
-    <button style="margin-top:12px">Сохранить недельный график</button>
+  <form method="get" class="emp-search">
+    <input type="hidden" name="filter" value="{{ emp_filter }}">
+    <input name="q" value="{{ q }}" placeholder="Поиск сотрудника…">
+    {% if q %}<a class="emp-search-clear" href="{{ url_for('employees', filter=emp_filter) }}">×</a>{% endif %}
   </form>
-</div>
 
-<div class="panel">
-  <h2>График на конкретную дату</h2>
-  <form method="post" class="form-grid">
-    <input type="hidden" name="form_type" value="schedule">
-    <select name="user_id">{% for r in rows if r.active %}<option value="{{ r.id }}">{{ r.full_name }}</option>{% endfor %}</select>
-    <input type="date" name="work_date" required>
-    <input type="time" name="start_time" value="09:00">
-    <input type="time" name="end_time" value="20:00">
-    <label class="check"><input type="checkbox" name="is_day_off"> выходной</label>
-    <input name="comment" placeholder="Комментарий">
-    <button>Сохранить график</button>
-  </form>
-  <table style="margin-top:16px">
-    <tr><th>Сотрудник</th><th>Дата</th><th>Начало</th><th>Конец</th><th>Выходной</th><th>Комментарий</th></tr>
-    {% for s in schedules %}
-    <tr><td>{{ s.full_name }}</td><td>{{ s.work_date }}</td><td>{{ s.start_time }}</td><td>{{ s.end_time }}</td><td>{{ 'Да' if s.is_day_off else 'Нет' }}</td><td>{{ s.comment }}</td></tr>
+  <nav class="emp-filters scrollable-x" aria-label="Роль">
+    {% for key, label in emp_filters %}
+    <a href="{{ url_for('employees', filter=key, q=q) }}" class="emp-filter{% if emp_filter == key %} active{% endif %} {{ employee_role_meta(key if key != 'all' else 'master')[1] if key != 'all' else '' }}">
+      {{ label }}{% if emp_counts.get(key, 0) %} <em>{{ emp_counts.get(key, 0) }}</em>{% endif %}
+    </a>
     {% endfor %}
-  </table>
-</div>
+  </nav>
 
-<div class="panel">
-  <h2>Сотрудники и доступы</h2>
-  <div class="employee-grid">
-    {% for r in rows %}
-    <div class="employee-card {% if not r.active %}inactive{% endif %}">
-      <div class="employee-card-header">
-        <div>
-          <strong>{{ r.full_name }}</strong>
-          <div class="meta">@{{ r.username }} · {% if r.role=='director' %}Директор{% elif r.role=='admin' %}Администратор{% else %}Мастер{% endif %}{% if r.role=='master' and r.online_booking is not none and not r.online_booking %} · <span style="color:#888">только вручную</span>{% endif %}</div>
-        </div>
-        {% if r.id != user.id %}
-        <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" class="employee-delete-form" onsubmit="return confirm('Удалить @{{ r.username }} навсегда? История заказов сохранится.');">
-          <button type="submit" class="danger">Удалить</button>
-        </form>
-        {% endif %}
-      </div>
-      <form method="post" action="{{ url_for('employee_update', uid=r.id) }}">
-        <div class="employee-section" style="margin-top:0;padding-top:0;border-top:0">
-          <label class="master-picker-label">Имя сотрудника</label>
-          <input name="full_name" value="{{ r.full_name }}" placeholder="Имя сотрудника" required>
-        </div>
-
-        <div class="employee-section">
-          <div class="form-grid" style="grid-template-columns:1fr 1fr">
-            <select name="role">
-              <option value="master" {% if r.role=='master' %}selected{% endif %}>Мастер</option>
-              <option value="admin" {% if r.role=='admin' %}selected{% endif %}>Администратор</option>
-              <option value="director" {% if r.role=='director' %}selected{% endif %}>Директор</option>
-            </select>
-            <label class="check"><input type="checkbox" name="active" {% if r.active %}checked{% endif %}> работает</label>
+  <div class="emp-list">
+    {% for item in rows %}
+    {% set r = item.user %}
+    <article class="emp-card card-surface{% if not r.active %} inactive{% endif %}">
+      <div class="emp-card-main">
+        <div class="emp-avatar {{ item.role_tone }}">{{ item.initials }}</div>
+        <div class="emp-card-body">
+          <div class="emp-card-top">
+            <b>{{ r.full_name }}</b>
+            <span class="emp-pill {{ item.role_tone }}">{{ item.role_label }}</span>
           </div>
-          {% if r.role == 'master' %}
-          <label class="check" style="margin-top:10px;display:block"><input type="checkbox" name="online_booking" {% if r.online_booking is none or r.online_booking %}checked{% endif %}> Участвует в онлайн-записи</label>
-          <p class="hint" style="margin:4px 0 0;font-size:12px">Без галочки мастер доступен только в календаре (ручные записи).</p>
+          <span class="emp-meta">{{ item.tenure }} · {{ item.closed_cnt }} закрытых</span>
+          <span class="emp-login">@{{ r.username }}{% if not r.active %} · не работает{% endif %}</span>
+          {% if item.services %}
+          <div class="emp-tags">
+            {% for s in item.services %}<span class="emp-tag">{{ s }}</span>{% endfor %}
+          </div>
           {% endif %}
         </div>
-
-        {% if user.role == 'director' or user.id == r.id %}
-        <div class="employee-section">
-          <h4>{% if user.id == r.id %}Сменить свой пароль{% else %}Новый пароль{% endif %}</h4>
-          <input type="password" name="password" placeholder="Оставьте пустым, если не меняете">
+        <div class="emp-card-actions">
+          {% if r.role == 'master' %}
+          <form method="post" action="{{ url_for('employee_toggle_online', uid=r.id) }}" class="emp-toggle-form">
+            <input type="hidden" name="filter" value="{{ emp_filter }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <label class="emp-toggle">
+              <span>Онлайн</span>
+              <input type="checkbox" name="online_booking" {% if item.online %}checked{% endif %} onchange="this.form.submit()">
+              <i></i>
+            </label>
+          </form>
+          {% endif %}
+          {% if r.id != user.id %}
+          <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" onsubmit="return confirm('Удалить {{ r.full_name }}?')">
+            <button type="submit" class="emp-del" aria-label="Удалить">🗑</button>
+          </form>
+          {% endif %}
         </div>
-        {% endif %}
-
-        <div class="employee-section">
-          <h4>Права</h4>
-          <div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}" {% if r.role=='director' or user_perms.get(r.id,{}).get(key) %}checked{% endif %}> {{ title }}</label>{% endfor %}</div>
-        </div>
-
-        <div class="employee-section">
-          <h4>Услуги</h4>
-          <div class="perm-list">{% for s in services %}<label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" {% if user_services.get(r.id,{}).get(s.id) %}checked{% endif %}> {{ s.name }}</label>{% endfor %}</div>
-        </div>
-
-        <button class="ghost" style="margin-top:12px;width:100%">Сохранить</button>
-      </form>
-    </div>
+      </div>
+      <details class="emp-edit-fold">
+        <summary>Настройки и права</summary>
+        <form method="post" action="{{ url_for('employee_update', uid=r.id) }}" class="emp-edit-form">
+          <input type="hidden" name="filter" value="{{ emp_filter }}">
+          <input type="hidden" name="q" value="{{ q }}">
+          <input name="full_name" value="{{ r.full_name }}" placeholder="Имя" required>
+          <select name="role">
+            <option value="master" {% if r.role=='master' %}selected{% endif %}>Мастер</option>
+            <option value="admin" {% if r.role=='admin' %}selected{% endif %}>Администратор</option>
+            <option value="director" {% if r.role=='director' %}selected{% endif %}>Директор</option>
+          </select>
+          <label class="check"><input type="checkbox" name="active" {% if r.active %}checked{% endif %}> Работает</label>
+          {% if r.role == 'master' %}
+          <label class="check"><input type="checkbox" name="online_booking" {% if item.online %}checked{% endif %}> Онлайн-запись</label>
+          {% endif %}
+          {% if user.role == 'director' or user.id == r.id %}
+          <input type="password" name="password" placeholder="Новый пароль (необязательно)">
+          {% endif %}
+          <div class="emp-perms">
+            <b>Права</b>
+            <div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}" {% if r.role=='director' or user_perms.get(r.id,{}).get(key) %}checked{% endif %}> {{ title }}</label>{% endfor %}</div>
+          </div>
+          <div class="emp-perms">
+            <b>Услуги</b>
+            <div class="perm-list">{% for s in services %}<label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" {% if user_services.get(r.id,{}).get(s.id) %}checked{% endif %}> {{ s.name }}</label>{% endfor %}</div>
+          </div>
+          <button type="submit">Сохранить</button>
+        </form>
+      </details>
+    </article>
+    {% else %}
+    <p class="emp-empty">Сотрудники не найдены</p>
     {% endfor %}
   </div>
+
+  <details class="emp-add-fold" id="empAdd">
+    <summary>＋ Добавить сотрудника</summary>
+    <form method="post" class="form-grid emp-add-form">
+      <input name="full_name" placeholder="Имя" required>
+      <input name="username" placeholder="Логин" required>
+      <input name="password" type="password" placeholder="Пароль" required>
+      <select name="role">
+        <option value="master">Мастер</option>
+        <option value="admin">Администратор</option>
+        <option value="director">Директор</option>
+      </select>
+      <label class="check span4"><input type="checkbox" name="online_booking" checked> Участвует в онлайн-записи</label>
+      <div class="span4 emp-perms"><b>Права</b><div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}"> {{ title }}</label>{% endfor %}</div></div>
+      <div class="span4 emp-perms"><b>Услуги</b><div class="perm-list">{% for s in services %}<label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" checked> {{ s.name }}</label>{% endfor %}</div></div>
+      <button class="span4">Создать</button>
+    </form>
+  </details>
+
+  <details class="emp-schedule-fold">
+    <summary>Графики работы</summary>
+    <div class="card-surface emp-schedule-panel">
+      <h3>Недельный график</h3>
+      <form method="post">
+        <input type="hidden" name="form_type" value="weekly">
+        <select name="user_id" onchange="location.href='{{ url_for('employees', filter=emp_filter, q=q) }}&user_id='+this.value">
+          {% for r in raw_rows if r.active %}
+          <option value="{{ r.id }}" {% if selected_user==r.id %}selected{% endif %}>{{ r.full_name }}</option>
+          {% endfor %}
+        </select>
+        <div class="emp-week-grid">
+          {% for wd in range(7) %}
+          {% set w = weekly.get(selected_user, {}).get(wd) %}
+          <label>{{ weekdays[wd] }}</label>
+          <input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}">
+          <input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}">
+          <label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}> вых</label>
+          {% endfor %}
+        </div>
+        <button type="submit">Сохранить неделю</button>
+      </form>
+      <h3 style="margin-top:16px">График на дату</h3>
+      <form method="post" class="form-grid">
+        <input type="hidden" name="form_type" value="schedule">
+        <select name="user_id">{% for r in raw_rows if r.active %}<option value="{{ r.id }}">{{ r.full_name }}</option>{% endfor %}</select>
+        <input type="date" name="work_date" required>
+        <input type="time" name="start_time" value="09:00">
+        <input type="time" name="end_time" value="20:00">
+        <label class="check"><input type="checkbox" name="is_day_off"> выходной</label>
+        <input name="comment" placeholder="Комментарий" class="span4">
+        <button class="span4">Сохранить</button>
+      </form>
+    </div>
+  </details>
 </div>
 {% endblock %}

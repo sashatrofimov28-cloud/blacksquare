@@ -299,6 +299,109 @@ def list_low_stock_items(con, limit=4):
             break
     return rows
 
+EMPLOYEE_FILTERS = (
+    ('all', 'Все'),
+    ('master', 'Мастера'),
+    ('admin', 'Админы'),
+    ('director', 'Директор'),
+)
+
+def employee_role_meta(role):
+    return {
+        'master': ('Мастер', 'tone-green', 'master'),
+        'admin': ('Админ', 'tone-blue', 'admin'),
+        'director': ('Директор', 'tone-purple', 'director'),
+    }.get(role or 'master', ('Мастер', 'tone-green', 'master'))
+
+def employee_tenure_label(user):
+    ref = user['hired_at'] or user['created_at']
+    if not ref:
+        return '—'
+    try:
+        d = date.fromisoformat(str(ref)[:10])
+    except ValueError:
+        return '—'
+    days = (date.today() - d).days
+    years = days // 365
+    if years >= 1:
+        return f'Стаж {years} г.'
+    months = max(1, days // 30)
+    return f'Стаж {months} мес.'
+
+def enrich_employee(con, user, user_services_map, service_names):
+    role_label, role_tone, filter_key = employee_role_meta(user['role'])
+    svc_ids = [sid for sid, ok in user_services_map.get(user['id'], {}).items() if ok]
+    services = [service_names[int(sid)] for sid in svc_ids if int(sid) in service_names][:4]
+    closed = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE status='Закрыт' AND "
+        "(employee_id=? OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=appointments.id AND ae.employee_id=?))",
+        (user['id'], user['id']),
+    ).fetchone()['c']
+    return {
+        'user': user,
+        'role_label': role_label,
+        'role_tone': role_tone,
+        'filter_key': filter_key,
+        'initials': client_initials(user['full_name']),
+        'tenure': employee_tenure_label(user),
+        'closed_cnt': closed,
+        'services': services,
+        'online': user['online_booking'] is None or int(user['online_booking'] or 0) == 1,
+    }
+
+def analytics_period_bounds(period):
+    d = date.today()
+    if period == 'today':
+        s = e = d
+    elif period == 'week':
+        s = d - timedelta(days=d.weekday())
+        e = d
+    else:
+        s = d.replace(day=1)
+        e = d
+    return s.isoformat(), e.isoformat()
+
+def analytics_previous_bounds(period):
+    d = date.today()
+    if period == 'today':
+        prev = d - timedelta(days=1)
+        return prev.isoformat(), prev.isoformat()
+    if period == 'week':
+        end = d - timedelta(days=d.weekday() + 1)
+        start = end - timedelta(days=6)
+        return start.isoformat(), end.isoformat()
+    first = d.replace(day=1)
+    prev_end = first - timedelta(days=1)
+    return prev_end.replace(day=1).isoformat(), prev_end.isoformat()
+
+def analytics_extra_stats(con, start, end):
+    closed = con.execute(
+        "SELECT COUNT(*) c, COALESCE(SUM(price),0) rev FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?",
+        (start, end),
+    ).fetchone()
+    total = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status!='Отменен'",
+        (start, end),
+    ).fetchone()['c']
+    cancelled = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Отменен'",
+        (start, end),
+    ).fetchone()['c']
+    new_clients = con.execute(
+        "SELECT COUNT(*) c FROM clients WHERE date(created_at) BETWEEN ? AND ?",
+        (start, end),
+    ).fetchone()['c']
+    appts = int(closed['c'] or 0)
+    revenue = float(closed['rev'] or 0)
+    avg_check = revenue / appts if appts else 0
+    conversion = round(appts / total * 100, 1) if total else 0
+    return {
+        'avg_check': avg_check,
+        'new_clients': int(new_clients or 0),
+        'cancelled': int(cancelled or 0),
+        'conversion': conversion,
+    }
+
 def format_date_calendar_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
     return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year} {WEEKDAYS_LONG[d.weekday()].capitalize()}"
@@ -2467,6 +2570,7 @@ def inject():
         'months_ru': MONTHS_RU,
         'crm_status_tone': crm_status_tone,
         'client_initials': client_initials,
+        'employee_role_meta': employee_role_meta,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -3866,6 +3970,7 @@ def employees():
         return redirect(url_for('employees'))
     rows = con.execute("SELECT * FROM users ORDER BY active DESC, role, full_name").fetchall()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
+    service_names = {s['id']: s['name'] for s in services}
     schedules = con.execute("SELECT s.*,u.full_name FROM schedules s JOIN users u ON u.id=s.user_id ORDER BY work_date DESC LIMIT 100").fetchall()
     perms = {}; user_services = {}
     for r in con.execute("SELECT * FROM user_permissions").fetchall():
@@ -3876,7 +3981,35 @@ def employees():
     for r in con.execute("SELECT * FROM employee_weekly_schedule").fetchall():
         weekly.setdefault(r['user_id'], {})[r['weekday']] = r
     selected_user = request.args.get('user_id', type=int) or (rows[0]['id'] if rows else None)
-    con.close(); return render_template('employees.html', rows=rows, services=services, user_perms=perms, user_services=user_services, schedules=schedules, weekly=weekly, selected_user=selected_user)
+    emp_filter = request.args.get('filter', 'all')
+    if emp_filter not in {f[0] for f in EMPLOYEE_FILTERS}:
+        emp_filter = 'all'
+    eq = request.args.get('q', '').strip().lower()
+    enriched = [enrich_employee(con, r, user_services, service_names) for r in rows]
+    counts = {f[0]: 0 for f in EMPLOYEE_FILTERS}
+    for item in enriched:
+        counts[item['filter_key']] = counts.get(item['filter_key'], 0) + 1
+    counts['all'] = len(enriched)
+    if emp_filter != 'all':
+        enriched = [item for item in enriched if item['filter_key'] == emp_filter]
+    if eq:
+        enriched = [item for item in enriched if eq in (item['user']['full_name'] or '').lower() or eq in (item['user']['username'] or '').lower()]
+    con.close()
+    return render_template(
+        'employees.html',
+        rows=enriched,
+        raw_rows=rows,
+        services=services,
+        user_perms=perms,
+        user_services=user_services,
+        schedules=schedules,
+        weekly=weekly,
+        selected_user=selected_user,
+        emp_filter=emp_filter,
+        emp_filters=EMPLOYEE_FILTERS,
+        emp_counts=counts,
+        q=eq,
+    )
 
 @app.route('/employees/<int:uid>/update', methods=['POST'])
 @login_required
@@ -3902,7 +4035,24 @@ def employee_update(uid):
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))
     for sid in request.form.getlist('service_ids'):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
-    con.commit(); con.close(); flash('Сотрудник обновлен'); return redirect(url_for('employees'))
+    con.commit(); con.close(); flash('Сотрудник обновлен'); return redirect(url_for('employees', filter=request.form.get('filter', 'all'), q=request.form.get('q', '')))
+
+@app.route('/employees/<int:uid>/online', methods=['POST'])
+@login_required
+@perm_required('employees')
+def employee_toggle_online(uid):
+    con = db()
+    user = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not user or user['role'] != 'master':
+        con.close()
+        flash('Онлайн-запись только для мастеров')
+        return redirect(url_for('employees'))
+    online = 1 if request.form.get('online_booking') else 0
+    con.execute("UPDATE users SET online_booking=? WHERE id=?", (online, uid))
+    con.commit()
+    con.close()
+    flash('Онлайн-запись обновлена')
+    return redirect(url_for('employees', filter=request.form.get('filter', 'all'), q=request.form.get('q', '')))
 
 def detach_user_on_delete(con, uid):
     con.execute("DELETE FROM appointment_employees WHERE employee_id=?", (uid,))
@@ -4084,9 +4234,15 @@ def salary():
 @perm_required('analytics')
 def analytics():
     con = db()
-    month_start = date.today().replace(day=1).isoformat()
-    start = request.args.get('start') or month_start
-    end = request.args.get('end') or today()
+    period = request.args.get('period', 'month')
+    if period not in ('today', 'week', 'month'):
+        period = 'month'
+    if request.args.get('start') and request.args.get('end'):
+        start = request.args.get('start')
+        end = request.args.get('end')
+    else:
+        start, end = analytics_period_bounds(period)
+    prev_start, prev_end = analytics_previous_bounds(period)
     stats = {
         'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
         'profit': con.execute("SELECT COALESCE(SUM(profit),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (start,end)).fetchone()['s'],
@@ -4097,9 +4253,25 @@ def analytics():
         'stock_items': con.execute("SELECT COUNT(*) c FROM stock_items WHERE active=1").fetchone()['c'],
         'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Закрыт'", (start,end)).fetchone()['c'],
     }
+    prev_stats = {
+        'revenue': con.execute("SELECT COALESCE(SUM(price),0) s FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ?", (prev_start,prev_end)).fetchone()['s'],
+        'appointments': con.execute("SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Закрыт'", (prev_start,prev_end)).fetchone()['c'],
+    }
+    trends = {
+        'revenue': stat_trend_pct(stats['revenue'], prev_stats['revenue']),
+        'appointments': stat_trend_pct(stats['appointments'], prev_stats['appointments']),
+    }
+    extra = analytics_extra_stats(con, start, end)
+    prev_extra = analytics_extra_stats(con, prev_start, prev_end)
+    extra_trends = {
+        'avg_check': stat_trend_pct(extra['avg_check'], prev_extra['avg_check']),
+        'conversion': stat_trend_pct(extra['conversion'], prev_extra['conversion']),
+        'new_clients': stat_trend_pct(extra['new_clients'], prev_extra['new_clients']),
+        'cancelled': stat_trend_pct(extra['cancelled'], prev_extra['cancelled']),
+    }
     by_day = con.execute("SELECT appointment_date, COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(profit),0) profit, COALESCE(SUM(material_m2),0) m2, COALESCE(SUM(salary_amount),0) salary FROM appointments WHERE status='Закрыт' AND appointment_date BETWEEN ? AND ? GROUP BY appointment_date ORDER BY appointment_date DESC", (start,end)).fetchall()
     by_employee = con.execute(
-        "SELECT u.full_name, "
+        "SELECT u.id, u.full_name, "
         "COUNT(DISTINCT CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND "
         "(a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
         "THEN a.id END) cnt, "
@@ -4110,17 +4282,48 @@ def analytics():
         "COALESCE(SUM(CASE WHEN a.status='Закрыт' AND a.appointment_date BETWEEN ? AND ? AND a.employee_id=u.id THEN a.profit ELSE 0 END),0) profit "
         "FROM users u "
         "LEFT JOIN appointments a ON (a.employee_id=u.id OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=u.id)) "
-        "WHERE u.role='master' GROUP BY u.id ORDER BY revenue DESC",
+        "WHERE u.role='master' AND u.active=1 GROUP BY u.id ORDER BY revenue DESC",
         (start, end, start, end, start, end, start, end, start, end),
     ).fetchall()
+    max_rev = max((float(r['revenue'] or 0) for r in by_employee), default=0) or 1
+    master_bars = []
+    tones = CAL_TONES
+    for i, r in enumerate(by_employee):
+        rev = float(r['revenue'] or 0)
+        if rev <= 0 and int(r['cnt'] or 0) <= 0:
+            continue
+        master_bars.append({
+            'name': r['full_name'],
+            'revenue': rev,
+            'cnt': int(r['cnt'] or 0),
+            'pct': round(rev / max_rev * 100, 1),
+            'tone': tones[i % len(tones)],
+        })
     archived_days = {r['report_date']: r for r in con.execute("SELECT * FROM daily_reports WHERE report_date BETWEEN ? AND ? ORDER BY report_date DESC", (start, end)).fetchall()}
     day_detail = None
     day_archived = None
     if start == end:
         day_detail = compute_day_stats(con, start)
         day_archived = archived_days.get(start)
+    period_label = {'today': 'Сегодня', 'week': 'Неделя', 'month': 'Месяц'}.get(period, start)
     con.close()
-    return render_template('analytics.html', stats=stats, by_day=by_day, by_employee=by_employee, start=start, end=end, day_detail=day_detail, day_archived=day_archived, archived_days=archived_days)
+    return render_template(
+        'analytics.html',
+        stats=stats,
+        trends=trends,
+        extra=extra,
+        extra_trends=extra_trends,
+        by_day=by_day,
+        by_employee=by_employee,
+        master_bars=master_bars,
+        start=start,
+        end=end,
+        period=period,
+        period_label=period_label,
+        day_detail=day_detail,
+        day_archived=day_archived,
+        archived_days=archived_days,
+    )
 
 @app.route('/crm', methods=['GET','POST'])
 @login_required
