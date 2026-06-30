@@ -2753,6 +2753,10 @@ def index():
 def design_hub():
     return app.send_static_file('mockups/index.html')
 
+@app.route('/design/close')
+def design_close_variants():
+    return app.send_static_file('mockups/close-variants.html')
+
 @app.route('/design/v1')
 def design_roadmap():
     return app.send_static_file('mockups/roadmap.html')
