@@ -522,10 +522,16 @@
 
     if (form) {
       form.addEventListener('submit', function (e) {
+        if (window.BS_CLOSE_SKIP_MASTER_REQUIRED) return;
         if (!selected.size) {
           e.preventDefault();
           showMasterError(true);
           picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const msg = picker.querySelector('.master-required-hint');
+          if (msg) {
+            msg.hidden = false;
+            msg.textContent = 'Укажите хотя бы одного мастера';
+          }
         }
       });
     }

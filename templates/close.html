@@ -262,7 +262,18 @@ if (friendInput && friendHint) {
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
+window.BS_CLOSE_SKIP_MASTER_REQUIRED = true;
 if (priceInput) priceInput.addEventListener('input', recalcCloseTotals);
 recalcCloseTotals();
+
+const closeSubmitBtn = document.querySelector('.close-submit');
+const closeFormEl = document.getElementById('closeForm');
+if (closeSubmitBtn && closeFormEl && !closeFormEl.contains(closeSubmitBtn)) {
+  closeSubmitBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    if (closeFormEl.requestSubmit) closeFormEl.requestSubmit();
+    else closeFormEl.submit();
+  });
+}
 </script>
 {% endblock %}
