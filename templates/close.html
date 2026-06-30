@@ -1,75 +1,151 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
-  <h1>Закрыть запись</h1>
-  <p>{{ ap.client_name }} · {{ ap.plate_number }} · {{ ap.service_name }}</p>
-</header>
-
-{% if has_perm('extra_services') %}
-<div class="panel">
-  <h2>Дополнительные услуги</h2>
-  <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="form-grid">
-    <input name="extra_name" placeholder="Что добавили клиенту">
-    <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
-    <button>Добавить допуслугу</button>
-  </form>
-  <table>
-    <tr><th>Услуга</th><th>Сумма</th><th></th></tr>
-    {% for e in extras %}
-    <tr>
-      <td>{{ e.name }}</td>
-      <td>{{ "%.0f"|format(e.price) }} ₽</td>
-      <td><form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}"><button class="danger">Удалить</button></form></td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
-{% endif %}
-
-<div class="panel">
-  <form method="post" id="closeForm">
-    <h2>Материалы со склада</h2>
-    <p style="color:#666;font-size:14px;margin-top:0">Добавьте плёнку и расходники — столько позиций, сколько использовали.{% if is_master %} Доступ к разделу «Склад» для этого не нужен.{% endif %}</p>
-    <div id="materialRows" class="material-rows"></div>
-    <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
-
-    <div class="form-grid" style="margin-top:20px">
-      {% set master_form_id = 'closeForm' %}
-      {% include '_master_picker.html' %}
-      <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽ (своя)" required>
-      {% include '_salary_by_master.html' %}
-      <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
-      <div id="certBalance" class="hint span4">Введите номер сертификата — баланс появится здесь</div>
-      <input name="cert_amount" type="number" step="0.01" placeholder="Списать с сертификата ₽">
-      <input name="cert_comment" placeholder="Комментарий к сертификату">
-      {% if client_bonus and client_bonus.bonus_enabled %}
-      <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
-      <div id="bonusBalance" class="hint span4">Бонусы клиента: {{ "%.0f"|format(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }} · начисление {{ bonus_percent }}%</div>
-      {% endif %}
-      <input name="friend_discount_code" id="friendDiscountCode" placeholder="Скидка для друзей — код (4 цифры)" maxlength="4" inputmode="numeric" pattern="1[0-9]{3}">
-      <div id="friendDiscountHint" class="hint span4">Код скидки «Для друзей» — друг открывает свою карту и называет 4-значный код. Скидка {{ friend_discount_percent|int }}% от суммы заказа.</div>
-      <textarea name="comment" placeholder="Комментарий к визиту (видит директор в зарплате)" class="span4"></textarea>
-      <button>Закрыть запись</button>
+<div class="close-page">
+  <header class="close-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
+    <div>
+      <h1>Закрытие записи</h1>
+      <p>№{{ ap.id }} · {{ appt_date_label }} · {{ ap.start_time[:5] }}</p>
     </div>
-  </form>
-</div>
+  </header>
 
-<div class="notice">
-  <b>Плёнка:</b><span>длина (м) × ширина (см) = м². Расходники — количество в штуках.</span>
+  <div class="close-client card-surface">
+    <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
+    <div class="close-client-body">
+      <b>{{ ap.client_name }}</b>
+      <span>{{ ap.phone }}</span>
+      <span>{{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+      <span class="close-service">{{ ap.service_name }}</span>
+    </div>
+    <strong class="close-client-price">{{ format_money(ap.price or 0) }} ₽</strong>
+  </div>
+
+  {% if has_perm('extra_services') and extras %}
+  <section class="close-section card-surface">
+    <h2>Доп. услуги</h2>
+    <ul class="close-lines">
+      {% for e in extras %}
+      <li>
+        <span>{{ e.name }}</span>
+        <strong>{{ format_money(e.price) }} ₽</strong>
+        <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
+          <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <form method="post" id="closeForm" class="close-form">
+    <section class="close-section card-surface">
+      <h2>Мастера</h2>
+      {% set master_form_id = 'closeForm' %}
+      <div class="close-master-picker-wrap">
+        {% include '_master_picker.html' %}
+      </div>
+    </section>
+
+    <section class="close-section card-surface">
+      <h2>Зарплата мастеров</h2>
+      {% include '_salary_by_master.html' %}
+    </section>
+
+    <section class="close-section card-surface">
+      <div class="close-section-head">
+        <h2>Материалы</h2>
+        <span class="close-hint">Плёнка: м × см = м² · расходники — шт.</span>
+      </div>
+      <div id="materialRows" class="material-rows close-material-rows"></div>
+      <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
+    </section>
+
+    {% if has_perm('extra_services') %}
+    <section class="close-section card-surface">
+      <h2>Дополнительная услуга</h2>
+      <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form">
+        <input name="extra_name" placeholder="Что добавили">
+        <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
+        <button type="submit" class="close-mini-submit">Добавить</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="close-section card-surface close-cert-block">
+      <h2>Сертификат</h2>
+      <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
+      <div id="certBalance" class="close-hint">Введите номер — баланс появится здесь</div>
+      <div class="close-inline-form">
+        <input name="cert_amount" type="number" step="0.01" placeholder="Списать ₽">
+        <input name="cert_comment" placeholder="Комментарий">
+      </div>
+    </section>
+
+    {% if client_bonus and client_bonus.bonus_enabled %}
+    <section class="close-section card-surface">
+      <h2>Бонусы</h2>
+      <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
+      <div id="bonusBalance" class="close-hint">Баланс: {{ format_money(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }}</div>
+    </section>
+    {% endif %}
+
+    <section class="close-section card-surface">
+      <h2>Скидка для друзей</h2>
+      <input name="friend_discount_code" id="friendDiscountCode" placeholder="Код (4 цифры)" maxlength="4" inputmode="numeric" pattern="1[0-9]{3}">
+      <div id="friendDiscountHint" class="close-hint">Код с карты друга · скидка {{ friend_discount_percent|int }}%</div>
+    </section>
+
+    <section class="close-section card-surface">
+      <h2>Комментарий</h2>
+      <textarea name="comment" placeholder="Комментарий к визиту" rows="2"></textarea>
+    </section>
+
+    <div class="close-summary card-surface">
+      <div class="close-summary-item tone-blue">
+        <span>Услуга</span>
+        <input name="price" type="number" step="0.01" class="close-price-input" id="closePriceInput" value="{{ ap.price }}" required>
+      </div>
+      <div class="close-summary-item tone-blue">
+        <span>Расходники</span>
+        <strong id="closeSumMaterials">0 ₽</strong>
+      </div>
+      <div class="close-summary-item tone-green">
+        <span>Итого</span>
+        <strong id="closeSumTotal">{{ format_money(ap.price or 0) }} ₽</strong>
+      </div>
+    </div>
+
+    {% if low_stock %}
+    <section class="close-section close-stock-warn card-surface">
+      <h2>⚠ Низкий остаток</h2>
+      <div class="close-stock-grid">
+        {% for s in low_stock %}
+        <div class="close-stock-item">
+          <span>{{ s.item.name }}</span>
+          <div class="close-stock-bar"><i style="width:{{ s.percent }}%"></i></div>
+          <small>Остаток: {{ format_money(s.balance, 1) }} {{ s.unit }}</small>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <button type="submit" class="close-submit">Закрыть запись и сохранить ✓</button>
+  </form>
 </div>
 
 <script>
 const STOCK = {{ materials|map(attribute='id')|list|tojson }};
 const STOCK_DATA = {
   {% for m in materials %}
-  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }} },
+  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }}, price: {{ m.cost_per_unit or 0 }} },
   {% endfor %}
 };
 const IS_MASTER = {{ 'true' if is_master else 'false' }};
 
 function buildMaterialRow() {
   const wrap = document.createElement('div');
-  wrap.className = 'material-row';
+  wrap.className = 'material-row close-material-row';
   let opts = '<option value="">Выберите материал</option>';
   Object.keys(STOCK_DATA).forEach(id => {
     const m = STOCK_DATA[id];
@@ -81,11 +157,12 @@ function buildMaterialRow() {
     <input name="material_length_m" type="number" step="0.01" class="film-only" placeholder="Длина, м">
     <input name="material_width_cm" type="number" step="0.01" class="film-only" placeholder="Ширина, см">
     <input name="material_qty" type="number" step="0.01" class="cons-only" placeholder="Кол-во" style="display:none">
-    <button type="button" class="danger remove-mat">×</button>
+    <button type="button" class="close-line-del remove-mat" aria-label="Удалить">×</button>
   `;
   const sel = wrap.querySelector('.mat-select');
-  sel.addEventListener('change', () => toggleRowType(wrap));
-  wrap.querySelector('.remove-mat').addEventListener('click', () => wrap.remove());
+  sel.addEventListener('change', () => { toggleRowType(wrap); recalcCloseTotals(); });
+  wrap.querySelector('.remove-mat').addEventListener('click', () => { wrap.remove(); recalcCloseTotals(); });
+  wrap.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcCloseTotals));
   toggleRowType(wrap);
   return wrap;
 }
@@ -98,6 +175,29 @@ function toggleRowType(row) {
   row.querySelectorAll('.film-only').forEach(el => el.style.display = isFilm ? '' : 'none');
   const q = row.querySelector('.cons-only');
   if (q) q.style.display = isFilm ? 'none' : '';
+}
+
+function recalcCloseTotals() {
+  const price = parseFloat(document.getElementById('closePriceInput')?.value || 0);
+  let matCost = 0;
+  document.querySelectorAll('#materialRows .material-row').forEach(row => {
+    const id = row.querySelector('.mat-select').value;
+    const item = STOCK_DATA[id];
+    if (!item) return;
+    if (item.category === 'film') {
+      const len = parseFloat(row.querySelector('[name="material_length_m"]')?.value || 0);
+      const wid = parseFloat(row.querySelector('[name="material_width_cm"]')?.value || 0);
+      matCost += len * (wid / 100) * (item.price || 0);
+    } else {
+      const qty = parseFloat(row.querySelector('[name="material_qty"]')?.value || 0);
+      matCost += qty * (item.price || 0);
+    }
+  });
+  const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  const matEl = document.getElementById('closeSumMaterials');
+  const totalEl = document.getElementById('closeSumTotal');
+  if (matEl) matEl.textContent = fmt(matCost);
+  if (totalEl) totalEl.textContent = fmt(Math.max(price - matCost, 0));
 }
 
 document.getElementById('addMaterialBtn').addEventListener('click', () => {
@@ -123,7 +223,7 @@ const certBalance = document.getElementById('certBalance');
 if (certInput && certBalance) {
   certInput.addEventListener('input', async () => {
     const n = certInput.value.trim();
-    if (!n) { certBalance.textContent = 'Введите номер сертификата — баланс появится здесь'; return; }
+    if (!n) { certBalance.textContent = 'Введите номер — баланс появится здесь'; return; }
     const r = await fetch('/api/certificate_balance?number=' + encodeURIComponent(n));
     const d = await r.json();
     certBalance.textContent = d.ok ? ('Баланс: ' + Math.round(d.balance) + ' ₽ · ' + d.status) : d.message;
@@ -132,12 +232,12 @@ if (certInput && certBalance) {
 
 const friendInput = document.getElementById('friendDiscountCode');
 const friendHint = document.getElementById('friendDiscountHint');
-const priceInput = document.querySelector('input[name="price"]');
+const priceInput = document.getElementById('closePriceInput');
 if (friendInput && friendHint) {
   friendInput.addEventListener('input', async () => {
     const code = friendInput.value.trim();
     if (!code) {
-      friendHint.textContent = 'Код скидки «Для друзей» — друг открывает свою карту и называет 4-значный код. Скидка {{ friend_discount_percent|int }}% от суммы заказа.';
+      friendHint.textContent = 'Код с карты друга · скидка {{ friend_discount_percent|int }}%';
       friendHint.style.color = '';
       return;
     }
@@ -145,19 +245,20 @@ if (friendInput && friendHint) {
     const d = await r.json();
     if (!d.ok) {
       friendHint.textContent = d.message;
-      friendHint.style.color = '#c62828';
+      friendHint.style.color = '#ff3b30';
       return;
     }
     const price = parseFloat(priceInput?.value || 0);
     const off = price > 0 ? Math.round(price * d.percent / 100) : 0;
-    friendHint.textContent = 'Карта №' + d.card_number + ' · ' + d.name + ' · скидка ' + d.percent + '%' + (off ? ' (−' + off + ' ₽)' : '');
-    friendHint.style.color = '#2e7d32';
+    friendHint.textContent = 'Карта №' + d.card_number + ' · ' + d.name + ' · −' + off + ' ₽';
+    friendHint.style.color = '#00d97e';
   });
 }
-</script>
-<script>
+
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
+if (priceInput) priceInput.addEventListener('input', recalcCloseTotals);
+recalcCloseTotals();
 </script>
 {% endblock %}

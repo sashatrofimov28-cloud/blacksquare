@@ -1,56 +1,79 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top top-compact">
-  <h1>CRM</h1>
-</header>
+<div class="crm-page">
+  <header class="crm-header">
+    <div>
+      <p class="crm-kicker">CRM</p>
+      <h1>Клиенты</h1>
+    </div>
+    <a href="#crmAdd" class="crm-add-btn" aria-label="Добавить клиента">+</a>
+  </header>
 
-<details class="compact-fold panel-compact">
-  <summary>＋ Добавить клиента</summary>
-  <form method="post" class="compact-form">
-    <input name="name" placeholder="Имя" required>
-    <input name="phone" placeholder="Телефон">
-    <input name="car" placeholder="Авто">
-    <input name="plate_number" placeholder="Госномер">
-    <button>Добавить</button>
-    <details class="compact-more">
-      <summary>Дополнительно</summary>
-      <div class="compact-more-grid">
-        <select name="stage">
-          <option>Новый</option>
-          <option>Думает</option>
-          <option>Дорого</option>
-          <option>Вернуться позже</option>
-          <option>Записан</option>
-          <option>Отказ</option>
-        </select>
-        <input name="reason" placeholder="Причина">
-        <input name="source" placeholder="Источник">
-        <input name="comment" placeholder="Комментарий" class="span2">
-      </div>
-    </details>
+  <div class="crm-stats">
+    <div class="crm-stat tone-purple">
+      <span class="crm-stat-icon">👥</span>
+      <div><strong>{{ crm_stats.total }}</strong><span>клиентов</span></div>
+    </div>
+    <div class="crm-stat tone-blue">
+      <span class="crm-stat-icon">✦</span>
+      <div><strong>{{ crm_stats.new }}</strong><span>новых</span></div>
+    </div>
+  </div>
+
+  <form method="get" class="crm-search">
+    <input type="hidden" name="filter" value="{{ crm_filter }}">
+    <input name="q" value="{{ q }}" placeholder="Поиск клиентов…">
+    {% if q %}<a class="crm-search-clear" href="{{ url_for('crm', filter=crm_filter) }}">×</a>{% endif %}
   </form>
-</details>
 
-<div class="notice notice-compact">
-  <form method="get" class="inline inline-search">
-    <input name="q" value="{{ q }}" placeholder="Поиск: телефон, имя, авто, госномер">
-    <button class="ghost">Найти</button>
-  </form>
-</div>
-
-<div class="panel panel-compact">
-  <table class="table-compact">
-    <tr><th>Имя</th><th>Телефон</th><th>Бонусы</th><th>Стадия</th><th>Дата</th><th></th></tr>
-    {% for r in rows %}
-    <tr>
-      <td>{{ r.name }}</td>
-      <td>{{ r.phone }}</td>
-      <td>{% if r.bonus_code %}{{ "%.0f"|format(r.bonus_balance or 0) }} ₽{% else %}—{% endif %}</td>
-      <td>{{ r.stage }}</td>
-      <td>{{ r.created_at[:10] if r.created_at else '' }}</td>
-      <td><a class="mini-btn" href="{{ url_for('client_card', cid=r.id) }}">Карточка</a></td>
-    </tr>
+  <nav class="crm-filters scrollable-x" aria-label="Фильтр">
+    {% for key, label in crm_filters %}
+    <a href="{{ url_for('crm', filter=key, q=q) }}" class="crm-filter{% if crm_filter == key %} active{% endif %} {{ crm_status_tone(key) if key != 'all' else '' }}">
+      {{ label }}{% if crm_counts.get(key, 0) %} <em>{{ crm_counts.get(key, 0) }}</em>{% endif %}
+    </a>
     {% endfor %}
-  </table>
+  </nav>
+
+  <div class="crm-list">
+    {% for item in rows %}
+    {% set c = item.client %}
+    <a class="crm-card {{ item.status_tone }}" href="{{ url_for('client_card', cid=c.id) }}">
+      <div class="crm-card-avatar">{{ item.initials }}</div>
+      <div class="crm-card-body">
+        <div class="crm-card-top">
+          <b>{{ c.name }}</b>
+          {% if item.visit_at %}<span class="crm-card-date">{{ item.visit_at[:16] }}</span>{% endif %}
+        </div>
+        <span class="crm-card-phone">{{ c.phone or '—' }}</span>
+        <span class="crm-card-car">{{ item.car_label }}</span>
+        <span class="crm-pill {{ item.status_tone }}">{{ item.status_label }}</span>
+      </div>
+      {% if item.last_price %}<strong class="crm-card-price">{{ format_money(item.last_price) }} ₽</strong>{% endif %}
+    </a>
+    {% else %}
+    <p class="crm-empty">Клиенты не найдены</p>
+    {% endfor %}
+  </div>
+
+  <details class="crm-add-fold" id="crmAdd">
+    <summary>＋ Добавить клиента</summary>
+    <form method="post" class="form-grid crm-add-form">
+      <input name="name" placeholder="Имя" required>
+      <input name="phone" placeholder="Телефон">
+      <input name="car" placeholder="Авто">
+      <input name="plate_number" placeholder="Госномер">
+      <select name="stage">
+        <option>Новый</option>
+        <option>Думает</option>
+        <option>Дорого</option>
+        <option>Вернуться позже</option>
+        <option>Записан</option>
+        <option>Отказ</option>
+      </select>
+      <input name="source" placeholder="Источник">
+      <input name="comment" placeholder="Комментарий" class="span4">
+      <button class="span4">Добавить</button>
+    </form>
+  </details>
 </div>
 {% endblock %}

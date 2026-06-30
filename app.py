@@ -215,6 +215,90 @@ CAL_TONES = ('tone-green', 'tone-blue', 'tone-purple', 'tone-orange')
 def employee_tone(employee_id):
     return CAL_TONES[(employee_id or 0) % len(CAL_TONES)]
 
+CRM_FILTERS = (
+    ('all', 'Все'),
+    ('new', 'Новые'),
+    ('booked', 'Запись'),
+    ('active', 'В работе'),
+    ('done', 'Завершено'),
+    ('cancel', 'Отмена'),
+)
+
+def client_initials(name):
+    parts = (name or '?').split()
+    if len(parts) >= 2:
+        return (parts[0][:1] + parts[1][:1]).upper()
+    return (name or '?')[:2].upper()
+
+def crm_client_status(client, last_appt):
+    if last_appt:
+        st = last_appt['status'] or ''
+        if st == 'Закрыт':
+            return 'done', 'Завершено'
+        if st == 'Отменен':
+            return 'cancel', 'Отменён'
+        if st in ('В работе', 'Начат'):
+            return 'active', 'В работе'
+        if st == 'Записан':
+            return 'booked', 'Запись'
+    stage = (client['stage'] or 'Новый').strip()
+    if stage == 'Новый':
+        return 'new', 'Новый'
+    if stage == 'Записан':
+        return 'booked', 'Запись'
+    if stage == 'Отказ':
+        return 'cancel', 'Отказ'
+    return 'new', stage
+
+def crm_status_tone(key):
+    return {
+        'new': 'tone-blue',
+        'booked': 'tone-orange',
+        'active': 'tone-green',
+        'done': 'tone-green',
+        'cancel': 'tone-red',
+        'all': '',
+    }.get(key, 'tone-blue')
+
+def enrich_crm_client(con, client):
+    car = con.execute(
+        "SELECT car_model, plate_number FROM cars WHERE client_id=? ORDER BY id DESC LIMIT 1",
+        (client['id'],),
+    ).fetchone()
+    last_appt = con.execute(
+        "SELECT status, appointment_date, start_time, service_name, price FROM appointments WHERE client_id=? ORDER BY appointment_date DESC, start_time DESC LIMIT 1",
+        (client['id'],),
+    ).fetchone()
+    status_key, status_label = crm_client_status(client, last_appt)
+    car_label = ' · '.join(x for x in [car['car_model'] if car else None, car['plate_number'] if car else None] if x) or '—'
+    visit_at = ''
+    if last_appt and last_appt['appointment_date']:
+        visit_at = last_appt['appointment_date']
+        if last_appt['start_time']:
+            visit_at += ' ' + last_appt['start_time'][:5]
+    return {
+        'client': client,
+        'car_label': car_label,
+        'status_key': status_key,
+        'status_label': status_label,
+        'status_tone': crm_status_tone(status_key),
+        'initials': client_initials(client['name']),
+        'visit_at': visit_at,
+        'last_price': float(last_appt['price'] or 0) if last_appt else 0,
+    }
+
+def list_low_stock_items(con, limit=4):
+    rows = []
+    for item in con.execute("SELECT * FROM stock_items WHERE active=1 ORDER BY name").fetchall():
+        pct = stock_level_percent(item)
+        bal = float(item['balance'] or 0)
+        init = float(item['initial_balance'] or 0) or bal or 1
+        if pct <= 35 or (init and bal / init <= 0.35):
+            rows.append({'item': item, 'percent': pct, 'balance': bal, 'unit': item['unit']})
+        if len(rows) >= limit:
+            break
+    return rows
+
 def format_date_calendar_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
     return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year} {WEEKDAYS_LONG[d.weekday()].capitalize()}"
@@ -2381,6 +2465,8 @@ def inject():
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
         'months_ru': MONTHS_RU,
+        'crm_status_tone': crm_status_tone,
+        'client_initials': client_initials,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -2956,8 +3042,26 @@ def close_appointment(aid):
     employees = list_masters(con)
     selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
+    low_stock = list_low_stock_items(con)
     con.close()
-    return render_template('close.html', ap=ap, materials=materials, extras=extras, is_master=(u['role']=='master'), client_bonus=client_bonus, bonus_percent=global_bonus_percent(), friend_discount_percent=global_friend_discount_percent(), appointment_masters=appointment_masters, existing_salaries=existing_salaries, masters_json=masters_json, selected_employee_ids=selected_employee_ids, master_error=request.args.get('master_error') == '1')
+    return render_template(
+        'close.html',
+        ap=ap,
+        materials=materials,
+        extras=extras,
+        is_master=(u['role']=='master'),
+        client_bonus=client_bonus,
+        bonus_percent=global_bonus_percent(),
+        friend_discount_percent=global_friend_discount_percent(),
+        appointment_masters=appointment_masters,
+        existing_salaries=existing_salaries,
+        masters_json=masters_json,
+        employees=employees,
+        selected_employee_ids=selected_employee_ids,
+        master_error=request.args.get('master_error') == '1',
+        low_stock=low_stock,
+        appt_date_label=format_date_calendar_ru(ap['appointment_date']),
+    )
 
 @app.route('/api/friend_discount_check')
 @login_required
@@ -4035,11 +4139,30 @@ def crm():
         flash('Клиент добавлен в CRM')
         return redirect(url_for('crm'))
     q = request.args.get('q','').strip()
+    crm_filter = request.args.get('filter', 'all')
+    if crm_filter not in {f[0] for f in CRM_FILTERS}:
+        crm_filter = 'all'
     if q:
         rows = con.execute("SELECT DISTINCT c.* FROM clients c LEFT JOIN cars car ON car.client_id=c.id WHERE c.phone LIKE ? OR c.name LIKE ? OR car.plate_number LIKE ? OR car.car_model LIKE ? ORDER BY c.id DESC", [f'%{q}%']*4).fetchall()
     else:
         rows = con.execute("SELECT * FROM clients ORDER BY id DESC").fetchall()
-    con.close(); return render_template('crm.html', rows=rows, q=q)
+    enriched = [enrich_crm_client(con, r) for r in rows]
+    counts = {f[0]: 0 for f in CRM_FILTERS}
+    for item in enriched:
+        counts[item['status_key']] = counts.get(item['status_key'], 0) + 1
+    counts['all'] = len(enriched)
+    if crm_filter != 'all':
+        enriched = [item for item in enriched if item['status_key'] == crm_filter]
+    con.close()
+    return render_template(
+        'crm.html',
+        rows=enriched,
+        q=q,
+        crm_filter=crm_filter,
+        crm_filters=CRM_FILTERS,
+        crm_counts=counts,
+        crm_stats={'total': counts['all'], 'new': counts.get('new', 0)},
+    )
 
 
 @app.route('/crm/<int:cid>/bonus', methods=['POST'])
