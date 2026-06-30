@@ -11,6 +11,10 @@
 .close-gallery-hero h1{margin:0 0 8px;font-size:clamp(24px,4vw,34px);font-weight:900;letter-spacing:-.5px}
 .close-gallery-hero p{margin:0 auto;max-width:640px;color:#888;font-size:14px;line-height:1.5}
 .close-gallery-back{display:inline-block;margin-bottom:16px;color:#2ecc71;font-size:13px;font-weight:700;text-decoration:none}
+.close-collage-img{
+  display:block;max-width:min(720px,100%);margin:24px auto 0;
+  border-radius:16px;border:1px solid #222;
+}
 .close-variant-grid{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
   gap:28px;max-width:1200px;margin:0 auto;padding:28px 16px;
