@@ -184,6 +184,29 @@ PERMS = {
     'finance': 'Финансы',
 }
 
+BOTTOM_NAV_DEFAULT = ('calendar', 'crm', 'finance')
+
+BOTTOM_NAV_ITEMS = {
+    'calendar': {'label': 'Записи', 'icon': '📅', 'endpoint': 'calendar_view', 'perm': 'calendar',
+                 'active': ('calendar_view', 'close_appointment', 'edit_appointment')},
+    'crm': {'label': 'Клиенты', 'icon': '👥', 'endpoint': 'crm', 'perm': 'crm',
+            'active': ('crm', 'client_card')},
+    'finance': {'label': 'Финансы', 'icon': '💳', 'endpoint': 'finance', 'perm': 'finance',
+                'active': ('finance',)},
+    'salary': {'label': 'Зарплата', 'icon': '💰', 'endpoint': 'salary', 'perm': 'salary',
+               'active': ('salary',)},
+    'analytics': {'label': 'Статистика', 'icon': '📊', 'endpoint': 'analytics', 'perm': 'analytics',
+                  'active': ('analytics',)},
+    'stock': {'label': 'Склад', 'icon': '📦', 'endpoint': 'stock', 'perm': 'stock',
+              'active': ('stock',)},
+    'services': {'label': 'Услуги', 'icon': '✂️', 'endpoint': 'services', 'perm': 'services',
+                 'active': ('services',)},
+    'employees': {'label': 'Команда', 'icon': '👤', 'endpoint': 'employees', 'perm': 'employees',
+                  'active': ('employees',)},
+    'certificates': {'label': 'Сертификаты', 'icon': '🎁', 'endpoint': 'certificates', 'perm': 'certificates',
+                     'active': ('certificates',)},
+}
+
 WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 MONTHS_RU = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 MONTHS_RU_GEN = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
@@ -1028,6 +1051,10 @@ def migrate_db(c):
             if 'обучен' in name_l:
                 continue
             c.execute("UPDATE services SET category_id=? WHERE id=?", (tint_id, row['id']))
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS user_bottom_nav("
+        "user_id INTEGER PRIMARY KEY, slot2 TEXT, slot3 TEXT, slot4 TEXT)"
+    )
 
 def get_setting(key, default=''):
     con = db()
@@ -1211,6 +1238,84 @@ def has_perm(perm):
     if u['role'] == 'director': return True
     con = db(); r = con.execute("SELECT allowed FROM user_permissions WHERE user_id=? AND permission=?", (u['id'],perm)).fetchone(); con.close()
     return bool(r and r['allowed'])
+
+
+def bottom_nav_item_allowed(key):
+    meta = BOTTOM_NAV_ITEMS.get(key)
+    if not meta:
+        return False
+    return has_perm(meta['perm'])
+
+
+def get_user_bottom_nav_keys(user_id):
+    con = db()
+    row = con.execute("SELECT slot2, slot3, slot4 FROM user_bottom_nav WHERE user_id=?", (user_id,)).fetchone()
+    con.close()
+    if not row:
+        return list(BOTTOM_NAV_DEFAULT)
+    return [row['slot2'] or BOTTOM_NAV_DEFAULT[0],
+            row['slot3'] or BOTTOM_NAV_DEFAULT[1],
+            row['slot4'] or BOTTOM_NAV_DEFAULT[2]]
+
+
+def save_user_bottom_nav_keys(user_id, keys):
+    clean = []
+    seen = set()
+    for key in keys:
+        if key not in BOTTOM_NAV_ITEMS or key in seen:
+            continue
+        if not bottom_nav_item_allowed(key):
+            continue
+        clean.append(key)
+        seen.add(key)
+    defaults = [k for k in BOTTOM_NAV_DEFAULT if bottom_nav_item_allowed(k) and k not in seen]
+    for key in defaults:
+        if len(clean) >= 3:
+            break
+        clean.append(key)
+        seen.add(key)
+    while len(clean) < 3:
+        for key in BOTTOM_NAV_ITEMS:
+            if key not in seen and bottom_nav_item_allowed(key):
+                clean.append(key)
+                seen.add(key)
+                break
+        else:
+            break
+    slot2, slot3, slot4 = (clean + ['calendar', 'crm', 'finance'])[:3]
+    con = db()
+    con.execute(
+        "INSERT INTO user_bottom_nav(user_id,slot2,slot3,slot4) VALUES(?,?,?,?) "
+        "ON CONFLICT(user_id) DO UPDATE SET slot2=excluded.slot2,slot3=excluded.slot3,slot4=excluded.slot4",
+        (user_id, slot2, slot3, slot4),
+    )
+    con.commit()
+    con.close()
+    return slot2, slot3, slot4
+
+
+def build_bottom_nav_slots():
+    u = current_user()
+    if not u:
+        return []
+    endpoint = request.endpoint or ''
+    slots = []
+    for key in get_user_bottom_nav_keys(u['id']):
+        meta = BOTTOM_NAV_ITEMS.get(key)
+        if not meta or not bottom_nav_item_allowed(key):
+            continue
+        slots.append({
+            'key': key,
+            'label': meta['label'],
+            'icon': meta['icon'],
+            'href': url_for(meta['endpoint']),
+            'active': endpoint in meta['active'],
+        })
+    return slots
+
+
+def bottom_nav_choices_for_user():
+    return [(key, meta['label']) for key, meta in BOTTOM_NAV_ITEMS.items() if bottom_nav_item_allowed(key)]
 
 
 def mask_phone(phone):
@@ -2632,6 +2737,8 @@ def inject():
         'employee_role_meta': employee_role_meta,
         'studio_open_time': studio_open_time,
         'studio_close_time': studio_close_time,
+        'bottom_nav_slots': build_bottom_nav_slots(),
+        'bottom_nav_choices': bottom_nav_choices_for_user(),
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -3363,6 +3470,28 @@ def pay_certificate_for_appointment(con, aid, number, amount, comment):
 
 CERT_TEMPLATE_PATH = BASE_DIR / 'static' / 'certificate_template.pdf'
 CERT_LAYOUT_PATH = BASE_DIR / 'static' / 'certificate_layout.json'
+
+def store_certificate_template(file_storage):
+    if not file_storage or not file_storage.filename:
+        return False, 'Выберите PDF-файл'
+    if not file_storage.filename.lower().endswith('.pdf'):
+        return False, 'Нужен файл PDF'
+    CERT_TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    file_storage.save(str(CERT_TEMPLATE_PATH))
+    if CERT_LAYOUT_PATH.exists():
+        CERT_LAYOUT_PATH.unlink()
+    try:
+        import fitz
+        doc = fitz.open(str(CERT_TEMPLATE_PATH))
+        save_certificate_layout(doc[0])
+        doc.close()
+    except Exception:
+        pass
+    return True, 'Шаблон сертификата загружен'
+
+def certificate_has_template():
+    return CERT_TEMPLATE_PATH.exists() and CERT_TEMPLATE_PATH.stat().st_size > 500
+
 STOCK_UPLOAD_DIR = BASE_DIR / 'static' / 'uploads' / 'stock'
 STOCK_PHOTO_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 
@@ -3803,7 +3932,7 @@ def certificates():
             if nominal <= 0:
                 con.close()
                 flash('Укажите сумму сертификата')
-                return redirect(url_for('certificates'))
+                return redirect(url_for('certificates', tab='create'))
             number = make_certificate_number(con)
             try:
                 con.execute(
@@ -3822,49 +3951,33 @@ def certificates():
             except sqlite3.IntegrityError:
                 con.close()
                 flash('Не удалось создать сертификат — повторите')
+                return redirect(url_for('certificates', tab='create'))
         elif action == 'upload_template':
             if u['role'] != 'director':
                 con.close()
                 flash('Только директор может менять шаблон PDF')
-                return redirect(url_for('certificates'))
-            f = request.files.get('template_pdf')
-            if not f or not f.filename:
-                con.close()
-                flash('Выберите PDF-файл')
-                return redirect(url_for('certificates'))
-            if not f.filename.lower().endswith('.pdf'):
-                con.close()
-                flash('Нужен файл PDF')
-                return redirect(url_for('certificates'))
-            CERT_TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-            f.save(str(CERT_TEMPLATE_PATH))
-            if CERT_LAYOUT_PATH.exists():
-                CERT_LAYOUT_PATH.unlink()
-            try:
-                import fitz
-                doc = fitz.open(str(CERT_TEMPLATE_PATH))
-                save_certificate_layout(doc[0])
-                doc.close()
-            except Exception:
-                pass
+                return redirect(url_for('certificates', tab='list'))
+            ok, msg = store_certificate_template(request.files.get('template_pdf'))
             con.close()
-            flash('Шаблон сертификата загружен')
+            flash(msg if ok else msg)
+            return redirect(url_for('certificates', tab='list'))
         elif action == 'delete':
             if u['role'] != 'director':
                 con.close()
                 flash('Только директор может удалять сертификаты')
-                return redirect(url_for('certificates'))
+                return redirect(url_for('certificates', tab='list'))
             cid = int(request.form.get('cert_id') or 0)
             cert = con.execute("SELECT id,cert_number FROM certificates WHERE id=?", (cid,)).fetchone()
             if not cert:
                 con.close()
                 flash('Сертификат не найден')
-                return redirect(url_for('certificates'))
+                return redirect(url_for('certificates', tab='list'))
             con.execute("DELETE FROM certificate_moves WHERE certificate_id=?", (cid,))
             con.execute("DELETE FROM certificates WHERE id=?", (cid,))
             con.commit()
             con.close()
             flash(f'Сертификат №{cert["cert_number"]} удалён')
+            return redirect(url_for('certificates', tab='list'))
         elif action == 'pay':
             return certificate_pay_internal(con)
         con.close()
@@ -3872,9 +3985,12 @@ def certificates():
     rows = con.execute("SELECT * FROM certificates ORDER BY id DESC").fetchall()
     moves = con.execute("SELECT cm.*,c.cert_number,u.full_name user_name FROM certificate_moves cm LEFT JOIN certificates c ON c.id=cm.certificate_id LEFT JOIN users u ON u.id=cm.user_id ORDER BY cm.id DESC LIMIT 100").fetchall()
     appointments = con.execute("SELECT id,appointment_date,start_time,client_name,plate_number,service_name FROM appointments WHERE status!='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 50").fetchall()
-    has_template = CERT_TEMPLATE_PATH.exists() and CERT_TEMPLATE_PATH.stat().st_size > 500
+    has_template = certificate_has_template()
+    cert_tab = request.args.get('tab', 'create')
+    if cert_tab not in ('create', 'list', 'pay', 'moves'):
+        cert_tab = 'create'
     con.close()
-    return render_template('certificates.html', rows=rows, moves=moves, appointments=appointments, has_template=has_template, is_director=(u['role'] == 'director'))
+    return render_template('certificates.html', rows=rows, moves=moves, appointments=appointments, has_template=has_template, is_director=(u['role'] == 'director'), cert_tab=cert_tab)
 
 @app.route('/certificates/<int:cid>/pdf')
 @login_required
@@ -3885,11 +4001,11 @@ def certificate_pdf(cid):
     con.close()
     if not cert:
         flash('Сертификат не найден')
-        return redirect(url_for('certificates'))
+        return redirect(url_for('certificates', tab='list'))
     pdf = render_certificate_pdf(cert['cert_number'], cert['nominal'])
     if not pdf:
         flash('Не удалось сформировать PDF')
-        return redirect(url_for('certificates'))
+        return redirect(url_for('certificates', tab='list'))
     return send_file(
         io.BytesIO(pdf),
         mimetype='application/pdf',
@@ -3901,16 +4017,16 @@ def certificate_pay_internal(con):
     number = request.form['cert_number'].strip().upper(); amount = float(request.form.get('amount') or 0); aid = request.form.get('appointment_id') or None
     cert = con.execute("SELECT * FROM certificates WHERE cert_number=? AND status='Активен'", (number,)).fetchone()
     if not cert:
-        flash('Сертификат не найден или не активен'); con.close(); return redirect(url_for('certificates'))
+        flash('Сертификат не найден или не активен'); con.close(); return redirect(url_for('certificates', tab='pay'))
     if cert['balance'] < amount:
-        flash(f'Недостаточно средств. Остаток: {cert["balance"]:.0f} ₽'); con.close(); return redirect(url_for('certificates'))
+        flash(f'Недостаточно средств. Остаток: {cert["balance"]:.0f} ₽'); con.close(); return redirect(url_for('certificates', tab='pay'))
     new_balance = cert['balance'] - amount; status = 'Использован' if new_balance <= 0 else 'Активен'
     con.execute("UPDATE certificates SET balance=?, status=? WHERE id=?", (new_balance,status,cert['id']))
     con.execute("INSERT INTO certificate_moves(certificate_id,appointment_id,user_id,amount,move_type,comment,created_at) VALUES(?,?,?,?,?,?,?)", (cert['id'],aid,current_user()['id'],-amount,'Списание',request.form.get('comment',''),now()))
     if aid:
         con.execute("UPDATE appointments SET certificate_paid=certificate_paid+? WHERE id=?", (amount,aid))
-    con.commit(); flash(f'Списано {amount:.0f} ₽. Остаток: {new_balance:.0f} ₽')
-    con.close(); return redirect(url_for('certificates'))
+    con.commit();     flash(f'Списано {amount:.0f} ₽. Остаток: {new_balance:.0f} ₽')
+    con.close(); return redirect(url_for('certificates', tab='list'))
 
 @app.route('/services', methods=['GET','POST'])
 @login_required
@@ -4630,6 +4746,15 @@ def profile():
     u = current_user()
     if request.method == 'POST':
         form_type = request.form.get('form_type', 'password')
+        if form_type == 'bottom_nav':
+            keys = [
+                request.form.get('nav_slot2', BOTTOM_NAV_DEFAULT[0]),
+                request.form.get('nav_slot3', BOTTOM_NAV_DEFAULT[1]),
+                request.form.get('nav_slot4', BOTTOM_NAV_DEFAULT[2]),
+            ]
+            save_user_bottom_nav_keys(u['id'], keys)
+            flash('Нижнее меню сохранено')
+            return redirect(url_for('profile'))
         if form_type == 'notifications' and u['role'] == 'director':
             con = db()
             con.execute(
@@ -4698,7 +4823,17 @@ def profile():
         for r in con.execute("SELECT employee_id, enabled FROM director_employee_notify WHERE director_id=?", (u['id'],)).fetchall():
             notify_employees[r['employee_id']] = r['enabled']
     con.close()
-    return render_template('profile.html', weekly=weekly_rows, notify_prefs=notify_prefs, masters=masters, notify_employees=notify_employees)
+    nav_keys = get_user_bottom_nav_keys(u['id'])
+    return render_template(
+        'profile.html',
+        weekly=weekly_rows,
+        notify_prefs=notify_prefs,
+        masters=masters,
+        notify_employees=notify_employees,
+        nav_slot2=nav_keys[0],
+        nav_slot3=nav_keys[1],
+        nav_slot4=nav_keys[2],
+    )
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -4732,6 +4867,10 @@ def settings():
                 flash('База восстановлена из резервной копии')
             else:
                 flash('Не найдена резервная копия с данными')
+        elif action == 'cert_template':
+            ok, msg = store_certificate_template(request.files.get('template_pdf'))
+            flash(msg)
+            return redirect(url_for('settings'))
         elif action == 'studio_hours':
             open_t = normalize_studio_time(request.form.get('studio_open_time'), STUDIO_OPEN_DEFAULT)
             close_t = normalize_studio_time(request.form.get('studio_close_time'), STUDIO_CLOSE_DEFAULT)
@@ -4870,6 +5009,7 @@ def settings():
         friend_discount_percent=friend_discount_percent,
         friend_cards=friend_cards,
         clients=clients,
+        cert_has_template=certificate_has_template(),
     )
 
 

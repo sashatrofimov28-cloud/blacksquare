@@ -33,6 +33,38 @@
   </div>
 </div>
 
+<div class="panel profile-card">
+  <h2>Нижнее меню</h2>
+  <p style="color:#666;font-size:14px;margin-top:0">На телефоне внизу — 3 вкладки на ваш выбор (кроме «Главная» и «Ещё»). Например, вместо «Финансы» — «Статистика» или «Склад».</p>
+  <form method="post">
+    <input type="hidden" name="form_type" value="bottom_nav">
+    <div class="nav-pref-grid">
+      <label>Вкладка 2
+        <select name="nav_slot2">
+          {% for key, label in bottom_nav_choices %}
+          <option value="{{ key }}" {% if nav_slot2 == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Вкладка 3
+        <select name="nav_slot3">
+          {% for key, label in bottom_nav_choices %}
+          <option value="{{ key }}" {% if nav_slot3 == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Вкладка 4
+        <select name="nav_slot4">
+          {% for key, label in bottom_nav_choices %}
+          <option value="{{ key }}" {% if nav_slot4 == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <button style="margin-top:12px">Сохранить меню</button>
+  </form>
+</div>
+
 {% if user.role == 'director' %}
 <div class="panel profile-card">
   <h2>Уведомления директора</h2>

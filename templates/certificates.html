@@ -1,97 +1,101 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Сертификаты</h1><p>Создание PDF-сертификатов и списание</p></header>
+<div class="cert-page">
+  <header class="cert-header">
+    <div>
+      <p class="cert-kicker">Подарочные</p>
+      <h1>Сертификаты</h1>
+    </div>
+  </header>
 
-{% if is_director %}
-<div class="panel">
-  <h2>Шаблон PDF</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Загрузите свой PDF-шаблон один раз. При создании сертификата система сама проставит
-    <b>номер</b> (справа вверху) и <b>сумму</b> (поле «СУММА») и сохранит запись в базе.
-  </p>
-  {% if has_template %}
-  <p class="hint" style="color:#2e7d32;margin-bottom:12px">Шаблон загружен — можно создавать сертификаты</p>
-  {% else %}
-  <p class="hint" style="color:#c62828;margin-bottom:12px">Шаблон не загружен — будет использован простой встроенный макет</p>
-  {% endif %}
-  <form method="post" enctype="multipart/form-data" class="form-grid">
-    <input type="hidden" name="action" value="upload_template">
-    <input type="file" name="template_pdf" accept="application/pdf,.pdf" required class="span3">
-    <button class="ghost">Загрузить шаблон PDF</button>
-  </form>
-</div>
-{% endif %}
+  <nav class="cert-tabs scrollable-x" aria-label="Раздел">
+    <a href="{{ url_for('certificates', tab='create') }}" class="cert-tab{% if cert_tab == 'create' %} active{% endif %}">Создать</a>
+    <a href="{{ url_for('certificates', tab='list') }}" class="cert-tab{% if cert_tab == 'list' %} active{% endif %}">Список <em>{{ rows|length }}</em></a>
+    <a href="{{ url_for('certificates', tab='pay') }}" class="cert-tab{% if cert_tab == 'pay' %} active{% endif %}">Списать</a>
+    <a href="{{ url_for('certificates', tab='moves') }}" class="cert-tab{% if cert_tab == 'moves' %} active{% endif %}">Движение</a>
+  </nav>
 
-<div class="panel">
-  <h2>Создать сертификат</h2>
-  <p class="hint" style="margin-bottom:12px">Укажите только сумму — номер присвоится автоматически, PDF скачается сразу после создания.</p>
-  <form method="post" class="form-grid">
-    <input type="hidden" name="action" value="create">
-    <input name="nominal" type="number" step="1" min="1" placeholder="Сумма сертификата, ₽" required>
-    <input name="client_name" placeholder="Клиент (необязательно)">
-    <input name="phone" placeholder="Телефон (необязательно)">
-    <input name="comment" placeholder="Комментарий" class="span4">
-    <button>Создать сертификат</button>
-  </form>
-</div>
+  {% if cert_tab == 'create' %}
+  <section class="cert-section card-surface">
+    <h2>Новый сертификат</h2>
+    <p class="cert-hint">Укажите сумму — номер присвоится автоматически, PDF скачается сразу.</p>
+    <form method="post" class="cert-form">
+      <input type="hidden" name="action" value="create">
+      <input name="nominal" type="number" step="1" min="1" placeholder="Сумма, ₽" required>
+      <input name="client_name" placeholder="Клиент (необязательно)">
+      <input name="phone" placeholder="Телефон">
+      <input name="comment" placeholder="Комментарий">
+      <button>Создать и скачать PDF</button>
+    </form>
+    {% if is_director %}
+    <p class="cert-hint subtle">Шаблон PDF настраивается в <a href="{{ url_for('settings') }}">Настройках</a>{% if has_template %} · загружен ✓{% endif %}</p>
+    {% endif %}
+  </section>
 
-<div class="panel">
-  <h2>Расчёт по сертификату</h2>
-  <form method="post" class="form-grid">
-    <input type="hidden" name="action" value="pay">
-    <input name="cert_number" placeholder="Номер сертификата" required>
-    <input name="amount" type="number" step="0.01" placeholder="Сумма списания ₽" required>
-    <select name="appointment_id">
-      <option value="">Не привязывать к записи</option>
-      {% for a in appointments %}
-      <option value="{{ a.id }}">{{ a.appointment_date }} {{ a.start_time }} — {{ a.client_name }} {{ a.plate_number }} — {{ a.service_name }}</option>
-      {% endfor %}
-    </select>
-    <input name="comment" placeholder="Комментарий">
-    <button>Списать</button>
-  </form>
-</div>
-
-<div class="panel">
-  <table>
-    <tr><th>Номер</th><th>Номинал</th><th>Баланс</th><th>Статус</th><th>Клиент</th><th>Телефон</th><th></th>{% if is_director %}<th></th>{% endif %}</tr>
+  {% elif cert_tab == 'list' %}
+  <div class="cert-list">
     {% for r in rows %}
-    <tr>
-      <td>{{ r.cert_number }}</td>
-      <td>{{ "%.0f"|format(r.nominal) }} ₽</td>
-      <td><b>{{ "%.0f"|format(r.balance) }} ₽</b></td>
-      <td>{{ r.status }}</td>
-      <td>{{ r.client_name }}</td>
-      <td>{{ r.phone }}</td>
-      <td><a href="{{ url_for('certificate_pdf', cid=r.id) }}">PDF</a></td>
-      {% if is_director %}
-      <td>
+    <article class="cert-card card-surface">
+      <div class="cert-card-top">
+        <b>№{{ r.cert_number }}</b>
+        <span class="cert-status {{ 'active' if r.status == 'Активен' else 'used' }}">{{ r.status }}</span>
+      </div>
+      <div class="cert-card-bal">
+        <strong>{{ "%.0f"|format(r.balance) }} ₽</strong>
+        <span>из {{ "%.0f"|format(r.nominal) }} ₽</span>
+      </div>
+      {% if r.client_name or r.phone %}
+      <p class="cert-card-client">{{ r.client_name or '—' }}{% if r.phone %} · {{ r.phone }}{% endif %}</p>
+      {% endif %}
+      <div class="cert-card-actions">
+        <a href="{{ url_for('certificate_pdf', cid=r.id) }}" class="mini-btn ghost">PDF</a>
+        {% if is_director %}
         <form method="post" onsubmit="return confirm('Удалить сертификат №{{ r.cert_number }}?')">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="cert_id" value="{{ r.id }}">
-          <button class="danger">Удалить</button>
+          <button type="submit" class="danger mini-btn">Удалить</button>
         </form>
-      </td>
-      {% endif %}
-    </tr>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p class="cert-empty">Сертификатов пока нет</p>
     {% endfor %}
-  </table>
-</div>
+  </div>
 
-<div class="panel">
-  <h2>Движение</h2>
-  <table>
-    <tr><th>Дата</th><th>Сертификат</th><th>Сумма</th><th>Тип</th><th>Кто</th><th>Комментарий</th></tr>
+  {% elif cert_tab == 'pay' %}
+  <section class="cert-section card-surface">
+    <h2>Списать с сертификата</h2>
+    <form method="post" class="cert-form">
+      <input type="hidden" name="action" value="pay">
+      <input name="cert_number" placeholder="Номер сертификата" required>
+      <input name="amount" type="number" step="0.01" placeholder="Сумма списания ₽" required>
+      <select name="appointment_id">
+        <option value="">Не привязывать к записи</option>
+        {% for a in appointments %}
+        <option value="{{ a.id }}">{{ a.appointment_date }} {{ a.start_time }} — {{ a.client_name }}</option>
+        {% endfor %}
+      </select>
+      <input name="comment" placeholder="Комментарий">
+      <button>Списать</button>
+    </form>
+  </section>
+
+  {% elif cert_tab == 'moves' %}
+  <div class="cert-moves">
     {% for m in moves %}
-    <tr>
-      <td>{{ m.created_at }}</td>
-      <td>{{ m.cert_number }}</td>
-      <td>{{ "%.0f"|format(m.amount) }} ₽</td>
-      <td>{{ m.move_type }}</td>
-      <td>{{ m.user_name }}</td>
-      <td>{{ m.comment }}</td>
-    </tr>
+    <article class="cert-move card-surface">
+      <div class="cert-move-top">
+        <b>{{ m.created_at[:16] if m.created_at else '—' }}</b>
+        <strong class="{% if m.amount < 0 %}down{% else %}up{% endif %}">{{ "%.0f"|format(m.amount) }} ₽</strong>
+      </div>
+      <span>№{{ m.cert_number or '—' }} · {{ m.move_type }}</span>
+      <span>{{ m.user_name or '—' }}{% if m.comment %} · {{ m.comment }}{% endif %}</span>
+    </article>
+    {% else %}
+    <p class="cert-empty">Движений пока нет</p>
     {% endfor %}
-  </table>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

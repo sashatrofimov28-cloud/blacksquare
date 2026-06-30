@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=22">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=23">
   <style>
     @media (min-width: 1025px) {
       .app-shell {
@@ -93,9 +93,9 @@
     </main>
     <nav class="bottom-nav" aria-label="Навигация">
       <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
-      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="bottom-nav-item{% if request.endpoint=='calendar_view' %} active{% endif %}"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>{% endif %}
-      {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="bottom-nav-item{% if request.endpoint in ['crm','client_card'] %} active{% endif %}"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>{% endif %}
-      {% if has_perm('finance') or has_perm('salary') %}<a href="{{ url_for('finance') if has_perm('finance') else url_for('salary') }}" class="bottom-nav-item{% if request.endpoint in ['finance','salary'] %} active{% endif %}"><span class="bottom-nav-icon">💳</span><span>Финансы</span></a>{% endif %}
+      {% for slot in bottom_nav_slots %}
+      <a href="{{ slot.href }}" class="bottom-nav-item{% if slot.active %} active{% endif %}"><span class="bottom-nav-icon">{{ slot.icon }}</span><span>{{ slot.label }}</span></a>
+      {% endfor %}
       <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
     </nav>
   </div>

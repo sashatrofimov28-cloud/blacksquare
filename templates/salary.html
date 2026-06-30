@@ -1,52 +1,70 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Зарплаты</h1><p>Полная информация по каждому визиту</p></header>
+<div class="sal-page">
+  <header class="sal-header">
+    <div>
+      <p class="sal-kicker">Выплаты</p>
+      <h1>Зарплаты</h1>
+    </div>
+  </header>
 
-<section class="cards">
-  {% for t in totals %}
-  <a href="{{ url_for('salary', employee_id=t.id) }}" class="card card-link {% if employee_id==t.id %}active-card{% endif %}">
-    <span>{{ t.full_name }}</span><strong>{{ "%.0f"|format(t.total) }} ₽</strong>
-  </a>
-  {% endfor %}
-</section>
+  <div class="sal-totals scrollable-x">
+    {% for t in totals %}
+    <a href="{{ url_for('salary', employee_id=t.id) }}" class="sal-total-card card-surface{% if employee_id==t.id %} active{% endif %}">
+      <span>{{ t.full_name }}</span>
+      <strong>{{ format_money(t.total) }} ₽</strong>
+    </a>
+    {% endfor %}
+  </div>
 
-<div class="notice">
-  <form method="get" class="inline">
+  <form method="get" class="sal-filter">
     <select name="employee_id" onchange="this.form.submit()">
       <option value="">Все сотрудники</option>
       {% for e in employees %}
       <option value="{{ e.id }}" {% if employee_id==e.id %}selected{% endif %}>{{ e.full_name }}</option>
       {% endfor %}
     </select>
-    {% if employee_id %}<a class="mini-btn ghost" href="{{ url_for('salary') }}">Сбросить фильтр</a>{% endif %}
+    {% if employee_id %}<a class="sal-filter-clear" href="{{ url_for('salary') }}">×</a>{% endif %}
   </form>
-</div>
 
-<div class="panel">
-  <table>
-    <tr><th>Сотрудник</th><th>Визит</th><th>ЗП</th><th>Записано</th><th>Закрыто</th><th>Детали</th></tr>
+  <div class="sal-list">
     {% for r in rows %}
-    <tr>
-      <td>{{ r.employee_name }}</td>
-      <td>{% if r.appointment_date %}<b>{{ r.appointment_date }}</b> {{ r.start_time }}–{{ r.end_time }}<br>{{ r.client_name }} · {{ r.plate_number }}<br>{{ r.service_name }}{% else %}—{% endif %}</td>
-      <td><b>{{ "%.0f"|format(r.amount) }} ₽</b><br><small>{{ r.period }}</small></td>
-      <td>{{ r.created_at }}</td>
-      <td>{{ r.closed_at or '—' }}</td>
-      <td>
-        {% set d = details.get(r.id, {}) %}
-        <div class="salary-detail">
-          <dl>
-            <dt>Комментарий</dt><dd>{{ r.visit_comment or r.comment or '—' }}</dd>
-            <dt>Сумма заказа</dt><dd>{{ "%.0f"|format(r.price or 0) }} ₽</dd>
-            <dt>Допуслуги</dt><dd>{{ "%.0f"|format(r.extras_total or 0) }} ₽</dd>
-            <dt>Сертификат</dt><dd>{{ "%.0f"|format(r.certificate_paid or 0) }} ₽</dd>
-            <dt>Материалы</dt>
-            <dd>{% if d.materials %}{% for m in d.materials %}{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}<br>{% endfor %}{% elif r.material_m2 %}{{ "%.2f"|format(r.material_m2) }} м²{% else %}—{% endif %}</dd>
-          </dl>
+    {% set d = details.get(r.id, {}) %}
+    <details class="sal-card card-surface">
+      <summary class="sal-card-summary">
+        <div class="sal-card-main">
+          <b>{{ r.employee_name }}</b>
+          {% if r.appointment_date %}
+          <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}</span>
+          <span>{{ r.client_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+          <span class="sal-service">{{ r.service_name or '—' }}</span>
+          {% else %}
+          <span>{{ r.period or 'Начисление' }}</span>
+          {% endif %}
         </div>
-      </td>
-    </tr>
+        <strong class="sal-amount">{{ format_money(r.amount) }} ₽</strong>
+      </summary>
+      <div class="sal-card-details">
+        <div><span>Записано</span><b>{{ r.created_at[:16] if r.created_at else '—' }}</b></div>
+        <div><span>Закрыто</span><b>{{ r.closed_at[:16] if r.closed_at else '—' }}</b></div>
+        <div><span>Сумма заказа</span><b>{{ format_money(r.price or 0) }} ₽</b></div>
+        <div><span>Допуслуги</span><b>{{ format_money(r.extras_total or 0) }} ₽</b></div>
+        <div><span>Сертификат</span><b>{{ format_money(r.certificate_paid or 0) }} ₽</b></div>
+        {% if d.materials %}
+        <div class="sal-materials"><span>Материалы</span>
+          {% for m in d.materials %}<b>{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}</b>{% endfor %}
+        </div>
+        {% elif r.material_m2 %}
+        <div><span>Материалы</span><b>{{ format_money(r.material_m2, 1) }} м²</b></div>
+        {% endif %}
+        {% if r.visit_comment or r.comment %}
+        <div class="sal-comment"><span>Комментарий</span><b>{{ r.visit_comment or r.comment }}</b></div>
+        {% endif %}
+      </div>
+    </details>
+    {% else %}
+    <p class="sal-empty">Начислений пока нет</p>
     {% endfor %}
-  </table>
+  </div>
 </div>
 {% endblock %}
