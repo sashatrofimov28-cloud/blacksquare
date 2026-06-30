@@ -41,7 +41,7 @@
       <div class="cal-grid" data-selected-date="{{ selected }}">
         <div class="cal-slots" aria-hidden="true">
           {% for slot in timeline.slots %}
-          <button type="button" class="cal-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" tabindex="-1" aria-hidden="true"></button>
+          <div class="cal-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" role="button" tabindex="-1" aria-hidden="true"></div>
           {% endfor %}
         </div>
         {% for h in timeline.hours %}
