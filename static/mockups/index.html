@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlackSquare — дизайн-макеты</title>
+  <link rel="stylesheet" href="/static/mockups/roadmap.css">
+  <style>
+    .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; max-width: 800px; }
+    .hub-link {
+      display: block; padding: 24px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .2s;
+    }
+    .hub-link:hover { border-color: var(--green); }
+    .hub-link h2 { margin: 0 0 8px; font-size: 20px; }
+    .hub-link p { margin: 0; font-size: 13px; color: var(--muted); }
+    .hub-link .tag { display: inline-block; margin-top: 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--green); }
+    .hub-link.v2 .tag { color: var(--blue); }
+  </style>
+</head>
+<body class="roadmap">
+  <header class="roadmap-hero">
+    <h1>Дизайн-макеты BlackSquare</h1>
+    <p>Выберите галерею: первая — предложения по вкладкам, вторая — альтернативные варианты A / B / C для сравнения.</p>
+  </header>
+  <div class="roadmap-grid" style="grid-template-columns:1fr; max-width:800px">
+    <div class="hub-grid">
+      <a class="hub-link" href="/design/v1">
+        <h2>Варианты v1</h2>
+        <p>9 вкладок: что уже есть и что добавить дальше (главная, календарь, CRM, склад…)</p>
+        <span class="tag">→ Открыть v1</span>
+      </a>
+      <a class="hub-link v2" href="/design/v2">
+        <h2>Варианты v2</h2>
+        <p>Три направления дизайна на каждую ключевую вкладку — сравните A, B и C</p>
+        <span class="tag">→ Открыть v2</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

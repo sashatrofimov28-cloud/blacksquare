@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlackSquare — варианты A / B / C</title>
+  <link rel="stylesheet" href="/static/mockups/roadmap.css">
+</head>
+<body class="roadmap">
+  <header class="roadmap-hero">
+    <h1>Варианты дизайна A · B · C</h1>
+    <p>Три направления на каждую вкладку. Выберите то, что ближе по ощущению — можно комбинировать (например, главная B + календарь A).</p>
+    <nav class="roadmap-nav">
+      <a href="/design">← Все макеты</a>
+      <a href="/design/v1">Варианты v1</a>
+      <a href="/design/v2" class="active">A / B / C</a>
+    </nav>
+    <div class="roadmap-legend" style="margin-top:12px">
+      <span class="done">A — текущий стиль / эволюция</span>
+      <span class="next">B — другой акцент</span>
+      <span class="new">C — радикально иначе</span>
+    </div>
+  </header>
+
+  <!-- ГЛАВНАЯ -->
+  <section class="variant-section">
+    <h2>Главная</h2>
+    <p>Как показывать метрики и записи дня</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Карточки</span><em>как сейчас + тренды</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Карточки</div>
+          <div class="phone-body mk">
+            <h3 style="margin:0 0 8px;font-size:16px">Главная</h3>
+            <div class="mk-row">
+              <div class="mk-metric t-green"><span>Касса</span><strong>84 500</strong><div class="mk-trend up">▲12%</div></div>
+              <div class="mk-metric t-blue"><span>Прибыль</span><strong>41 200</strong></div>
+              <div class="mk-metric t-orange"><span>ЗП</span><strong>18 400</strong></div>
+              <div class="mk-metric"><span>м²</span><strong>24,5</strong></div>
+            </div>
+            <div class="mk-list-item"><div class="mk-time"><strong>15:30</strong></div><div class="mk-body"><b>Алексей К.</b><span>Тонировка</span></div><div class="mk-side"><strong>6 500 ₽</strong></div></div>
+            <div class="mk-list-item green"><div class="mk-time"><strong>13:00</strong></div><div class="mk-body"><b>Марина С.</b><span>Закрыто</span></div><div class="mk-side"><strong>12 000 ₽</strong></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Hero-цифра</span><em>фокус на кассе</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Hero</div>
+          <div class="phone-body mk">
+            <p class="mk-kicker">Сегодня</p>
+            <div class="mk-hero-num">
+              <span>Касса</span>
+              <strong>84 500 ₽</strong>
+              <em>▲ 12% к вчера · 9 закрытых</em>
+            </div>
+            <div class="mk-row">
+              <div class="mk-metric"><span>Прибыль</span><strong>41 200</strong></div>
+              <div class="mk-metric"><span>ЗП</span><strong>18 400</strong></div>
+            </div>
+            <p style="font-size:10px;font-weight:800;margin:8px 0 4px">Следующая запись через 1 ч</p>
+            <div class="mk-surface" style="border-color:var(--orange)">
+              <b>15:30 · Алексей К.</b><br><small style="color:var(--muted)">BMW · тонировка · Стас</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Сплит</span><em>цифры слева, лента справа</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Сплит</div>
+          <div class="phone-body mk">
+            <div class="mk-split">
+              <div>
+                <div class="mk-metric t-green" style="margin-bottom:6px"><span>Касса</span><strong style="font-size:16px">84 500</strong></div>
+                <div class="mk-metric" style="margin-bottom:6px"><span>Прибыль</span><strong>41 200</strong></div>
+                <div class="mk-metric"><span>Закрыто</span><strong>9</strong></div>
+              </div>
+              <div class="mk-mini-list">
+                <div><span>15:30 Алексей</span><b>6,5k</b></div>
+                <div><span>14:00 BMW</span><b>в работе</b></div>
+                <div><span>13:00 Марина</span><b>12k</b></div>
+                <div><span>11:00 Иван</span><b>4,5k</b></div>
+              </div>
+            </div>
+            <button style="width:100%;margin-top:10px;padding:10px;border:0;border-radius:12px;background:var(--green);color:#000;font-weight:800;font-size:11px">+ Новая запись</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- КАЛЕНДАРЬ -->
+  <section class="variant-section">
+    <h2>Календарь</h2>
+    <p>Таймлайн, канбан по мастерам или список-агenda</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Таймлайн</span><em>как сейчас</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Таймлайн</div>
+          <div class="phone-body mk">
+            <div class="mk-chips"><span class="mk-chip on">День</span><span class="mk-chip">Неделя</span></div>
+            <div class="mk-timeline" style="height:180px">
+              <div class="mk-timeline-hours"><span>10</span><span>12</span><span>14</span><span>16</span></div>
+              <div class="mk-now"></div>
+              <div class="mk-event orange" style="top:30px;height:40px"><b>11:00 BMW</b></div>
+              <div class="mk-event green" style="top:90px;height:50px"><b>14:00 Mercedes</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Канбан</span><em>колонки = мастера</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Канбан</div>
+          <div class="phone-body mk">
+            <p style="margin:0 0 6px;font-size:11px;font-weight:800">30 июня</p>
+            <div class="mk-kanban">
+              <div class="mk-kanban-col"><b style="color:var(--green)">Катя</b>
+                <div class="mk-kanban-card"><b>11:00</b> BMW<br>тонировка</div>
+                <div class="mk-kanban-card"><b>15:30</b> Audi</div>
+              </div>
+              <div class="mk-kanban-col"><b style="color:var(--blue)">Стас</b>
+                <div class="mk-kanban-card blue"><b>14:00</b> Mercedes</div>
+              </div>
+              <div class="mk-kanban-col"><b>Свободно</b>
+                <div class="mk-kanban-card" style="opacity:.4;border-color:var(--muted)"><b>16:00</b> слот</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Agenda</span><em>список по часам</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Agenda</div>
+          <div class="phone-body mk">
+            <div class="mk-agenda">
+              <div class="mk-agenda-group">
+                <div class="mk-agenda-hour">УТРО</div>
+                <div class="mk-agenda-item"><span class="mk-pill orange">11:00</span><div><b>BMW X5</b><br><small style="color:var(--muted)">Катя · тонировка</small></div></div>
+              </div>
+              <div class="mk-agenda-group">
+                <div class="mk-agenda-hour">ДЕНЬ</div>
+                <div class="mk-agenda-item"><span class="mk-pill" style="background:rgba(41,121,255,.15);color:var(--blue)">14:00</span><div><b>Mercedes</b><br><small style="color:var(--muted)">Стас</small></div></div>
+                <div class="mk-agenda-item"><span class="mk-pill orange">15:30</span><div><b>Алексей К.</b><br><small style="color:var(--muted)">ожидает</small></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CRM -->
+  <section class="variant-section">
+    <h2>CRM</h2>
+    <p>Карточки, плотный список или воронка</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Карточки</span><em>как сейчас</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Карточки</div>
+          <div class="phone-body mk">
+            <input class="mk-search" placeholder="Поиск…" readonly>
+            <div class="mk-list-item" style="grid-template-columns:32px 1fr auto;padding-left:8px">
+              <div class="mk-avatar" style="width:28px;height:28px;font-size:9px">АК</div>
+              <div class="mk-body"><b>Алексей К.</b><span>BMW · +7 912…</span></div>
+              <strong>6 500 ₽</strong>
+            </div>
+            <div class="mk-list-item blue" style="grid-template-columns:32px 1fr auto;padding-left:8px">
+              <div class="mk-avatar" style="width:28px;height:28px;font-size:9px">МС</div>
+              <div class="mk-body"><b>Марина С.</b><span>Mercedes</span></div>
+              <strong>12 000 ₽</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Плотный список</span><em>больше клиентов на экране</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Плотный</div>
+          <div class="phone-body mk">
+            <div class="mk-dense">
+              <div class="mk-dense-row"><div class="mk-avatar" style="width:24px;height:24px;font-size:8px">АК</div><div><b>Алексей Козлов</b><br><small style="color:var(--muted)">BMW · 2 визита</small></div><span class="mk-pill green">Запись</span></div>
+              <div class="mk-dense-row"><div class="mk-avatar" style="width:24px;height:24px;font-size:8px">МС</div><div><b>Марина Смирнова</b><br><small style="color:var(--muted)">VIP</small></div><span class="mk-pill orange">Думает</span></div>
+              <div class="mk-dense-row"><div class="mk-avatar" style="width:24px;height:24px;font-size:8px">ИП</div><div><b>Иван Петров</b><br><small style="color:var(--muted)">Lada</small></div><span class="mk-pill green">Закрыт</span></div>
+              <div class="mk-dense-row"><div class="mk-avatar" style="width:24px;height:24px;font-size:8px">ДК</div><div><b>Дмитрий К.</b><br><small style="color:var(--muted)">новый</small></div><span class="mk-pill" style="background:rgba(178,75,243,.15);color:var(--purple)">Новый</span></div>
+              <div class="mk-dense-row"><div class="mk-avatar" style="width:24px;height:24px;font-size:8px">ЕС</div><div><b>Елена С.</b></div><span class="mk-pill orange">Дорого</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Воронка</span><em>стадии сделки</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Pipeline</div>
+          <div class="phone-body mk">
+            <div class="mk-pipeline">
+              <div class="mk-pipe-col"><b>Новые</b><div class="mk-pipe-card">Дмитрий</div><div class="mk-pipe-card">Олег</div></div>
+              <div class="mk-pipe-col"><b>Думает</b><div class="mk-pipe-card">Марина</div></div>
+              <div class="mk-pipe-col"><b>Запись</b><div class="mk-pipe-card">Алексей</div><div class="mk-pipe-card">Иван</div></div>
+              <div class="mk-pipe-col"><b>Отказ</b><div class="mk-pipe-card" style="opacity:.5">Сергей</div></div>
+            </div>
+            <p style="font-size:9px;color:var(--muted);margin:6px 0 0">Свайп карточки между колонками</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- СТАТИСТИКА -->
+  <section class="variant-section">
+    <h2>Статистика</h2>
+    <p>Бары, круговая диаграмма или тепловая карта</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Бары</span><em>как сейчас</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Бары</div>
+          <div class="phone-body mk">
+            <div class="mk-surface"><span style="font-size:9px;color:var(--muted)">Выручка</span><strong style="font-size:20px;color:var(--green)">84 500 ₽</strong></div>
+            <div style="margin-top:8px;font-size:10px"><span>Катя</span><div class="mk-bar"><i class="green" style="width:85%"></i></div></div>
+            <div style="margin-top:6px;font-size:10px"><span>Стас</span><div class="mk-bar"><i class="blue" style="width:64%"></i></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Donut</span><em>доля мастеров</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Donut</div>
+          <div class="phone-body mk">
+            <div class="mk-donut-wrap">
+              <div class="mk-donut"></div>
+              <div class="mk-donut-legend">
+                <div><span><i style="background:var(--green)"></i>Катя</span><b>48 200</b></div>
+                <div><span><i style="background:var(--blue)"></i>Стас</span><b>36 300</b></div>
+                <div><span><i style="background:var(--purple)"></i>Прочее</span><b>0</b></div>
+              </div>
+            </div>
+            <div class="mk-row" style="margin-top:8px">
+              <div class="mk-metric"><span>Ср. чек</span><strong>9 350</strong></div>
+              <div class="mk-metric"><span>Конверсия</span><strong>68%</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Heatmap</span><em>загрузка по дням</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Heatmap</div>
+          <div class="phone-body mk">
+            <p style="font-size:10px;font-weight:800;margin:0 0 6px">Июнь · выручка по дням</p>
+            <div class="mk-heat">
+              <div class="mk-heat-cell">1</div><div class="mk-heat-cell h1">2</div><div class="mk-heat-cell">3</div><div class="mk-heat-cell h2">4</div><div class="mk-heat-cell h1">5</div><div class="mk-heat-cell h3">6</div><div class="mk-heat-cell">7</div>
+              <div class="mk-heat-cell h1">8</div><div class="mk-heat-cell h2">9</div><div class="mk-heat-cell">10</div><div class="mk-heat-cell h3">11</div><div class="mk-heat-cell h2">12</div><div class="mk-heat-cell h1">13</div><div class="mk-heat-cell">14</div>
+              <div class="mk-heat-cell">15</div><div class="mk-heat-cell h1">16</div><div class="mk-heat-cell h2">17</div><div class="mk-heat-cell h3">18</div><div class="mk-heat-cell h2">19</div><div class="mk-heat-cell h3">20</div><div class="mk-heat-cell">21</div>
+            </div>
+            <p style="font-size:9px;color:var(--muted);margin-top:8px">Темнее = больше касса за день</p>
+            <div class="mk-metric t-green" style="margin-top:8px"><span>Итого месяц</span><strong>1 840 000 ₽</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- СКЛАД -->
+  <section class="variant-section">
+    <h2>Склад</h2>
+    <p>Сетка карточек, список с полосками или компактная таблица</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Сетка 2×2</span><em>с фото</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Сетка</div>
+          <div class="phone-body mk">
+            <div class="mk-warn">⚠ 2 позиции мало</div>
+            <div class="mk-stock-grid">
+              <div class="mk-stock"><div class="mk-stock-photo">🎞</div><div class="mk-stock-body"><b>LLumar 5%</b><small>12 м²</small></div></div>
+              <div class="mk-stock"><div class="mk-stock-photo">🎞</div><div class="mk-stock-body"><b>SunTek</b><small>28 м²</small></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Список + бар</span><em>быстрый обзор</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Список</div>
+          <div class="phone-body mk">
+            <div class="mk-stock-list-item">
+              <div class="mk-stock-thumb">🎞</div>
+              <div style="flex:1;min-width:0"><b style="font-size:10px">LLumar 5%</b><div class="mk-bar"><i class="green" style="width:18%"></i></div><small style="color:var(--red);font-size:9px">12 м² · мало!</small></div>
+            </div>
+            <div class="mk-stock-list-item">
+              <div class="mk-stock-thumb">🎞</div>
+              <div style="flex:1"><b style="font-size:10px">SunTek 15%</b><div class="mk-bar"><i class="green" style="width:62%"></i></div><small style="color:var(--muted);font-size:9px">28 м²</small></div>
+            </div>
+            <div class="mk-stock-list-item">
+              <div class="mk-stock-thumb">🧴</div>
+              <div style="flex:1"><b style="font-size:10px">Монтажка</b><div class="mk-bar"><i class="blue" style="width:40%"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Таблица</span><em>максимум данных</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Таблица</div>
+          <div class="phone-body mk" style="font-size:9px">
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--muted);font-weight:700">
+              <span>Название</span><span>Остаток</span><span>₽/м²</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border)"><span>LLumar 5%</span><span style="color:var(--red)">12 м²</span><span>890</span></div>
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border)"><span>SunTek 15%</span><span>28 м²</span><span>720</span></div>
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:6px 0;border-bottom:1px solid var(--border)"><span>Монтажка</span><span>4 шт</span><span>—</span></div>
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px;padding:6px 0"><span>Нож 9мм</span><span>6 шт</span><span>—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- СОТРУДНИКИ -->
+  <section class="variant-section">
+    <h2>Сотрудники</h2>
+    <p>Длинные карточки, плитки 2×2 или список с загрузкой</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Карточка</span><em>вариант B сейчас</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Карточка</div>
+          <div class="phone-body mk">
+            <div class="mk-surface" style="display:flex;gap:8px">
+              <div class="mk-avatar" style="background:rgba(0,217,126,.2);color:var(--green)">КТ</div>
+              <div><b>Катя</b><br><small style="color:var(--muted)">мастер · 78% сегодня</small><div class="mk-bar" style="margin-top:4px"><i class="green" style="width:78%"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Плитки</span><em>компактная сетка</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Плитки</div>
+          <div class="phone-body mk">
+            <div class="mk-emp-grid">
+              <div class="mk-emp-tile"><div class="mk-avatar" style="background:rgba(0,217,126,.2);color:var(--green)">КТ</div><b>Катя</b><br><small style="color:var(--muted)">3 записи</small></div>
+              <div class="mk-emp-tile"><div class="mk-avatar" style="background:rgba(41,121,255,.2);color:var(--blue)">СТ</div><b>Стас</b><br><small style="color:var(--muted)">2 записи</small></div>
+              <div class="mk-emp-tile"><div class="mk-avatar">АД</div><b>Админ</b><br><small style="color:var(--muted)">офис</small></div>
+              <div class="mk-emp-tile" style="border-style:dashed;opacity:.6"><div class="mk-avatar">+</div><b>Добавить</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Рейтинг</span><em>сортировка по выручке</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Рейтинг</div>
+          <div class="phone-body mk">
+            <div class="mk-dense-row" style="padding:8px 4px"><span style="font-size:16px;font-weight:800;color:var(--green)">1</span><div><b>Катя</b><br><small style="color:var(--muted)">48 200 ₽ · 8 визитов</small></div><span class="mk-pill green">78%</span></div>
+            <div class="mk-dense-row" style="padding:8px 4px"><span style="font-size:16px;font-weight:800;color:var(--blue)">2</span><div><b>Стас</b><br><small style="color:var(--muted)">36 300 ₽ · 6 визитов</small></div><span class="mk-pill" style="background:rgba(41,121,255,.15);color:var(--blue)">52%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ФИНАНСЫ -->
+  <section class="variant-section">
+    <h2>Финансы</h2>
+    <p>Календарь, таймлайн или список счетов</p>
+    <div class="variant-row">
+      <div class="variant-col a">
+        <div class="variant-label"><b>A</b><span>Календарь</span><em>как сейчас, тёмный</em></div>
+        <div class="phone sm">
+          <div class="phone-status">A · Календарь</div>
+          <div class="phone-body mk">
+            <div class="mk-pay-cal">
+              <div class="mk-pay-day">1</div><div class="mk-pay-day due">3</div><div class="mk-pay-day paid">5</div><div class="mk-pay-day">7</div><div class="mk-pay-day due">10</div><div class="mk-pay-day">14</div><div class="mk-pay-day paid">15</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col b">
+        <div class="variant-label"><b>B</b><span>Таймлайн</span><em>хронология платежей</em></div>
+        <div class="phone sm">
+          <div class="phone-status">B · Таймлайн</div>
+          <div class="phone-body mk">
+            <div class="mk-finance-timeline">
+              <div class="mk-ft-item"><b>3 июня · Аренда</b><br><span style="color:var(--red)">45 000 ₽ · просрочено</span></div>
+              <div class="mk-ft-item paid"><b>5 июня · Свет</b><br><span style="color:var(--green)">8 200 ₽ · оплачено</span></div>
+              <div class="mk-ft-item"><b>15 июня · Аренда</b><br><span>45 000 ₽ · через 2 дня</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="variant-col c">
+        <div class="variant-label"><b>C</b><span>Счета</span><em>список к оплате</em></div>
+        <div class="phone sm">
+          <div class="phone-status">C · Счета</div>
+          <div class="phone-body mk">
+            <div class="mk-surface" style="border-color:var(--red)">
+              <div style="display:flex;justify-content:space-between"><b>Аренда июнь</b><strong style="color:var(--red)">45 000 ₽</strong></div>
+              <small style="color:var(--muted)">Просрочено 2 дня</small>
+              <button style="margin-top:6px;width:100%;padding:6px;border:0;border-radius:8px;background:var(--green);color:#000;font-weight:700;font-size:10px">Отметить оплаченным</button>
+            </div>
+            <div class="mk-surface">
+              <div style="display:flex;justify-content:space-between"><b>Коммуналка</b><strong>8 200 ₽</strong></div>
+              <small style="color:var(--muted)">До 15 июня</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="roadmap-footer">
+    <a href="/design" style="color:var(--green)">← Все макеты</a> · Напишите комбинацию, например: «Главная B + Календарь B + CRM A»
+  </footer>
+</body>
+</html>
