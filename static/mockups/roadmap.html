@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BlackSquare — предложения по вкладкам</title>
+  <link rel="stylesheet" href="/static/mockups/roadmap.css">
+</head>
+<body class="roadmap">
+  <header class="roadmap-hero">
+    <h1>Предложения по вкладкам BlackSquare</h1>
+    <p>Как я вижу следующий этап: довести тёмный стиль до всех разделов, добавить быстрые действия и микро-аналитику там, где сейчас «старые» таблицы. Ниже — шаблоны экранов для согласования.</p>
+    <div class="roadmap-legend">
+      <span class="done">✓ Уже сделано</span>
+      <span class="next">→ Следующий шаг</span>
+      <span class="new">★ Новая идея</span>
+    </div>
+  </header>
+
+  <div class="roadmap-grid">
+
+    <!-- ГЛАВНАЯ -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Главная</h2>
+        <p>Метрики + живой день студии</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">тёмная тема</span>
+          <span class="roadmap-badge done">закрыто сегодня</span>
+          <span class="roadmap-badge next">тренды на карточках</span>
+          <span class="roadmap-badge new">FAB «+ запись»</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Главная · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header">
+            <div><p class="mk-kicker">Сегодня</p><h3>Главная</h3><p class="mk-sub">30 июня 2026, понедельник</p></div>
+            <div class="mk-avatar">🔔</div>
+          </div>
+          <div class="mk-row">
+            <div class="mk-metric t-green"><span>Касса</span><strong>84 500 ₽</strong><div class="mk-trend up">▲ 12%</div></div>
+            <div class="mk-metric t-blue"><span>Прибыль</span><strong>41 200 ₽</strong><div class="mk-trend up">▲ 8%</div></div>
+            <div class="mk-metric t-orange"><span>ЗП</span><strong>18 400 ₽</strong></div>
+            <div class="mk-metric"><span>м²</span><strong>24,5</strong></div>
+          </div>
+          <div class="mk-chips">
+            <span class="mk-chip on">Сегодня</span><span class="mk-chip">Вчера</span><span class="mk-chip">Неделя</span><span class="mk-chip">Месяц</span>
+          </div>
+          <div class="mk-surface" style="padding:8px 10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <b style="font-size:11px">Сейчас в работе</b><span class="mk-pill orange">2 авто</span>
+            </div>
+            <div class="mk-list-item blue" style="margin:0 0 4px"><div class="mk-time"><strong>14:00</strong></div><div class="mk-body"><b>BMW X5</b><span>Катя · атермальная</span></div></div>
+          </div>
+          <p style="font-size:11px;font-weight:800;margin:10px 0 6px">Ближайшие записи</p>
+          <div class="mk-list-item"><div class="mk-time"><strong>15:30</strong><span>через 1 ч</span></div><div class="mk-body"><b>Алексей К.</b><span>Тонировка · Стас</span></div><div class="mk-side"><span class="mk-pill orange">Ожидает</span><strong>6 500 ₽</strong></div></div>
+          <p style="font-size:11px;font-weight:800;margin:10px 0 6px">Закрыто сегодня <span style="color:var(--green)">· 47 800 ₽</span></p>
+          <div class="mk-list-item green"><div class="mk-time"><strong>13:00</strong><span>закр. 14:22</span></div><div class="mk-body"><b>Марина С.</b><span>Плёнка · Катя</span></div><div class="mk-side"><span class="mk-pill green">Закрыт</span><strong>12 000 ₽</strong></div></div>
+          <button class="mk-fab" type="button" title="Новая запись">+</button>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Стрелки тренда на метриках (сравнение с вчера)</li>
+          <li>Полоска «сейчас в работе» — быстрый статус зала</li>
+          <li>Сумма выручки в заголовке «Закрыто сегодня»</li>
+          <li>Плавающая кнопка «+» → календарь с формой записи</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- КАЛЕНДАРЬ -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Календарь</h2>
+        <p>Таймлайн + легенда мастеров</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">день/неделя/месяц</span>
+          <span class="roadmap-badge done">клик по слоту</span>
+          <span class="roadmap-badge next">линия «сейчас»</span>
+          <span class="roadmap-badge new">фильтр по мастеру</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Календарь · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">30 июня</p><h3>Календарь</h3></div></div>
+          <div class="mk-chips">
+            <span class="mk-chip">Месяц</span><span class="mk-chip">Неделя</span><span class="mk-chip on">День</span>
+          </div>
+          <div class="mk-chips" style="margin-bottom:6px">
+            <span class="mk-chip on" style="border-color:var(--green);color:var(--green)">● Катя</span>
+            <span class="mk-chip" style="border-color:var(--blue);color:var(--blue)">● Стас</span>
+            <span class="mk-chip">Все</span>
+          </div>
+          <div class="mk-timeline">
+            <div class="mk-timeline-hours">
+              <span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span>
+            </div>
+            <div class="mk-now"></div>
+            <div class="mk-event orange"><b>11:00 BMW</b><br>тонировка · Катя</div>
+            <div class="mk-event green"><b>14:00 Mercedes</b><br>атермальная · Стас</div>
+          </div>
+          <p style="font-size:10px;color:var(--muted);margin:8px 0 0">Часы 10:00–21:00 из настроек студии</p>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Красная линия текущего времени на таймлайне</li>
+          <li>Чипы-фильтры по мастерам (цвет = цвет в календаре)</li>
+          <li>Счётчик загрузки дня: «7 записей · 82% слотов»</li>
+          <li>Долгий тап на запись → перенос / отмена</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- CRM -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>CRM</h2>
+        <p>Клиенты с контекстом и бонусами</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">карточки</span>
+          <span class="roadmap-badge done">фильтры</span>
+          <span class="roadmap-badge next">бейдж бонусов</span>
+          <span class="roadmap-badge new">быстрый звонок</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">CRM · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">CRM</p><h3>Клиенты</h3></div><div class="mk-avatar" style="background:var(--green);color:#000">+</div></div>
+          <div class="mk-row">
+            <div class="mk-metric t-purple" style="flex:1"><span>Клиентов</span><strong>248</strong></div>
+            <div class="mk-metric t-blue" style="flex:1"><span>Новых</span><strong>12</strong></div>
+          </div>
+          <input class="mk-search" placeholder="Поиск клиентов…" readonly>
+          <div class="mk-chips">
+            <span class="mk-chip on">Все <em>248</em></span><span class="mk-chip">Новые <em>12</em></span><span class="mk-chip">Запись</span><span class="mk-chip">В работе</span>
+          </div>
+          <div class="mk-list-item" style="grid-template-columns:36px 1fr auto;padding-left:10px">
+            <div class="mk-avatar">АК</div>
+            <div class="mk-body"><b>Алексей Козлов</b><span>+7 912 *** · BMW X5</span><span class="mk-pill green" style="margin-top:4px">Бонусы 1 200 ₽</span></div>
+            <div class="mk-side"><strong>6 500 ₽</strong><span style="font-size:9px;color:var(--muted)">2 визита</span></div>
+          </div>
+          <div class="mk-list-item blue" style="grid-template-columns:36px 1fr auto;padding-left:10px">
+            <div class="mk-avatar">МС</div>
+            <div class="mk-body"><b>Марина Смирнова</b><span>VIP · Mercedes</span><span class="mk-pill orange" style="margin-top:4px">Думает</span></div>
+            <button style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--green)">📞</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Бейдж бонусного баланса на карточке</li>
+          <li>Кнопка звонка (tel:) без раскрытия номера в списке</li>
+          <li>Тег последней услуги и давность визита</li>
+          <li>Свайп влево → «Записать» / «Написать в TG»</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- СТАТИСТИКА -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Статистика</h2>
+        <p>Отчёты с целями и сравнением</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">периоды</span>
+          <span class="roadmap-badge done">мастера</span>
+          <span class="roadmap-badge next">цель месяца</span>
+          <span class="roadmap-badge new">экспорт PDF</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Аналитика · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">Отчёты</p><h3>Аналитика</h3></div></div>
+          <div class="mk-chips"><span class="mk-chip on">Сегодня</span><span class="mk-chip">Неделя</span><span class="mk-chip">Месяц</span></div>
+          <div class="mk-row">
+            <div class="mk-surface" style="flex:1"><span style="font-size:9px;color:var(--muted)">Выручка</span><strong style="font-size:18px;color:var(--green)">84 500 ₽</strong><div class="mk-trend up">▲ 12% к вчера</div></div>
+            <div class="mk-surface" style="flex:1"><span style="font-size:9px;color:var(--muted)">Цель месяца</span><strong style="font-size:18px">72%</strong><div class="mk-bar"><i class="green" style="width:72%"></i></div><small style="font-size:9px;color:var(--muted)">1,8 млн / 2,5 млн</small></div>
+          </div>
+          <div class="mk-surface">
+            <b style="font-size:11px">Выручка по мастерам</b>
+            <div style="margin-top:8px"><div style="display:flex;justify-content:space-between;font-size:10px"><span>Катя</span><strong>48 200 ₽</strong></div><div class="mk-bar"><i class="green" style="width:85%"></i></div></div>
+            <div style="margin-top:6px"><div style="display:flex;justify-content:space-between;font-size:10px"><span>Стас</span><strong>36 300 ₽</strong></div><div class="mk-bar"><i class="blue" style="width:64%"></i></div></div>
+          </div>
+          <div class="mk-row">
+            <div class="mk-metric"><span>Ср. чек</span><strong>9 350 ₽</strong></div>
+            <div class="mk-metric"><span>Конверсия</span><strong>68%</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Кольцо прогресса к месячной цели (настраивается в настройках)</li>
+          <li>Сравнение «этот месяц vs прошлый» одной кнопкой</li>
+          <li>Экспорт PDF / отправка в Telegram директору</li>
+          <li>Топ услуг по выручке</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- СОТРУДНИКИ -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Сотрудники</h2>
+        <p>Команда + загрузка сегодня</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">карточки B</span>
+          <span class="roadmap-badge done">онлайн-запись</span>
+          <span class="roadmap-badge next">загрузка дня</span>
+          <span class="roadmap-badge new">статус онлайн</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Сотрудники · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">Команда</p><h3>Сотрудники</h3></div></div>
+          <div class="mk-chips"><span class="mk-chip on">Все</span><span class="mk-chip">Мастера</span><span class="mk-chip">Админы</span></div>
+          <div class="mk-surface">
+            <div style="display:flex;gap:10px;align-items:center">
+              <div class="mk-avatar" style="background:rgba(0,217,126,.2);color:var(--green)">КТ</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;gap:6px;align-items:center"><b>Катя</b><span class="mk-pill green">мастер</span><span style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)"></span></div>
+                <span style="font-size:10px;color:var(--muted)">3 записи сегодня · 78% загрузка</span>
+                <div class="mk-bar"><i class="green" style="width:78%"></i></div>
+              </div>
+            </div>
+          </div>
+          <div class="mk-surface">
+            <div style="display:flex;gap:10px;align-items:center">
+              <div class="mk-avatar" style="background:rgba(41,121,255,.2);color:var(--blue)">СТ</div>
+              <div style="flex:1">
+                <div style="display:flex;gap:6px;align-items:center"><b>Стас</b><span class="mk-pill" style="background:rgba(41,121,255,.15);color:var(--blue)">мастер</span></div>
+                <span style="font-size:10px;color:var(--muted)">2 записи · 52% загрузка</span>
+                <div class="mk-bar"><i class="blue" style="width:52%"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Зелёная точка «на смене» / серая «выходной»</li>
+          <li>Полоска загрузки на сегодня по графику студии</li>
+          <li>Быстрый переход в календарь мастера</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- СКЛАД -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Склад</h2>
+        <p>Тёмные карточки + предупреждения</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge next">тёмный редизайн</span>
+          <span class="roadmap-badge new">вкладки категорий</span>
+          <span class="roadmap-badge new">низкий остаток</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Склад · v3 (новый)</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">Материалы</p><h3>Склад</h3></div></div>
+          <div class="mk-warn">⚠ 2 позиции ниже минимума</div>
+          <div class="mk-chips"><span class="mk-chip on">Плёнка</span><span class="mk-chip">Расходники</span><span class="mk-chip">Инструмент</span></div>
+          <div class="mk-stock-grid">
+            <div class="mk-stock"><div class="mk-stock-photo">🎞</div><div class="mk-stock-body"><b>LLumar 5%</b><small>12,4 м² · <span style="color:var(--red)">мало</span></small><div class="mk-bar"><i class="green" style="width:18%"></i></div></div></div>
+            <div class="mk-stock"><div class="mk-stock-photo">🎞</div><div class="mk-stock-body"><b>SunTek 15%</b><small>28,1 м²</small><div class="mk-bar"><i class="green" style="width:62%"></i></div></div></div>
+            <div class="mk-stock"><div class="mk-stock-photo">🧴</div><div class="mk-stock-body"><b>Монтажка</b><small>4 шт</small><div class="mk-bar"><i class="blue" style="width:40%"></i></div></div></div>
+            <div class="mk-stock"><div class="mk-stock-photo">🔪</div><div class="mk-stock-body"><b>Нож 9 мм</b><small>6 шт</small><div class="mk-bar"><i class="purple" style="width:80%"></i></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Перенести склад на тёмные карточки как в CRM</li>
+          <li>Баннер «низкий остаток» сверху (как при закрытии)</li>
+          <li>Фильтр по категориям чипами</li>
+          <li>Быстрое списание свайпом</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- УСЛУГИ -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Услуги</h2>
+        <p>Компактные карточки вместо таблиц</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">категории</span>
+          <span class="roadmap-badge next">тёмные карточки</span>
+          <span class="roadmap-badge new">drag-сортировка</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Услуги · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><h3>Услуги</h3></div></div>
+          <div class="mk-chips"><span class="mk-chip on">Тонировка <em>8</em></span><span class="mk-chip">Защита <em>4</em></span><span class="mk-chip">+</span></div>
+          <div class="mk-surface">
+            <div class="mk-service"><div><b>Атермальная плёнка</b><br><small style="color:var(--muted)">180 мин · онлайн ✓</small></div><strong>6 000 ₽</strong></div>
+            <div class="mk-service"><div><b>Передние боковые</b><br><small style="color:var(--muted)">90 мин · онлайн ✓</small></div><strong>2 500 ₽</strong></div>
+            <div class="mk-service"><div><b>Задняя полусфера</b><br><small style="color:var(--muted)">120 мин</small></div><strong>5 500 ₽</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Карточки услуг в тёмном стиле вместо таблицы</li>
+          <li>Бейдж «онлайн» / «только вручную»</li>
+          <li>Перетаскивание для порядка в категории</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- ФИНАНСЫ + ЗАРПЛАТА -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Финансы и Зарплата</h2>
+        <p>Платежи и ЗП в едином стиле</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge next">финансы тёмные</span>
+          <span class="roadmap-badge next">ЗП карточками</span>
+          <span class="roadmap-badge new">напоминания</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Финансы · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><h3>Финансы</h3><p class="mk-sub">Июнь 2026</p></div></div>
+          <div class="mk-row">
+            <div class="mk-metric t-orange" style="flex:1"><span>К оплате</span><strong>45 000 ₽</strong></div>
+            <div class="mk-metric" style="flex:1;border-color:var(--red)"><span style="color:var(--red)">Просрочено</span><strong style="color:var(--red)">12 000 ₽</strong></div>
+          </div>
+          <div class="mk-pay-cal">
+            <div class="mk-pay-day">1</div><div class="mk-pay-day">2</div><div class="mk-pay-day due">3<br><small>аренда</small></div><div class="mk-pay-day">4</div><div class="mk-pay-day paid">5</div><div class="mk-pay-day">6</div><div class="mk-pay-day">7</div>
+          </div>
+          <p style="font-size:11px;font-weight:800;margin:12px 0 6px">Зарплата · июнь</p>
+          <div class="mk-list-item green" style="grid-template-columns:1fr auto"><div class="mk-body"><b>Катя</b><span>8 визитов · 48 200 ₽ выручка</span></div><strong>18 400 ₽</strong></div>
+          <div class="mk-list-item blue" style="grid-template-columns:1fr auto"><div class="mk-body"><b>Стас</b><span>6 визитов</span></div><strong>14 200 ₽</strong></div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Календарь платежей с цветом: просрочено / оплачено / скоро</li>
+          <li>Зарплата — карточки мастеров вместо широкой таблицы</li>
+          <li>Push за 3 дня до аренды и коммуналки</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- ЗАКРЫТИЕ -->
+    <article class="roadmap-card">
+      <div class="roadmap-card-head">
+        <h2>Закрытие записи</h2>
+        <p>Уже обновлено, мелкие улучшения</p>
+        <div class="roadmap-badges">
+          <span class="roadmap-badge done">тёмный экран</span>
+          <span class="roadmap-badge done">быстрое закрытие</span>
+          <span class="roadmap-badge next">лоадер на кнопке</span>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="phone-status">Закрытие · v3</div>
+        <div class="phone-body mk">
+          <div class="mk-header"><div><p class="mk-kicker">№47 · сегодня 15:30</p><h3>Закрытие</h3></div></div>
+          <div class="mk-surface" style="display:flex;gap:10px;align-items:center">
+            <div class="mk-avatar">АК</div>
+            <div><b>Алексей К.</b><br><small style="color:var(--muted)">BMW X5 · тонировка</small></div>
+            <strong style="margin-left:auto;color:var(--green)">6 500 ₽</strong>
+          </div>
+          <div class="mk-surface"><b style="font-size:11px">Мастера</b><div class="mk-chips" style="margin-top:6px"><span class="mk-chip on">Катя</span></div></div>
+          <div class="mk-surface" style="display:flex;justify-content:space-between"><span>Итого</span><strong style="color:var(--green);font-size:16px">6 500 ₽</strong></div>
+          <button style="width:100%;margin-top:8px;padding:14px;border:0;border-radius:14px;background:linear-gradient(135deg,var(--green),#00b368);color:#0a0a0a;font-weight:800;font-size:13px">Закрыть запись ✓</button>
+          <p style="font-size:9px;color:var(--muted);text-align:center;margin-top:6px">Кнопка показывает «Сохраняем…» пока идёт редирект</p>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <h4>Что добавить</h4>
+        <ul>
+          <li>Спиннер на кнопке при отправке (мгновенная обратная связь)</li>
+          <li>Хаптик / вибро на телефоне после успеха</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <footer class="roadmap-footer">
+    Откройте на телефоне: <strong>/design</strong> · Шаблоны для согласования, не влияют на продакшен
+  </footer>
+</body>
+</html>
