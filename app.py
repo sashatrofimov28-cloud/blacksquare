@@ -770,8 +770,10 @@ def parse_salaries_from_form(form, employee_ids):
             salaries[int(employee_ids[0])] = single
     return salaries, sum(salaries.values())
 
-def apply_appointment_masters_from_form(con, aid, form):
+def apply_appointment_masters_from_form(con, aid, form, fallback_primary_id=None):
     employee_ids = parse_employee_ids(form)
+    if not employee_ids and fallback_primary_id is not None:
+        employee_ids = get_appointment_employee_ids(con, aid, fallback_primary_id)
     if not employee_ids:
         return False, 'Укажите хотя бы одного мастера', []
     ok, err = validate_master_ids(con, employee_ids)
@@ -3078,7 +3080,7 @@ def close_appointment(aid):
     if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
         con.close(); flash('Можно закрывать только свои записи'); return redirect(url_for('calendar_view'))
     if request.method == 'POST':
-        ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form)
+        ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form, ap['employee_id'])
         if not ok:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid, master_error=1))
         price = float(request.form.get('price') or 0)
@@ -3144,7 +3146,11 @@ def close_appointment(aid):
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
     employees = list_masters(con)
-    selected_employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
+    master_id_set = {e['id'] for e in employees}
+    selected_employee_ids = [
+        eid for eid in get_appointment_employee_ids(con, aid, ap['employee_id'])
+        if eid in master_id_set
+    ]
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     low_stock = list_low_stock_items(con)
     con.close()
