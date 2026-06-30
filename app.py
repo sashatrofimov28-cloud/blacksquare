@@ -2642,6 +2642,10 @@ def index():
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
+@app.route('/design')
+def design_roadmap():
+    return app.send_static_file('mockups/roadmap.html')
+
 @app.route('/healthz')
 @app.route('/health')
 def healthz():
