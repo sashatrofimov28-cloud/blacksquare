@@ -142,6 +142,17 @@
 </div>
 
 <div class="panel profile-card">
+  <h2>Часы работы студии</h2>
+  <p style="color:#666;font-size:14px">Используются в календаре (сетка дня), онлайн-записи и как значение по умолчанию для графика мастеров.</p>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="studio_hours">
+    <label>Открытие <input type="time" name="studio_open_time" value="{{ studio_open }}" required></label>
+    <label>Закрытие <input type="time" name="studio_close_time" value="{{ studio_close }}" required></label>
+    <button>Сохранить</button>
+  </form>
+</div>
+
+<div class="panel profile-card">
   <h2>Статистика на главной</h2>
   <p style="color:#666;font-size:14px">Общая касса на главной обновляется сразу при закрытии записи.</p>
   <form method="post" class="form-grid">

@@ -69,8 +69,8 @@
       {% set w = weekly.get(wd) %}
       <tr>
         <td>{{ weekdays[wd] }}</td>
-        <td><input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}"></td>
-        <td><input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}"></td>
+        <td><input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else studio_open_time() }}"></td>
+        <td><input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else studio_close_time() }}"></td>
         <td><label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}></label></td>
       </tr>
       {% endfor %}

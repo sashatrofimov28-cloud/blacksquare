@@ -129,8 +129,8 @@
           {% for wd in range(7) %}
           {% set w = weekly.get(selected_user, {}).get(wd) %}
           <label>{{ weekdays[wd] }}</label>
-          <input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else '09:00' }}">
-          <input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else '20:00' }}">
+          <input type="time" name="start_{{ wd }}" value="{{ w.start_time if w else studio_open_time() }}">
+          <input type="time" name="end_{{ wd }}" value="{{ w.end_time if w else studio_close_time() }}">
           <label class="check"><input type="checkbox" name="off_{{ wd }}" {% if w and w.is_day_off %}checked{% endif %}> вых</label>
           {% endfor %}
         </div>
@@ -141,8 +141,8 @@
         <input type="hidden" name="form_type" value="schedule">
         <select name="user_id">{% for r in raw_rows if r.active %}<option value="{{ r.id }}">{{ r.full_name }}</option>{% endfor %}</select>
         <input type="date" name="work_date" required>
-        <input type="time" name="start_time" value="09:00">
-        <input type="time" name="end_time" value="20:00">
+        <input type="time" name="start_time" value="{{ studio_open_time() }}">
+        <input type="time" name="end_time" value="{{ studio_close_time() }}">
         <label class="check"><input type="checkbox" name="is_day_off"> выходной</label>
         <input name="comment" placeholder="Комментарий" class="span4">
         <button class="span4">Сохранить</button>

@@ -449,7 +449,11 @@ def assign_overlap_columns(events):
         ev['col_count'] = max(n, 1)
     return events
 
-def layout_day_timeline(rows, day_start='09:00', day_end='21:00', px_per_hour=72):
+def layout_day_timeline(rows, day_start=None, day_end=None, px_per_hour=72):
+    if day_start is None or day_end is None:
+        default_open, default_close = studio_hours()
+        day_start = day_start or default_open
+        day_end = day_end or default_close
     start_m = hm2m(day_start)
     end_m = hm2m(day_end)
     events = []
@@ -469,7 +473,8 @@ def layout_day_timeline(rows, day_start='09:00', day_end='21:00', px_per_hour=72
             'tone': employee_tone(r['employee_id']),
         })
     events = assign_overlap_columns(events)
-    hours = [f'{h:02d}:00' for h in range(start_m // 60, (end_m + 59) // 60)]
+    end_hour = end_m // 60
+    hours = [f'{h:02d}:00' for h in range(start_m // 60, end_hour + 1)]
     slot_h = px_per_hour / 2
     slots = []
     for m in range(start_m, end_m, 30):
@@ -937,6 +942,8 @@ def migrate_db(c):
             c.execute("UPDATE stock_items SET initial_balance=? WHERE id=?", (init, row['id']))
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_refresh','live')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('stats_cached','{}')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('studio_open_time','10:00')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('studio_close_time','21:00')")
     for p in PERMS:
         for u in c.execute("SELECT id, role FROM users").fetchall():
             if p == 'edit_closed_appointments':
@@ -1033,6 +1040,22 @@ def set_setting(key, value):
     con.execute("INSERT INTO app_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
     con.commit()
     con.close()
+
+STUDIO_OPEN_DEFAULT = '10:00'
+STUDIO_CLOSE_DEFAULT = '21:00'
+
+def normalize_studio_time(val, default):
+    t = normalize_hm(str(val or '').strip())
+    return t or default
+
+def studio_open_time():
+    return normalize_studio_time(get_setting('studio_open_time', STUDIO_OPEN_DEFAULT), STUDIO_OPEN_DEFAULT)
+
+def studio_close_time():
+    return normalize_studio_time(get_setting('studio_close_time', STUDIO_CLOSE_DEFAULT), STUDIO_CLOSE_DEFAULT)
+
+def studio_hours():
+    return studio_open_time(), studio_close_time()
 
 def film_cost_per_unit(width_m, length_m, balance, cost_mode, cost_total, cost_per_meter):
     w = float(width_m or 1.52)
@@ -1268,7 +1291,8 @@ def get_schedule(con, uid, d):
     wrow = con.execute("SELECT * FROM employee_weekly_schedule WHERE user_id=? AND weekday=?", (uid, weekday)).fetchone()
     if wrow:
         return wrow
-    return {'start_time':'09:00','end_time':'20:00','is_day_off':0}
+    open_t, close_t = studio_hours()
+    return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 0}
 
 def slot_free(con, uid, d, start, end):
     s = hm2m(start); e = hm2m(end)
@@ -1727,7 +1751,7 @@ def _post_telegram_message(token, chat_id, text):
         data=payload,
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=12) as resp:
+    with urllib.request.urlopen(req, timeout=5) as resp:
         return json.loads(resp.read().decode())
 
 def send_telegram_message(text, force=False):
@@ -2330,8 +2354,7 @@ def appointment_master_names(con, ap):
     return ', '.join(r['full_name'] for r in rows) or '—'
 
 def notify_telegram_appointment_closed(con, ap, price=None):
-    telegram_autoconfigure()
-    if not telegram_enabled():
+    if not telegram_enabled() or not telegram_chat_id():
         return
     master = appointment_master_names(con, ap)
     car = (ap['car'] or ap['plate_number'] or '').strip()
@@ -2405,14 +2428,33 @@ def notify_directors_new_appointment(con, employee_ids, ap_date, start_time, cli
 
 def notify_directors_appointment_closed(con, ap, price):
     body = f'{ap["client_name"]} · {ap["service_name"]} — {price:.0f} ₽'
+    day_url = f"/analytics?start={ap['appointment_date']}&end={ap['appointment_date']}"
     for d in get_directors(con):
         prefs = get_director_notification_prefs(con, d['id'])
         if not prefs.get('notify_closed'):
             continue
-        send_push_to_user(
-            d['id'], 'Запись закрыта BlackSquare', body,
-            url_for('analytics', start=ap['appointment_date'], end=ap['appointment_date']),
-        )
+        send_push_to_user(d['id'], 'Запись закрыта BlackSquare', body, day_url)
+
+def after_appointment_closed(ap_id, price):
+    with app.app_context():
+        con = db()
+        try:
+            ap = con.execute("SELECT * FROM appointments WHERE id=?", (ap_id,)).fetchone()
+            if not ap:
+                return
+            refresh_dashboard_stats()
+            notify_directors_appointment_closed(con, ap, price)
+            notify_telegram_appointment_closed(con, ap, price)
+        finally:
+            con.close()
+
+def defer_after_appointment_closed(ap_id, price):
+    threading.Thread(
+        target=after_appointment_closed,
+        args=(ap_id, price),
+        daemon=True,
+        name=f'close-notify-{ap_id}',
+    ).start()
 
 def build_daily_report_message(stats):
     lines = [
@@ -2588,6 +2630,8 @@ def inject():
         'crm_status_tone': crm_status_tone,
         'client_initials': client_initials,
         'employee_role_meta': employee_role_meta,
+        'studio_open_time': studio_open_time,
+        'studio_close_time': studio_close_time,
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -3155,18 +3199,17 @@ def close_appointment(aid):
         save_appointment_salaries(con, aid, salaries, request.form.get('comment', '') or 'ЗП из закрытой записи')
         ap_closed = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
         earned, earn_msg = accrue_bonus_on_close(con, ap_closed, price, u['id'], skip_bonus=friend_discount_applied)
+        redirect_date = ap['appointment_date']
         con.commit()
-        refresh_dashboard_stats()
-        notify_directors_appointment_closed(con, ap_closed, price)
-        notify_telegram_appointment_closed(con, ap_closed, price)
         con.close()
+        defer_after_appointment_closed(aid, price)
         extra = []
         if friend_discount_applied:
             extra.append(f'Скидка для друзей −{friend_discount_amount:.0f} ₽')
         if earn_msg:
             extra.append(earn_msg)
         flash('Запись закрыта' + (f'. {" · ".join(extra)}' if extra else ''))
-        return redirect(url_for('calendar_view', date=ap['appointment_date']))
+        return redirect(url_for('calendar_view', date=redirect_date))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     client_bonus = None
@@ -3971,15 +4014,17 @@ def employees():
     con = db()
     if request.method == 'POST':
         if request.form.get('form_type') == 'schedule':
-            con.execute("INSERT INTO schedules(user_id,work_date,start_time,end_time,is_day_off,comment) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,work_date) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off,comment=excluded.comment", (request.form['user_id'],request.form['work_date'],request.form.get('start_time') or '09:00',request.form.get('end_time') or '20:00',1 if request.form.get('is_day_off') else 0,request.form.get('comment','')))
+            default_open, default_close = studio_hours()
+            con.execute("INSERT INTO schedules(user_id,work_date,start_time,end_time,is_day_off,comment) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,work_date) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off,comment=excluded.comment", (request.form['user_id'],request.form['work_date'],request.form.get('start_time') or default_open,request.form.get('end_time') or default_close,1 if request.form.get('is_day_off') else 0,request.form.get('comment','')))
             con.commit(); flash('График сохранен'); return redirect(url_for('employees'))
         if request.form.get('form_type') == 'weekly':
             uid = int(request.form['user_id'])
+            default_open, default_close = studio_hours()
             for wd in range(7):
                 con.execute(
                     "INSERT INTO employee_weekly_schedule(user_id,weekday,start_time,end_time,is_day_off) VALUES(?,?,?,?,?) "
                     "ON CONFLICT(user_id,weekday) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off",
-                    (uid, wd, request.form.get(f'start_{wd}') or '09:00', request.form.get(f'end_{wd}') or '20:00', 1 if request.form.get(f'off_{wd}') else 0)
+                    (uid, wd, request.form.get(f'start_{wd}') or default_open, request.form.get(f'end_{wd}') or default_close, 1 if request.form.get(f'off_{wd}') else 0)
                 )
             con.commit(); flash('Недельный график сохранён'); return redirect(url_for('employees', user_id=uid))
         role = request.form.get('role','master')
@@ -4598,11 +4643,12 @@ def profile():
             return redirect(url_for('profile'))
         if form_type == 'weekly':
             con = db()
+            default_open, default_close = studio_hours()
             for wd in range(7):
                 con.execute(
                     "INSERT INTO employee_weekly_schedule(user_id,weekday,start_time,end_time,is_day_off) VALUES(?,?,?,?,?) "
                     "ON CONFLICT(user_id,weekday) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off",
-                    (u['id'], wd, request.form.get(f'start_{wd}') or '09:00', request.form.get(f'end_{wd}') or '20:00', 1 if request.form.get(f'off_{wd}') else 0)
+                    (u['id'], wd, request.form.get(f'start_{wd}') or default_open, request.form.get(f'end_{wd}') or default_close, 1 if request.form.get(f'off_{wd}') else 0)
                 )
             con.commit()
             con.close()
@@ -4674,6 +4720,15 @@ def settings():
                 flash('База восстановлена из резервной копии')
             else:
                 flash('Не найдена резервная копия с данными')
+        elif action == 'studio_hours':
+            open_t = normalize_studio_time(request.form.get('studio_open_time'), STUDIO_OPEN_DEFAULT)
+            close_t = normalize_studio_time(request.form.get('studio_close_time'), STUDIO_CLOSE_DEFAULT)
+            if hm2m(open_t) >= hm2m(close_t):
+                flash('Время открытия должно быть раньше времени закрытия')
+            else:
+                set_setting('studio_open_time', open_t)
+                set_setting('studio_close_time', close_t)
+                flash(f'Часы работы студии: {open_t} — {close_t}')
         elif action == 'bonus_save':
             set_setting('bonus_enabled', '1' if request.form.get('bonus_enabled') else '0')
             set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
@@ -4786,6 +4841,8 @@ def settings():
         'settings.html',
         stats_refresh=stats_refresh,
         stats_updated=stats_updated,
+        studio_open=studio_open_time(),
+        studio_close=studio_close_time(),
         db_path=DB,
         db_info=db_info,
         backups=backups,
