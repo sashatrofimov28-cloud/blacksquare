@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -2646,13 +2646,12 @@ def index():
 def design_hub():
     return app.send_static_file('mockups/index.html')
 
-@app.route('/design/v1')
-def design_roadmap():
-    return app.send_static_file('mockups/roadmap.html')
-
-@app.route('/design/v2')
-def design_variants():
-    return app.send_static_file('mockups/roadmap-variants.html')
+@app.route('/design/preview/<slug>')
+def design_preview(slug):
+    allowed = {'dashboard', 'calendar', 'crm', 'close', 'analytics', 'employees', 'stock'}
+    if slug not in allowed:
+        abort(404)
+    return app.send_static_file(f'mockups/previews/{slug}.html')
 
 @app.route('/healthz')
 @app.route('/health')

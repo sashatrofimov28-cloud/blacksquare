@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Склад — BlackSquare макет</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="/static/style.css?v=22">
+  <link rel="stylesheet" href="/static/mockups/preview-shell.css">
+</head>
+<body class="theme-dark preview-mode">
+<div class="preview-ribbon"><a href="/design">← Все макеты</a><span>Склад · предложение: тёмные карточки как в CRM</span></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Меню">
+    <div class="brand">
+      <div class="wordmark">BlackSquare</div>
+      <span>директор</span>
+    </div>
+    <nav>
+      <a href="/design/preview/dashboard" class="">Главная</a>
+      <a href="/design/preview/calendar" class="">Календарь</a>
+      <a href="/design/preview/crm" class="">CRM</a>
+      <a href="/design/preview/stock" class="active">Склад</a>
+      <a href="/design/preview/analytics" class="">Статистика</a>
+      <a href="/design/preview/employees" class="">Сотрудники</a>
+      <a href="/design/preview/close" class="">Закрытие</a>
+      <a href="/settings">Настройки</a>
+    </nav>
+    <div class="profile">Вошли как: <b>Директор</b></div>
+  </aside>
+  <div class="main-wrap">
+    <header class="mobile-top">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
+      <div class="wordmark">BlackSquare</div>
+    </header>
+    <main class="main scrollable has-bottom-nav">
+
+<div class="stk-page">
+  <header class="stk-header">
+    <div><p class="stk-kicker">Материалы</p><h1>Склад</h1></div>
+    <a href="#" class="stk-add-btn">+</a>
+  </header>
+  <div class="stk-stats">
+    <div class="stk-stat tone-green"><span>🎞</span><div><strong>8</strong><span>плёнок</span></div></div>
+    <div class="stk-stat tone-orange"><span>⚠</span><div><strong>2</strong><span>мало</span></div></div>
+    <div class="stk-stat tone-blue"><span>🔧</span><div><strong>14</strong><span>расходников</span></div></div>
+  </div>
+  <form class="stk-search"><input placeholder="Поиск по названию…"></form>
+  <nav class="stk-filters scrollable-x">
+    <a href="#" class="stk-filter active">Плёнка</a>
+    <a href="#" class="stk-filter">Инструмент</a>
+    <a href="#" class="stk-filter">Расходники</a>
+  </nav>
+  <div class="stk-grid">
+    <article class="stk-card card-surface">
+      <div class="stk-card-photo"><div class="stock-card-placeholder">🎞</div></div>
+      <div class="stk-card-body">
+        <div class="stk-card-top"><b>LLumar ATC 5%</b><strong>12,4 м²</strong></div>
+        <div class="stock-bar-wrap"><div class="stock-bar stock-bar-mid" style="width:42%"></div></div>
+        <span class="stk-meta">1,52 м · 420 ₽/м</span>
+        <span class="stk-pill tone-orange">Средний остаток</span>
+      </div>
+    </article>
+    <article class="stk-card card-surface">
+      <div class="stk-card-photo"><div class="stock-card-placeholder">🎞</div></div>
+      <div class="stk-card-body">
+        <div class="stk-card-top"><b>SunTek CXP 15%</b><strong>3,1 м²</strong></div>
+        <div class="stock-bar-wrap"><div class="stock-bar stock-bar-low" style="width:18%"></div></div>
+        <span class="stk-meta">1,52 м · 380 ₽/м</span>
+        <span class="stk-pill tone-red">Мало</span>
+      </div>
+    </article>
+    <article class="stk-card card-surface">
+      <div class="stk-card-photo"><div class="stock-card-placeholder">🧴</div></div>
+      <div class="stk-card-body">
+        <div class="stk-card-top"><b>Мыльный раствор</b><strong>6 шт</strong></div>
+        <div class="stock-bar-wrap"><div class="stock-bar stock-bar-high" style="width:78%"></div></div>
+        <span class="stk-meta">Расходник</span>
+        <span class="stk-pill tone-green">В норме</span>
+      </div>
+    </article>
+  </div>
+</div>
+
+    </main>
+    <nav class="bottom-nav" aria-label="Навигация">
+      <a href="/design/preview/dashboard" class="bottom-nav-item"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      <a href="/design/preview/calendar" class="bottom-nav-item"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>
+      <a href="/design/preview/crm" class="bottom-nav-item"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>
+      <a href="/design/preview/analytics" class="bottom-nav-item"><span class="bottom-nav-icon">📊</span><span>Отчёты</span></a>
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+    </nav>
+  </div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+</div>
+<script src="/static/app.js?v=22"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Аналитика — BlackSquare макет</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="/static/style.css?v=22">
+  <link rel="stylesheet" href="/static/mockups/preview-shell.css">
+</head>
+<body class="theme-dark preview-mode">
+<div class="preview-ribbon"><a href="/design">← Все макеты</a><span>Статистика · выручка, мастера, метрики</span></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Меню">
+    <div class="brand">
+      <div class="wordmark">BlackSquare</div>
+      <span>директор</span>
+    </div>
+    <nav>
+      <a href="/design/preview/dashboard" class="">Главная</a>
+      <a href="/design/preview/calendar" class="">Календарь</a>
+      <a href="/design/preview/crm" class="">CRM</a>
+      <a href="/design/preview/stock" class="">Склад</a>
+      <a href="/design/preview/analytics" class="active">Статистика</a>
+      <a href="/design/preview/employees" class="">Сотрудники</a>
+      <a href="/design/preview/close" class="">Закрытие</a>
+      <a href="/settings">Настройки</a>
+    </nav>
+    <div class="profile">Вошли как: <b>Директор</b></div>
+  </aside>
+  <div class="main-wrap">
+    <header class="mobile-top">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
+      <div class="wordmark">BlackSquare</div>
+    </header>
+    <main class="main scrollable has-bottom-nav">
+
+<div class="an-page">
+  <header class="an-header">
+    <div><p class="an-kicker">Отчёты</p><h1>Аналитика</h1><p class="an-sub">19 июня 2026</p></div>
+    <a href="#" class="an-cal-btn">📅</a>
+  </header>
+  <nav class="an-periods scrollable-x">
+    <a href="#" class="an-period active">Сегодня</a>
+    <a href="#" class="an-period">Неделя</a>
+    <a href="#" class="an-period">Месяц</a>
+  </nav>
+  <div class="an-hero">
+    <div class="an-hero-card tone-green"><span>Выручка</span><strong>48 200 ₽</strong><em class="up">12%</em></div>
+    <div class="an-hero-card tone-purple"><span>Записей</span><strong>6</strong><em class="up">2%</em></div>
+  </div>
+  <section class="an-section card-surface">
+    <h2>Выручка по мастерам</h2>
+    <div class="an-bars">
+      <div class="an-bar-row">
+        <div class="an-bar-head"><span class="an-bar-avatar tone-green">К</span><b>Катя</b><strong>26 100 ₽</strong></div>
+        <div class="an-bar-track"><i class="tone-green" style="width:72%"></i></div>
+      </div>
+      <div class="an-bar-row">
+        <div class="an-bar-head"><span class="an-bar-avatar tone-blue">С</span><b>Стас</b><strong>22 100 ₽</strong></div>
+        <div class="an-bar-track"><i class="tone-blue" style="width:61%"></i></div>
+      </div>
+    </div>
+  </section>
+  <div class="an-metrics">
+    <div class="an-metric card-surface"><span>Средний чек</span><strong>8 033 ₽</strong><em class="up">5%</em></div>
+    <div class="an-metric card-surface"><span>Конверсия</span><strong>68%</strong><em class="down">3%</em></div>
+    <div class="an-metric card-surface"><span>Новые клиенты</span><strong>2</strong><em class="up">1</em></div>
+    <div class="an-metric card-surface"><span>Отмены</span><strong>1</strong><em class="up">0%</em></div>
+  </div>
+</div>
+
+    </main>
+    <nav class="bottom-nav" aria-label="Навигация">
+      <a href="/design/preview/dashboard" class="bottom-nav-item"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      <a href="/design/preview/calendar" class="bottom-nav-item"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>
+      <a href="/design/preview/crm" class="bottom-nav-item"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>
+      <a href="/design/preview/analytics" class="bottom-nav-item active"><span class="bottom-nav-icon">📊</span><span>Отчёты</span></a>
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+    </nav>
+  </div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+</div>
+<script src="/static/app.js?v=22"></script>
+</body>
+</html>
