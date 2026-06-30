@@ -935,6 +935,10 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
   background:linear-gradient(180deg,transparent,var(--bg,#050505) 30%)
 }
 .close-sticky .close-submit{margin:0;box-shadow:0 -8px 32px rgba(0,0,0,.4)}
+.edit-was-used{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border,#2a2a2a)}
+.edit-was-used .close-lines li strong{color:var(--muted,#aaa)}
+.close-page-b .master-picker{background:transparent;border:0;padding:0;margin-bottom:12px}
+.close-page-b .master-picker-label{font-size:13px;font-weight:700;margin-bottom:8px;display:block}
 @media(min-width:1025px){
   .close-sticky{bottom:12px}
 }

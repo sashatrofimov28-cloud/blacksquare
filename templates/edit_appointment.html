@@ -1,80 +1,254 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
-  <h1>{% if is_closed %}Редактировать заказ{% else %}Изменить запись{% endif %}</h1>
-  <p>{{ ap.client_name }} · {{ ap.plate_number }} · {{ ap.service_name }}</p>
-</header>
-
 {% if is_closed %}
-{% if has_perm('extra_services') %}
-<div class="panel">
-  <h2>Дополнительные услуги</h2>
-  <table>
-    <tr><th>Услуга</th><th>Сумма</th></tr>
-    {% for e in extras %}
-    <tr><td>{{ e.name }}</td><td>{{ "%.0f"|format(e.price) }} ₽</td></tr>
-    {% endfor %}
-  </table>
-  {% if used_materials %}
-  <h3 style="margin-top:16px">Было списано</h3>
-  <ul>{% for m in used_materials %}<li>{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}</li>{% endfor %}</ul>
-  {% endif %}
-</div>
-{% endif %}
-<div class="panel">
-  <form method="post" id="closeForm">
-    <h2>Материалы со склада</h2>
-    <p style="color:#666;font-size:14px">Укажите материалы заново — старые списания будут возвращены на склад.{% if is_master %} Доступ к разделу «Склад» для этого не нужен.{% endif %}</p>
-    <div id="materialRows" class="material-rows"></div>
-    <button type="button" class="ghost" id="addMaterialBtn" style="margin-top:12px">+ Добавить материал</button>
-    <div class="form-grid" style="margin-top:20px">
-      {% set master_form_id = 'closeForm' %}
-      {% include '_master_picker.html' %}
-      <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Сумма заказа ₽" required>
-      {% include '_salary_by_master.html' %}
-      <textarea name="comment" placeholder="Комментарий" class="span4">{{ ap.comment or '' }}</textarea>
-      <button>Сохранить изменения</button>
+<div class="close-page close-page-b">
+  <header class="close-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
+    <div>
+      <h1>Редактировать заказ</h1>
+      <p>{{ ap.client_name }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
+    </div>
+  </header>
+
+  <form method="post" id="closeForm" class="close-form">
+    <div class="close-hero-total card-surface">
+      <span class="close-hero-label">Сумма заказа</span>
+      <strong class="close-hero-amount" id="closeHeroTotal">{{ format_money(ap.price or 0) }} ₽</strong>
+      <span class="close-hero-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</span>
+    </div>
+
+    <div class="close-client card-surface">
+      <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
+      <div class="close-client-body">
+        <b>{{ ap.service_name }}</b>
+        <span>{{ ap.phone }}</span>
+        <span>{{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+      </div>
+      <label class="close-price-wrap" title="Сумма заказа">
+        <input name="price" type="number" step="0.01" class="close-price-inline" id="closePriceInput" value="{{ ap.price }}" required>
+        <span>₽</span>
+      </label>
+    </div>
+
+    <details class="close-fold" open>
+      <summary>Мастера и зарплата</summary>
+      <div class="close-fold-body">
+        {% set master_form_id = 'closeForm' %}
+        <div class="close-master-picker-wrap">
+          {% include '_master_picker.html' %}
+        </div>
+        {% include '_salary_by_master.html' %}
+      </div>
+    </details>
+
+    <details class="close-fold" open>
+      <summary>Материалы</summary>
+      <div class="close-fold-body">
+        <p class="close-hint" style="margin-top:0">Укажите материалы заново — старые списания вернутся на склад.{% if is_master %} Склад открывать не нужно.{% endif %}</p>
+        {% if used_materials %}
+        <div class="edit-was-used">
+          <span class="close-field-label">Было списано</span>
+          <ul class="close-lines">
+            {% for m in used_materials %}
+            <li><span>{{ m.name }}</span><strong>{{ "%.2f"|format(m.qty) }} {{ m.unit }}</strong></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        <div id="materialRows" class="material-rows close-material-rows"></div>
+        <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
+      </div>
+    </details>
+
+    {% if has_perm('extra_services') and extras %}
+    <details class="close-fold" open>
+      <summary>Доп. услуги <em>{{ extras|length }}</em></summary>
+      <div class="close-fold-body">
+        <ul class="close-lines">
+          {% for e in extras %}
+          <li><span>{{ e.name }}</span><strong>{{ format_money(e.price) }} ₽</strong></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </details>
+    {% endif %}
+
+    <details class="close-fold">
+      <summary>Комментарий</summary>
+      <div class="close-fold-body">
+        <textarea name="comment" placeholder="Комментарий к заказу" rows="2">{{ ap.comment or '' }}</textarea>
+      </div>
+    </details>
+
+    <div class="close-sticky">
+      <button type="submit" class="close-submit">Сохранить изменения ✓</button>
     </div>
   </form>
 </div>
+
+<script>
+const STOCK_DATA = {
+  {% for m in materials %}
+  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }}, price: {{ m.cost_per_unit or 0 }} },
+  {% endfor %}
+};
+const IS_MASTER = {{ 'true' if is_master else 'false' }};
+
+function buildMaterialRow() {
+  const wrap = document.createElement('div');
+  wrap.className = 'material-row close-material-row';
+  let opts = '<option value="">Выберите материал</option>';
+  Object.keys(STOCK_DATA).forEach(id => {
+    const m = STOCK_DATA[id];
+    const bal = IS_MASTER ? '' : ` — ${m.balance} ${m.unit}`;
+    opts += `<option value="${id}">${m.name}${bal}</option>`;
+  });
+  wrap.innerHTML = `
+    <select name="material_item_id" class="mat-select">${opts}</select>
+    <input name="material_length_m" type="number" step="0.01" class="film-only" placeholder="Длина, м">
+    <input name="material_width_cm" type="number" step="0.01" class="film-only" placeholder="Ширина, см">
+    <input name="material_qty" type="number" step="0.01" class="cons-only" placeholder="Кол-во" style="display:none">
+    <button type="button" class="close-line-del remove-mat" aria-label="Удалить">×</button>
+  `;
+  const sel = wrap.querySelector('.mat-select');
+  sel.addEventListener('change', () => { toggleRowType(wrap); recalcEditTotals(); });
+  wrap.querySelector('.remove-mat').addEventListener('click', () => { wrap.remove(); recalcEditTotals(); });
+  wrap.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcEditTotals));
+  toggleRowType(wrap);
+  return wrap;
+}
+
+function toggleRowType(row) {
+  const id = row.querySelector('.mat-select').value;
+  const item = STOCK_DATA[id];
+  const isFilm = item && item.category === 'film';
+  row.classList.toggle('consumable', !isFilm);
+  row.querySelectorAll('.film-only').forEach(el => el.style.display = isFilm ? '' : 'none');
+  const q = row.querySelector('.cons-only');
+  if (q) q.style.display = isFilm ? 'none' : '';
+}
+
+function recalcEditTotals() {
+  const price = parseFloat(document.getElementById('closePriceInput')?.value || 0);
+  let matCost = 0;
+  document.querySelectorAll('#materialRows .material-row').forEach(row => {
+    const id = row.querySelector('.mat-select').value;
+    const item = STOCK_DATA[id];
+    if (!item) return;
+    if (item.category === 'film') {
+      const len = parseFloat(row.querySelector('[name="material_length_m"]')?.value || 0);
+      const wid = parseFloat(row.querySelector('[name="material_width_cm"]')?.value || 0);
+      matCost += len * (wid / 100) * (item.price || 0);
+    } else {
+      const qty = parseFloat(row.querySelector('[name="material_qty"]')?.value || 0);
+      matCost += qty * (item.price || 0);
+    }
+  });
+  const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  const hero = document.getElementById('closeHeroTotal');
+  const sub = document.getElementById('closeHeroSub');
+  if (hero) hero.textContent = fmt(price);
+  if (sub) sub.textContent = 'услуга ' + fmt(price) + ' · расходники ' + fmt(matCost);
+}
+
+document.getElementById('addMaterialBtn').addEventListener('click', () => {
+  document.getElementById('materialRows').appendChild(buildMaterialRow());
+});
+document.getElementById('materialRows').appendChild(buildMaterialRow());
+
+document.getElementById('closeForm').addEventListener('submit', function () {
+  document.querySelectorAll('#materialRows .material-row').forEach(row => {
+    const id = row.querySelector('.mat-select').value;
+    if (!id) {
+      row.querySelectorAll('[name]').forEach(el => el.removeAttribute('name'));
+      return;
+    }
+    const item = STOCK_DATA[id];
+    if (item && item.category !== 'film') {
+      row.querySelectorAll('.film-only').forEach(el => el.removeAttribute('name'));
+    } else {
+      const q = row.querySelector('.cons-only');
+      if (q) q.removeAttribute('name');
+    }
+  });
+});
+
+window.BS_MASTERS = {{ masters_json|safe }};
+window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
+window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
+const priceInput = document.getElementById('closePriceInput');
+if (priceInput) priceInput.addEventListener('input', recalcEditTotals);
+recalcEditTotals();
+</script>
+
 {% else %}
-<div class="panel">
-  <form method="post" class="form-grid" id="editApptForm">
-    <input name="client_name" value="{{ ap.client_name }}" required>
-    <input name="phone" value="{{ ap.phone }}" required>
-    <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
-    <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
-    <div class="span4 master-picker" id="servicePicker" data-form-id="editApptForm">
-      <label class="master-picker-label">Услуги *</label>
-      <span class="field-hint service-required-hint" hidden>Выберите хотя бы одну услугу</span>
-      <p class="master-empty-hint" id="serviceEmptyHint">Пока не выбрана ни одна услуга — выберите из списка и нажмите «Добавить»</p>
-      <div class="master-add-row">
-        <select id="serviceSelect" class="master-select">
-          <option value="">— Выберите услугу —</option>
-        </select>
-        <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
-      </div>
-      <div id="serviceChips" class="master-chips"></div>
-      <div id="serviceHiddenInputs"></div>
+<div class="close-page close-page-b">
+  <header class="close-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
+    <div>
+      <h1>Изменить запись</h1>
+      <p>{{ ap.client_name }} · {{ ap.start_time[:5] }}</p>
     </div>
-    <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="editApptForm">
-      <label class="master-picker-label">Мастера *</label>
-      <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите хотя бы одного мастера</span>
-      <p class="master-empty-hint" id="masterEmptyHint">Пока не выбран ни один мастер — выберите из списка и нажмите «Добавить». Можно добавить двух и более — одна запись на всех.</p>
-      <div class="master-add-row">
-        <select id="masterSelect" class="master-select">
-          <option value="">— Выберите мастера —</option>
-        </select>
-        <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+  </header>
+
+  <form method="post" class="close-form" id="editApptForm">
+    <details class="close-fold" open>
+      <summary>Клиент</summary>
+      <div class="close-fold-body">
+        <input name="client_name" value="{{ ap.client_name }}" placeholder="Имя" required>
+        <input name="phone" value="{{ ap.phone }}" placeholder="Телефон" required>
+        <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
+        <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
       </div>
-      <div id="masterChips" class="master-chips"></div>
-      <div id="masterHiddenInputs"></div>
+    </details>
+
+    <details class="close-fold" open>
+      <summary>Услуги и мастера</summary>
+      <div class="close-fold-body">
+        <div class="master-picker" id="servicePicker" data-form-id="editApptForm">
+          <label class="master-picker-label">Услуги *</label>
+          <span class="field-hint service-required-hint" hidden>Выберите хотя бы одну услугу</span>
+          <div class="master-add-row">
+            <select id="serviceSelect" class="master-select"><option value="">— Услуга —</option></select>
+            <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+          </div>
+          <div id="serviceChips" class="master-chips"></div>
+          <div id="serviceHiddenInputs"></div>
+        </div>
+        <div class="master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="editApptForm">
+          <label class="master-picker-label">Мастера *</label>
+          <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
+          <div class="master-add-row">
+            <select id="masterSelect" class="master-select"><option value="">— Мастер —</option></select>
+            <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+          </div>
+          <div id="masterChips" class="master-chips"></div>
+          <div id="masterHiddenInputs"></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="close-fold" open>
+      <summary>Дата и цена</summary>
+      <div class="close-fold-body">
+        <div class="close-inline-form close-inline-stack">
+          <input type="date" name="appointment_date" value="{{ ap.appointment_date }}">
+          <input type="time" name="start_time" value="{{ ap.start_time }}" required>
+          <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Цена ₽">
+        </div>
+      </div>
+    </details>
+
+    <details class="close-fold">
+      <summary>Комментарий</summary>
+      <div class="close-fold-body">
+        <textarea name="comment" placeholder="Комментарий" rows="2">{{ ap.comment or '' }}</textarea>
+      </div>
+    </details>
+
+    <div class="close-sticky">
+      <button type="submit" class="close-submit">Сохранить ✓</button>
     </div>
-    <input type="date" name="appointment_date" value="{{ ap.appointment_date }}">
-    <input type="time" name="start_time" value="{{ ap.start_time }}" required>
-    <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Цена заказа ₽">
-    <textarea name="comment" placeholder="Комментарий" class="span4">{{ ap.comment or '' }}</textarea>
-    <button>Сохранить</button>
   </form>
 </div>
 <script>
@@ -82,51 +256,6 @@ window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_SERVICES = {{ services_json|safe }};
 window.BS_INITIAL_SERVICES = {{ selected_service_ids|tojson }};
-</script>
-{% endif %}
-
-{% if is_closed %}
-<script>
-const STOCK_DATA = {
-  {% for m in materials %}
-  {{ m.id }}: { name: {{ m.name|tojson }}, category: {{ m.category|tojson }}, unit: {{ m.unit|tojson }}, balance: {{ m.balance }} },
-  {% endfor %}
-};
-const IS_MASTER = {{ 'true' if is_master else 'false' }};
-function buildMaterialRow() {
-  const wrap = document.createElement('div');
-  wrap.className = 'material-row';
-  let opts = '<option value="">Выберите материал</option>';
-  Object.keys(STOCK_DATA).forEach(id => {
-    const m = STOCK_DATA[id];
-    const bal = IS_MASTER ? '' : ` — ${m.balance} ${m.unit}`;
-    opts += `<option value="${id}">${m.name}${bal}</option>`;
-  });
-  wrap.innerHTML = `<select name="material_item_id" class="mat-select">${opts}</select>
-    <input name="material_length_m" type="number" step="0.01" class="film-only" placeholder="Длина, м">
-    <input name="material_width_cm" type="number" step="0.01" class="film-only" placeholder="Ширина, см">
-    <input name="material_qty" type="number" step="0.01" class="cons-only" placeholder="Кол-во" style="display:none">
-    <button type="button" class="danger remove-mat">×</button>`;
-  wrap.querySelector('.mat-select').addEventListener('change', () => toggleRowType(wrap));
-  wrap.querySelector('.remove-mat').addEventListener('click', () => wrap.remove());
-  toggleRowType(wrap);
-  return wrap;
-}
-function toggleRowType(row) {
-  const id = row.querySelector('.mat-select').value;
-  const item = STOCK_DATA[id];
-  const isFilm = item && item.category === 'film';
-  row.querySelectorAll('.film-only').forEach(el => el.style.display = isFilm ? '' : 'none');
-  const q = row.querySelector('.cons-only');
-  if (q) q.style.display = isFilm ? 'none' : '';
-}
-document.getElementById('addMaterialBtn').addEventListener('click', () => document.getElementById('materialRows').appendChild(buildMaterialRow()));
-document.getElementById('materialRows').appendChild(buildMaterialRow());
-</script>
-<script>
-window.BS_MASTERS = {{ masters_json|safe }};
-window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
-window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
 </script>
 {% endif %}
 {% endblock %}
