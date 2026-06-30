@@ -522,6 +522,20 @@ def appt_countdown_label(appt_date, start_time):
         return f'Через {delta // 60} ч'
     return appt_date
 
+def appt_closed_label(closed_at, start_time=''):
+    if closed_at:
+        try:
+            dt = datetime.strptime(str(closed_at)[:16], '%Y-%m-%d %H:%M')
+            return f'Закрыто в {dt.strftime("%H:%M")}'
+        except ValueError:
+            pass
+    if start_time:
+        return f'Визит {normalize_hm(start_time)[:5]}'
+    return 'Сегодня'
+
+def closed_today_sql():
+    return "(status='Закрыт' AND ((closed_at IS NOT NULL AND date(closed_at)=?) OR (closed_at IS NULL AND appointment_date=?)))"
+
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB)
@@ -2569,6 +2583,7 @@ def inject():
         'format_money': format_money,
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
+        'appt_closed_label': appt_closed_label,
         'months_ru': MONTHS_RU,
         'crm_status_tone': crm_status_tone,
         'client_initials': client_initials,
@@ -2643,10 +2658,17 @@ def dashboard():
     check_finance_reminders(u)
     if u['role'] == 'master':
         mf = master_appointment_filter_sql()
+        day = today()
         upcoming = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'], u['id'])).fetchall()
+        closed_today = con.execute(
+            f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+            f"WHERE {mf} AND {closed_today_sql()} "
+            f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
+            (u['id'], u['id'], day, day),
+        ).fetchall()
         completed = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12", (u['id'], u['id'])).fetchall()
         total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
-        con.close(); return render_template('master_dashboard.html', upcoming=upcoming, completed=completed, total=total)
+        con.close(); return render_template('master_dashboard.html', upcoming=upcoming, closed_today=closed_today, completed=completed, total=total)
 
     period = request.args.get('period', 'today')
     if period not in ('today', 'yesterday', 'week', 'month', 'year'):
@@ -2665,8 +2687,15 @@ def dashboard():
         f"ORDER BY appointment_date ASC, start_time ASC LIMIT 12",
         (today(),),
     ).fetchall()
+    day = today()
+    closed_today = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+        f"WHERE {closed_today_sql()} "
+        f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
+        (day, day),
+    ).fetchall()
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, trends=trends, rows=rows, upcoming=upcoming, requests=requests, period=period)
+    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, trends=trends, rows=rows, upcoming=upcoming, closed_today=closed_today, requests=requests, period=period)
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():

@@ -81,5 +81,34 @@
       {% endfor %}
     </div>
   </section>
+
+  <section class="dash-section">
+    <div class="dash-section-head">
+      <h2>Закрыто сегодня</h2>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view', date=today) }}" class="dash-link">Календарь ›</a>{% endif %}
+    </div>
+    <div class="dash-appt-list">
+      {% for r in closed_today %}
+      {% set meta = appt_status_meta(r.status) %}
+      <a class="dash-appt {{ meta.bar }}" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <div class="dash-appt-time">
+          <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
+          <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
+        </div>
+        <div class="dash-appt-body">
+          <b>{{ r.client_name }}</b>
+          <span>{{ r.service_name }}</span>
+          <span>{{ r.employee_name }}</span>
+        </div>
+        <div class="dash-appt-side">
+          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
+          <strong>{{ format_money(r.price or 0) }} ₽</strong>
+        </div>
+      </a>
+      {% else %}
+      <p class="dash-empty">Сегодня ещё нет закрытых записей</p>
+      {% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
