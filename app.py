@@ -283,7 +283,23 @@ def layout_day_timeline(rows, day_start='09:00', day_end='21:00', px_per_hour=72
         })
     events = assign_overlap_columns(events)
     hours = [f'{h:02d}:00' for h in range(start_m // 60, (end_m + 59) // 60)]
-    return {'hours': hours, 'events': events, 'height_px': round((end_m - start_m) / 60 * px_per_hour), 'px_per_hour': px_per_hour}
+    slot_h = px_per_hour / 2
+    slots = []
+    for m in range(start_m, end_m, 30):
+        slots.append({
+            'time': m2hm(m),
+            'top': round((m - start_m) / 60 * px_per_hour, 1),
+            'height': slot_h,
+        })
+    return {
+        'hours': hours,
+        'events': events,
+        'slots': slots,
+        'height_px': round((end_m - start_m) / 60 * px_per_hour),
+        'px_per_hour': px_per_hour,
+        'day_start': day_start,
+        'day_end': day_end,
+    }
 
 def stat_trend_pct(current, previous):
     cur, prev = float(current or 0), float(previous or 0)
