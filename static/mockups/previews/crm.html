@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>CRM — BlackSquare макет</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="/static/style.css?v=22">
+  <link rel="stylesheet" href="/static/mockups/preview-shell.css">
+</head>
+<body class="theme-dark preview-mode">
+<div class="preview-ribbon"><a href="/design">← Все макеты</a><span>CRM · карточки клиентов, фильтры, статусы</span></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Меню">
+    <div class="brand">
+      <div class="wordmark">BlackSquare</div>
+      <span>директор</span>
+    </div>
+    <nav>
+      <a href="/design/preview/dashboard" class="">Главная</a>
+      <a href="/design/preview/calendar" class="">Календарь</a>
+      <a href="/design/preview/crm" class="active">CRM</a>
+      <a href="/design/preview/stock" class="">Склад</a>
+      <a href="/design/preview/analytics" class="">Статистика</a>
+      <a href="/design/preview/employees" class="">Сотрудники</a>
+      <a href="/design/preview/close" class="">Закрытие</a>
+      <a href="/settings">Настройки</a>
+    </nav>
+    <div class="profile">Вошли как: <b>Директор</b></div>
+  </aside>
+  <div class="main-wrap">
+    <header class="mobile-top">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
+      <div class="wordmark">BlackSquare</div>
+    </header>
+    <main class="main scrollable has-bottom-nav">
+
+<div class="crm-page">
+  <header class="crm-header">
+    <div><p class="crm-kicker">CRM</p><h1>Клиенты</h1></div>
+    <a href="#" class="crm-add-btn">+</a>
+  </header>
+  <div class="crm-stats">
+    <div class="crm-stat tone-purple"><span class="crm-stat-icon">👥</span><div><strong>248</strong><span>клиентов</span></div></div>
+    <div class="crm-stat tone-blue"><span class="crm-stat-icon">✦</span><div><strong>12</strong><span>новых</span></div></div>
+  </div>
+  <form class="crm-search"><input placeholder="Поиск клиентов…"></form>
+  <nav class="crm-filters scrollable-x">
+    <a href="#" class="crm-filter active">Все <em>248</em></a>
+    <a href="#" class="crm-filter tone-green">Записан <em>18</em></a>
+    <a href="#" class="crm-filter tone-orange">Думает <em>7</em></a>
+    <a href="#" class="crm-filter tone-red">Отказ <em>4</em></a>
+  </nav>
+  <div class="crm-list">
+    <a class="crm-card tone-green" href="#">
+      <div class="crm-card-avatar">АК</div>
+      <div class="crm-card-body">
+        <div class="crm-card-top"><b>Алексей К.</b><span class="crm-card-date">19.06 14:00</span></div>
+        <span class="crm-card-phone">+7 900 777-88-99</span>
+        <span class="crm-card-car">Audi A6 · С789МН77</span>
+        <span class="crm-pill tone-green">Записан</span>
+      </div>
+      <strong class="crm-card-price">5 500 ₽</strong>
+    </a>
+    <a class="crm-card tone-orange" href="#">
+      <div class="crm-card-avatar">МС</div>
+      <div class="crm-card-body">
+        <div class="crm-card-top"><b>Мария Сидорова</b><span class="crm-card-date">18.06 16:20</span></div>
+        <span class="crm-card-phone">+7 900 444-55-66</span>
+        <span class="crm-card-car">Mercedes E · В456КХ99</span>
+        <span class="crm-pill tone-orange">Думает</span>
+      </div>
+      <strong class="crm-card-price">6 000 ₽</strong>
+    </a>
+    <a class="crm-card tone-purple" href="#">
+      <div class="crm-card-avatar">ИП</div>
+      <div class="crm-card-body">
+        <div class="crm-card-top"><b>Иван Петров</b><span class="crm-card-date">17.06 10:00</span></div>
+        <span class="crm-card-phone">+7 900 111-22-33</span>
+        <span class="crm-card-car">BMW X5 · А123ВС77</span>
+        <span class="crm-pill tone-purple">Постоянный</span>
+      </div>
+      <strong class="crm-card-price">2 500 ₽</strong>
+    </a>
+  </div>
+</div>
+
+    </main>
+    <nav class="bottom-nav" aria-label="Навигация">
+      <a href="/design/preview/dashboard" class="bottom-nav-item"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      <a href="/design/preview/calendar" class="bottom-nav-item"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>
+      <a href="/design/preview/crm" class="bottom-nav-item active"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>
+      <a href="/design/preview/analytics" class="bottom-nav-item"><span class="bottom-nav-icon">📊</span><span>Отчёты</span></a>
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+    </nav>
+  </div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+</div>
+<script src="/static/app.js?v=22"></script>
+</body>
+</html>

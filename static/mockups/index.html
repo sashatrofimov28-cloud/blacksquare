@@ -3,38 +3,136 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BlackSquare — дизайн-макеты</title>
-  <link rel="stylesheet" href="/static/mockups/roadmap.css">
-  <style>
-    .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; max-width: 800px; }
-    .hub-link {
-      display: block; padding: 24px; border-radius: 20px; border: 1px solid var(--border);
-      background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .2s;
-    }
-    .hub-link:hover { border-color: var(--green); }
-    .hub-link h2 { margin: 0 0 8px; font-size: 20px; }
-    .hub-link p { margin: 0; font-size: 13px; color: var(--muted); }
-    .hub-link .tag { display: inline-block; margin-top: 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--green); }
-    .hub-link.v2 .tag { color: var(--blue); }
-  </style>
+  <title>BlackSquare — макеты интерфейса</title>
+  <link rel="stylesheet" href="/static/mockups/gallery.css">
 </head>
-<body class="roadmap">
-  <header class="roadmap-hero">
-    <h1>Дизайн-макеты BlackSquare</h1>
-    <p>Выберите галерею: первая — предложения по вкладкам, вторая — альтернативные варианты A / B / C для сравнения.</p>
+<body>
+  <header class="gallery-hero">
+    <span class="gallery-badge">Дизайн BlackSquare</span>
+    <h1>Макеты вкладок</h1>
+    <p>Живые превью на реальном тёмном стиле CRM — как в приложении, с демо-данными. Откройте любую вкладку и посмотрите на телефоне или десктопе.</p>
+    <img class="gallery-showcase" src="/static/mockups/showcase.png" alt="Обзор интерфейса BlackSquare: главная, календарь, CRM, закрытие, аналитика">
   </header>
-  <div class="roadmap-grid" style="grid-template-columns:1fr; max-width:800px">
-    <div class="hub-grid">
-      <a class="hub-link" href="/design/v1">
-        <h2>Варианты v1</h2>
-        <p>9 вкладок: что уже есть и что добавить дальше (главная, календарь, CRM, склад…)</p>
-        <span class="tag">→ Открыть v1</span>
+
+  <div class="gallery-wrap">
+    <div class="gallery-grid">
+
+      <a class="gallery-card" href="/design/preview/dashboard">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-strip"><div class="mu-card g"></div><div class="mu-card b"></div><div class="mu-card"></div><div class="mu-card"></div></div>
+            <div class="mu-row"><span class="mu-dot" style="background:#2ecc71"></span>Иван Петров · закрыто</div>
+            <div class="mu-row"><span class="mu-dot"></span>Алексей К. · 14:00</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>Главная</h2>
+          <p>Метрики, ближайшие записи и блок «Закрыто сегодня»</p>
+        </div>
       </a>
-      <a class="hub-link v2" href="/design/v2">
-        <h2>Варианты v2</h2>
-        <p>Три направления дизайна на каждую ключевую вкладку — сравните A, B и C</p>
-        <span class="tag">→ Открыть v2</span>
+
+      <a class="gallery-card" href="/design/preview/calendar">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-timeline">
+              <div class="mu-event a">10:00 Иван</div>
+              <div class="mu-event b">14:00 Алексей</div>
+            </div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>Календарь</h2>
+          <p>Таймлайн дня, цветные записи, слоты 10:00–21:00</p>
+        </div>
       </a>
+
+      <a class="gallery-card" href="/design/preview/crm">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-row"><span class="mu-avatar"></span>Алексей К. · Записан</div>
+            <div class="mu-row"><span class="mu-avatar"></span>Мария С. · Думает</div>
+            <div class="mu-row"><span class="mu-avatar"></span>Иван Петров</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>CRM</h2>
+          <p>Карточки клиентов, фильтры по статусу, авто и телефон</p>
+        </div>
+      </a>
+
+      <a class="gallery-card" href="/design/preview/close">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-row" style="height:52px"><span class="mu-avatar"></span>Алексей К. · 5 500 ₽</div>
+            <div class="mu-row">Мастера · Стас</div>
+            <div class="mu-row" style="background:rgba(46,204,113,.1);border-color:rgba(46,204,113,.3)">Итого 6 340 ₽</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>Закрытие записи</h2>
+          <p>Мастера, материалы, сертификаты и итоговая сумма</p>
+        </div>
+      </a>
+
+      <a class="gallery-card" href="/design/preview/analytics">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-strip"><div class="mu-card g" style="height:56px"></div><div class="mu-card b" style="height:56px"></div></div>
+            <div class="mu-row">Катя ████████░░ 72%</div>
+            <div class="mu-row">Стас ██████░░░░ 61%</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>Статистика</h2>
+          <p>Выручка, мастера, средний чек и тренды</p>
+        </div>
+      </a>
+
+      <a class="gallery-card" href="/design/preview/employees">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-row"><span class="mu-avatar" style="background:rgba(46,204,113,.3)"></span>Катя · Мастер · онлайн</div>
+            <div class="mu-row"><span class="mu-avatar" style="background:rgba(52,152,219,.3)"></span>Стас · Мастер</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag live">В продакшене</span>
+          <h2>Сотрудники</h2>
+          <p>Роли, онлайн-запись, услуги мастеров</p>
+        </div>
+      </a>
+
+      <a class="gallery-card" href="/design/preview/stock">
+        <span class="gallery-arrow">→</span>
+        <div class="gallery-card-preview">
+          <div class="mini-ui">
+            <div class="mu-row">LLumar ATC 5% · 12,4 м²</div>
+            <div class="mu-row" style="border-color:rgba(231,76,60,.3)">SunTek CXP · мало</div>
+            <div class="mu-row">Мыльный раствор · 6 шт</div>
+          </div>
+        </div>
+        <div class="gallery-card-body">
+          <span class="gallery-tag proposal">Предложение</span>
+          <h2>Склад</h2>
+          <p>Тёмные карточки плёнки и расходников — как в CRM</p>
+        </div>
+      </a>
+
+    </div>
+
+    <div class="gallery-footer">
+      Напишите, что нравится и что менять — например: «Склад делаем» или «Главная — добавить график за неделю».
     </div>
   </div>
 </body>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Главная — BlackSquare макет</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="/static/style.css?v=22">
+  <link rel="stylesheet" href="/static/mockups/preview-shell.css">
+</head>
+<body class="theme-dark preview-mode">
+<div class="preview-ribbon"><a href="/design">← Все макеты</a><span>Главная · как в продакшене + блок «Закрыто сегодня»</span></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar" aria-label="Меню">
+    <div class="brand">
+      <div class="wordmark">BlackSquare</div>
+      <span>директор</span>
+    </div>
+    <nav>
+      <a href="/design/preview/dashboard" class="active">Главная</a>
+      <a href="/design/preview/calendar" class="">Календарь</a>
+      <a href="/design/preview/crm" class="">CRM</a>
+      <a href="/design/preview/stock" class="">Склад</a>
+      <a href="/design/preview/analytics" class="">Статистика</a>
+      <a href="/design/preview/employees" class="">Сотрудники</a>
+      <a href="/design/preview/close" class="">Закрытие</a>
+      <a href="/settings">Настройки</a>
+    </nav>
+    <div class="profile">Вошли как: <b>Директор</b></div>
+  </aside>
+  <div class="main-wrap">
+    <header class="mobile-top">
+      <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
+      <div class="wordmark">BlackSquare</div>
+    </header>
+    <main class="main scrollable has-bottom-nav">
+
+<div class="dash-page">
+  <header class="dash-header">
+    <div>
+      <h1>Главная</h1>
+      <p class="dash-date">19 июня 2026, четверг</p>
+    </div>
+    <a href="#" class="dash-bell" aria-label="Профиль">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+    </a>
+  </header>
+  <div class="m-strip">
+    <div class="m-card tone-green">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+      <div class="m-text"><span class="m-label">Касса</span><strong class="m-value">48 200 ₽</strong></div>
+    </div>
+    <div class="m-card tone-blue">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-10"/></svg></div>
+      <div class="m-text"><span class="m-label">Прибыль</span><strong class="m-value">31 400 ₽</strong></div>
+    </div>
+    <div class="m-card tone-orange">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
+      <div class="m-text"><span class="m-label">ЗП</span><strong class="m-value">12 800 ₽</strong></div>
+    </div>
+    <div class="m-card tone-purple">
+      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
+      <div class="m-text"><span class="m-label">м²</span><strong class="m-value">14,2</strong></div>
+    </div>
+  </div>
+  <nav class="dash-periods scrollable-x">
+    <a href="#" class="dash-period active">Сегодня</a>
+    <a href="#" class="dash-period">Вчера</a>
+    <a href="#" class="dash-period">Неделя</a>
+    <a href="#" class="dash-period">Месяц</a>
+    <a href="#" class="dash-period">Год</a>
+  </nav>
+  <section class="dash-section">
+    <div class="dash-section-head">
+      <h2>Ближайшие записи</h2>
+      <a href="/design/preview/calendar" class="dash-link">Смотреть все ›</a>
+    </div>
+    <div class="dash-appt-list">
+      <a class="dash-appt bar-orange" href="/design/preview/close">
+        <div class="dash-appt-time"><strong>14:00</strong><span>через 2 ч</span></div>
+        <div class="dash-appt-body"><b>Алексей К.</b><span>Тонировка задней части</span><span>Стас</span></div>
+        <div class="dash-appt-side"><span class="status-pill pill-orange">Ожидает</span><strong>5 500 ₽</strong></div>
+      </a>
+      <a class="dash-appt bar-blue" href="#">
+        <div class="dash-appt-time"><strong>16:30</strong><span>через 4 ч</span></div>
+        <div class="dash-appt-body"><b>Мария Сидорова</b><span>Атермальная плёнка</span><span>Катя</span></div>
+        <div class="dash-appt-side"><span class="status-pill pill-blue">Подтверждена</span><strong>6 000 ₽</strong></div>
+      </a>
+    </div>
+  </section>
+  <section class="dash-section">
+    <div class="dash-section-head">
+      <h2>Закрыто сегодня</h2>
+      <a href="/design/preview/calendar" class="dash-link">Календарь ›</a>
+    </div>
+    <div class="dash-appt-list">
+      <a class="dash-appt bar-green" href="#">
+        <div class="dash-appt-time"><strong>10:00</strong><span>закрыто в 12:40</span></div>
+        <div class="dash-appt-body"><b>Иван Петров</b><span>Передние боковые</span><span>Катя</span></div>
+        <div class="dash-appt-side"><span class="status-pill pill-green">Закрыт</span><strong>2 500 ₽</strong></div>
+      </a>
+      <a class="dash-appt bar-green" href="#">
+        <div class="dash-appt-time"><strong>11:30</strong><span>закрыто в 13:05</span></div>
+        <div class="dash-appt-body"><b>Дмитрий В.</b><span>Тонировка задней части</span><span>Стас</span></div>
+        <div class="dash-appt-side"><span class="status-pill pill-green">Закрыт</span><strong>5 500 ₽</strong></div>
+      </a>
+    </div>
+  </section>
+</div>
+
+    </main>
+    <nav class="bottom-nav" aria-label="Навигация">
+      <a href="/design/preview/dashboard" class="bottom-nav-item active"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      <a href="/design/preview/calendar" class="bottom-nav-item"><span class="bottom-nav-icon">📅</span><span>Записи</span></a>
+      <a href="/design/preview/crm" class="bottom-nav-item"><span class="bottom-nav-icon">👥</span><span>Клиенты</span></a>
+      <a href="/design/preview/analytics" class="bottom-nav-item"><span class="bottom-nav-icon">📊</span><span>Отчёты</span></a>
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+    </nav>
+  </div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+</div>
+<script src="/static/app.js?v=22"></script>
+</body>
+</html>
