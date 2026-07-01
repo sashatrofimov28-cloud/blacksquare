@@ -1,1 +1,26 @@
-{% extends "base.html" %}{% block content %}<div class="login-card"><div class="wordmark center">BlackSquare</div><p>Вход</p><form method="post" action="{{ url_for('login') }}"><label>Логин</label><input name="username" placeholder="Логин" required autocomplete="username"><label>Пароль</label><input type="password" name="password" placeholder="Пароль" required autocomplete="current-password"><button>Войти</button></form></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<div class="login-card">
+  <div class="wordmark center">BlackSquare</div>
+  <p>Вход</p>
+  <form method="post" action="{{ url_for('login') }}" id="loginForm">
+    <label>Логин</label>
+    <input name="username" id="loginUsername" placeholder="Логин" required autocomplete="username">
+    <label>Пароль</label>
+    <input type="password" name="password" placeholder="Пароль" required autocomplete="current-password">
+    <p class="login-hint">Вход сохраняется на этом устройстве. Пароль снова спросит только после «Выход».</p>
+    <button>Войти</button>
+  </form>
+</div>
+<script>
+(function () {
+  const key = 'bs_login_username';
+  const input = document.getElementById('loginUsername');
+  const saved = localStorage.getItem(key);
+  if (saved && input && !input.value) input.value = saved;
+  document.getElementById('loginForm')?.addEventListener('submit', () => {
+    if (input?.value) localStorage.setItem(key, input.value.trim());
+  });
+})();
+</script>
+{% endblock %}

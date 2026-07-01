@@ -4,7 +4,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib
+import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib, secrets
 import os
 
 try:
@@ -21,6 +21,27 @@ app = Flask(
 )
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_NAME'] = 'bs_session'
+if os.environ.get('PUBLIC_BASE_URL', '').startswith('https'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+
+def cookie_domain():
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if not explicit:
+        return None
+    from urllib.parse import urlparse
+    host = (urlparse(explicit).hostname or '').lower()
+    parts = host.split('.')
+    if len(parts) >= 2:
+        return '.' + '.'.join(parts[-2:])
+    return None
+
+_cookie_domain = cookie_domain()
+if _cookie_domain:
+    app.config['SESSION_COOKIE_DOMAIN'] = _cookie_domain
 DEFAULT_PASSWORD = 'blacksquare'
 DB_FILENAME = 'blacksquare_stock_crm_v2.db'
 PERSISTENT_DB_DIRS = ('/data', '/app/data')
@@ -424,6 +445,197 @@ def analytics_extra_stats(con, start, end):
         'cancelled': int(cancelled or 0),
         'conversion': conversion,
     }
+
+def analytics_insights(con, start, end, stats, extra, trends, extra_trends, by_employee, by_day):
+    """Rule-based business tips for the analytics page (max 5)."""
+    insights = []
+    revenue = float(stats.get('revenue') or 0)
+    profit = float(stats.get('profit') or 0)
+    salary = float(stats.get('salary') or 0)
+    mat = float(stats.get('mat') or 0)
+    cert = float(stats.get('certificate_paid') or 0)
+    appts = int(stats.get('appointments') or 0)
+    m2 = float(stats.get('m2') or 0)
+
+    def add(kind, title, text, priority):
+        insights.append({'kind': kind, 'title': title, 'text': text, 'priority': priority})
+
+    if appts == 0 and revenue == 0:
+        add('tip', 'Пока нет закрытий', 'За выбранный период нет завершённых визитов. Проверьте календарь и напомните клиентам о записи.', 10)
+        return sorted(insights, key=lambda x: x['priority'])[:5]
+
+    open_appts = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE appointment_date BETWEEN ? AND ? AND status='Записан'",
+        (start, end),
+    ).fetchone()['c']
+    if extra['conversion'] < 75 and (open_appts or extra['cancelled']):
+        missed = int(open_appts or 0)
+        add(
+            'warn',
+            'Конверсия ниже 75%',
+            f"Закрыто {extra['conversion']}% записей. "
+            + (f"Ещё {missed} визитов в статусе «Записан» — перезвоните накануне. " if missed else '')
+            + (f"Отмен за период: {extra['cancelled']}." if extra['cancelled'] else ''),
+            20,
+        )
+
+    if extra['cancelled'] >= 3:
+        add(
+            'warn',
+            'Много отмен',
+            f"{extra['cancelled']} отмен за период. Уточните причину у клиентов и предложите перенос на удобное время.",
+            25,
+        )
+
+    if revenue > 0:
+        margin = profit / revenue * 100
+        cost_share = (salary + mat) / revenue * 100
+        if margin < 25 and appts >= 3:
+            add(
+                'warn',
+                'Низкая маржа',
+                f"Прибыль {margin:.0f}% от выручки ({format_money(profit)} ₽). "
+                f"ЗП и материалы — {cost_share:.0f}% кассы. Проверьте списания плёнки и ставки ЗП.",
+                30,
+            )
+        elif salary / revenue > 0.38 and appts >= 3:
+            add(
+                'warn',
+                'Высокая доля ЗП',
+                f"Зарплата съедает {salary / revenue * 100:.0f}% выручки. Сравните выручку мастеров с их ЗП в сводке.",
+                35,
+            )
+        elif mat / revenue > 0.28 and m2 > 0:
+            add(
+                'warn',
+                'Много расходников',
+                f"Материалы — {mat / revenue * 100:.0f}% выручки ({format_money(mat)} ₽, {format_money(m2, 1)} м²). "
+                "Проверьте нормы списания плёнки.",
+                36,
+            )
+        if cert / revenue > 0.15 and cert > 0:
+            add(
+                'tip',
+                'Много оплат сертификатами',
+                f"Сертификатами списано {format_money(cert)} ₽ ({cert / revenue * 100:.0f}% кассы). "
+                "Следите, чтобы маржа оставалась в плюсе.",
+                45,
+            )
+
+    if trends.get('revenue') is not None:
+        if trends['revenue'] <= -12:
+            add(
+                'warn',
+                'Выручка просела',
+                f"На {abs(trends['revenue'])}% ниже прошлого периода. Посмотрите слабые дни и напомните «спящим» клиентам.",
+                40,
+            )
+        elif trends['revenue'] >= 12:
+            add(
+                'good',
+                'Рост выручки',
+                f"Выручка на {trends['revenue']}% выше прошлого периода — {format_money(revenue)} ₽. Хорошая динамика!",
+                50,
+            )
+
+    if extra_trends.get('avg_check') is not None and extra_trends['avg_check'] <= -12 and extra['avg_check'] > 0:
+        add(
+            'tip',
+            'Средний чек упал',
+            f"Сейчас {format_money(extra['avg_check'])} ₽ — на {abs(extra_trends['avg_check'])}% ниже прошлого периода. "
+            "Предлагайте доп. услуги и атермику при закрытии визита.",
+            42,
+        )
+
+    if len(by_day) >= 5:
+        weekday_stats = {}
+        for row in by_day:
+            wd = date.fromisoformat(row['appointment_date']).weekday()
+            bucket = weekday_stats.setdefault(wd, {'cnt': 0, 'rev': 0.0})
+            bucket['cnt'] += int(row['cnt'] or 0)
+            bucket['rev'] += float(row['revenue'] or 0)
+        if len(weekday_stats) >= 3:
+            weakest = min(weekday_stats.items(), key=lambda x: x[1]['rev'])
+            strongest = max(weekday_stats.items(), key=lambda x: x[1]['rev'])
+            if strongest[1]['rev'] > 0 and weakest[1]['rev'] < strongest[1]['rev'] * 0.45:
+                add(
+                    'tip',
+                    f"Слабый день — {WEEKDAYS_LONG[weakest[0]]}",
+                    f"За период {format_money(weakest[1]['rev'])} ₽ против {format_money(strongest[1]['rev'])} ₽ в {WEEKDAYS_LONG[strongest[0]]}. "
+                    "Можно запустить акцию или пост в соцсетях.",
+                    55,
+                )
+
+    masters = [r for r in by_employee if float(r['revenue'] or 0) > 0]
+    if len(masters) >= 2:
+        top = max(masters, key=lambda r: float(r['revenue'] or 0))
+        top_rev = float(top['revenue'] or 0)
+        top_profit = float(top['profit'] or 0)
+        share = top_rev / revenue * 100 if revenue else 0
+        if share >= 55:
+            add(
+                'tip',
+                f"{top['full_name']} — лидер",
+                f"{share:.0f}% выручки периода ({format_money(top_rev)} ₽). "
+                + (f"Прибыль по нему {format_money(top_profit)} ₽." if top_profit else "Следите за равномерной загрузкой остальных."),
+                60,
+            )
+        for r in masters:
+            rev = float(r['revenue'] or 0)
+            sal = float(r['salary'] or 0)
+            if rev >= 5000 and sal / rev > 0.45:
+                add(
+                    'warn',
+                    f"ЗП {r['full_name']}",
+                    f"Зарплата {sal / rev * 100:.0f}% от его выручки ({format_money(sal)} / {format_money(rev)} ₽). "
+                    "Проверьте ставки или допродажи.",
+                    38,
+                )
+                break
+
+    cutoff = (date.fromisoformat(end) - timedelta(days=90)).isoformat()
+    dormant = con.execute(
+        "SELECT COUNT(*) c FROM clients c "
+        "WHERE EXISTS (SELECT 1 FROM appointments a WHERE a.client_id=c.id AND a.status='Закрыт') "
+        "AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.client_id=c.id AND a.status='Закрыт' AND a.appointment_date>=?)",
+        (cutoff,),
+    ).fetchone()['c']
+    if dormant >= 5:
+        add(
+            'tip',
+            'Клиенты без визитов',
+            f"{dormant} клиентов не были больше 90 дней. Напомните о тонировке или атермике — хороший повод для возврата.",
+            48,
+        )
+
+    if extra['new_clients'] >= 3:
+        sources = con.execute(
+            "SELECT COALESCE(NULLIF(TRIM(source),''),'Не указан') src, COUNT(*) c "
+            "FROM clients WHERE date(created_at) BETWEEN ? AND ? GROUP BY src ORDER BY c DESC LIMIT 3",
+            (start, end),
+        ).fetchall()
+        if sources:
+            top_src = sources[0]
+            add(
+                'good',
+                'Новые клиенты',
+                f"{extra['new_clients']} за период. Чаще всего: «{top_src['src']}» ({top_src['c']}). "
+                "Усильте канал, который приносит больше всего.",
+                52,
+            )
+
+    low_stock = list_low_stock_items(con, limit=3)
+    if low_stock:
+        names = ', '.join(r['item']['name'] for r in low_stock[:2])
+        more = f" и ещё {len(low_stock) - 2}" if len(low_stock) > 2 else ''
+        add(
+            'warn',
+            'Мало плёнки на складе',
+            f"Заканчивается: {names}{more}. Закажите заранее, чтобы не срывать записи.",
+            22,
+        )
+
+    return sorted(insights, key=lambda x: x['priority'])[:5]
 
 def format_date_calendar_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
@@ -942,6 +1154,41 @@ def backup_database():
         path.unlink(missing_ok=True)
     remote_backup_database()
 
+_auto_backup_lock = threading.Lock()
+_auto_backup_running = False
+_last_auto_backup_at = 0.0
+AUTO_BACKUP_MIN_INTERVAL = 15
+
+
+def trigger_auto_backup():
+    """Create local + S3 backup after data changes (debounced, async)."""
+    global _auto_backup_running, _last_auto_backup_at
+    db_path = Path(DB)
+    if not db_path.exists() or database_activity_score(db_path) == 0:
+        return
+    now = time.time()
+    with _auto_backup_lock:
+        if _auto_backup_running:
+            return
+        if now - _last_auto_backup_at < AUTO_BACKUP_MIN_INTERVAL:
+            return
+        _auto_backup_running = True
+
+    def _run():
+        global _auto_backup_running, _last_auto_backup_at
+        try:
+            time.sleep(1)
+            backup_database()
+            _last_auto_backup_at = time.time()
+        except Exception:
+            pass
+        finally:
+            with _auto_backup_lock:
+                _auto_backup_running = False
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def migrate_db(c):
     """Добавляет новые колонки и настройки без потери данных."""
     backup_database()
@@ -1054,6 +1301,11 @@ def migrate_db(c):
     c.execute(
         "CREATE TABLE IF NOT EXISTS user_bottom_nav("
         "user_id INTEGER PRIMARY KEY, slot2 TEXT, slot3 TEXT, slot4 TEXT)"
+    )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS auth_remember_tokens("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
+        "token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)"
     )
 
 def get_setting(key, default=''):
@@ -1232,57 +1484,171 @@ def current_user():
     con = db(); u = con.execute("SELECT * FROM users WHERE id=? AND active=1", (session['uid'],)).fetchone(); con.close()
     return u
 
+
+def remember_cookie_opts():
+    return {
+        'max_age': 365 * 24 * 3600,
+        'httponly': True,
+        'secure': bool(app.config.get('SESSION_COOKIE_SECURE')),
+        'samesite': 'Lax',
+        'domain': _cookie_domain,
+        'path': '/',
+    }
+
+
+def issue_remember_token(user_id):
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    expires_at = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d %H:%M:%S')
+    con = db()
+    con.execute("DELETE FROM auth_remember_tokens WHERE user_id=?", (user_id,))
+    con.execute(
+        "INSERT INTO auth_remember_tokens(user_id, token_hash, expires_at, created_at) VALUES(?,?,?,?)",
+        (user_id, token_hash, expires_at, now()),
+    )
+    con.commit()
+    con.close()
+    return token
+
+
+def user_id_from_remember_cookie():
+    token = request.cookies.get('bs_remember', '')
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    con = db()
+    row = con.execute(
+        "SELECT t.user_id FROM auth_remember_tokens t "
+        "JOIN users u ON u.id=t.user_id AND u.active=1 "
+        "WHERE t.token_hash=? AND t.expires_at>=?",
+        (token_hash, now()),
+    ).fetchone()
+    con.close()
+    return int(row['user_id']) if row else None
+
+
+def clear_remember_cookie(response=None):
+    token = request.cookies.get('bs_remember', '')
+    if token:
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        con = db()
+        con.execute("DELETE FROM auth_remember_tokens WHERE token_hash=?", (token_hash,))
+        con.commit()
+        con.close()
+    if response is not None:
+        response.delete_cookie('bs_remember', domain=_cookie_domain, path='/')
+
+
+def login_user_response(user):
+    session['uid'] = user['id']
+    session.permanent = True
+    token = issue_remember_token(user['id'])
+    resp = redirect(url_for('dashboard'))
+    resp.set_cookie('bs_remember', token, **remember_cookie_opts())
+    return resp
+
 def has_perm(perm):
     u = current_user()
     if not u: return False
-    if u['role'] == 'director': return True
-    con = db(); r = con.execute("SELECT allowed FROM user_permissions WHERE user_id=? AND permission=?", (u['id'],perm)).fetchone(); con.close()
+    return user_has_perm(u['id'], perm)
+
+
+def user_has_perm(user_id, perm):
+    con = db()
+    u = con.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    if not u:
+        con.close()
+        return False
+    if u['role'] == 'director':
+        con.close()
+        return True
+    r = con.execute(
+        "SELECT allowed FROM user_permissions WHERE user_id=? AND permission=?",
+        (user_id, perm),
+    ).fetchone()
+    con.close()
     return bool(r and r['allowed'])
 
 
-def bottom_nav_item_allowed(key):
+def bottom_nav_allowed_for_user(user_id, key):
     meta = BOTTOM_NAV_ITEMS.get(key)
     if not meta:
         return False
-    return has_perm(meta['perm'])
+    return user_has_perm(user_id, meta['perm'])
+
+
+def bottom_nav_item_allowed(key):
+    u = current_user()
+    if not u:
+        return False
+    return bottom_nav_allowed_for_user(u['id'], key)
+
+
+def default_bottom_nav_keys_for_user(user_id):
+    keys = []
+    for key in BOTTOM_NAV_DEFAULT:
+        if bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+            keys.append(key)
+    if len(keys) < 3:
+        for key in BOTTOM_NAV_ITEMS:
+            if len(keys) >= 3:
+                break
+            if bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+                keys.append(key)
+    fallback = [k for k in ('calendar', 'crm', 'services') if k in BOTTOM_NAV_ITEMS]
+    for key in fallback:
+        if len(keys) >= 3:
+            break
+        if key not in keys:
+            keys.append(key)
+    return keys[:3]
 
 
 def get_user_bottom_nav_keys(user_id):
+    defaults = default_bottom_nav_keys_for_user(user_id)
     con = db()
     row = con.execute("SELECT slot2, slot3, slot4 FROM user_bottom_nav WHERE user_id=?", (user_id,)).fetchone()
     con.close()
     if not row:
-        return list(BOTTOM_NAV_DEFAULT)
-    return [row['slot2'] or BOTTOM_NAV_DEFAULT[0],
-            row['slot3'] or BOTTOM_NAV_DEFAULT[1],
-            row['slot4'] or BOTTOM_NAV_DEFAULT[2]]
+        return defaults
+    keys = []
+    for raw in (row['slot2'], row['slot3'], row['slot4']):
+        key = (raw or '').strip()
+        if key and bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+            keys.append(key)
+    for key in defaults:
+        if len(keys) >= 3:
+            break
+        if key not in keys:
+            keys.append(key)
+    return keys[:3]
 
 
 def save_user_bottom_nav_keys(user_id, keys):
+    submitted = list(keys[:3])
+    while len(submitted) < 3:
+        submitted.append('')
     clean = []
-    seen = set()
-    for key in keys:
-        if key not in BOTTOM_NAV_ITEMS or key in seen:
+    had_duplicate = False
+    had_forbidden = False
+    for key in submitted:
+        key = (key or '').strip()
+        if not key or key not in BOTTOM_NAV_ITEMS:
             continue
-        if not bottom_nav_item_allowed(key):
+        if key in clean:
+            had_duplicate = True
+            continue
+        if not bottom_nav_allowed_for_user(user_id, key):
+            had_forbidden = True
             continue
         clean.append(key)
-        seen.add(key)
-    defaults = [k for k in BOTTOM_NAV_DEFAULT if bottom_nav_item_allowed(k) and k not in seen]
+    defaults = default_bottom_nav_keys_for_user(user_id)
     for key in defaults:
         if len(clean) >= 3:
             break
-        clean.append(key)
-        seen.add(key)
-    while len(clean) < 3:
-        for key in BOTTOM_NAV_ITEMS:
-            if key not in seen and bottom_nav_item_allowed(key):
-                clean.append(key)
-                seen.add(key)
-                break
-        else:
-            break
-    slot2, slot3, slot4 = (clean + ['calendar', 'crm', 'finance'])[:3]
+        if key not in clean:
+            clean.append(key)
+    slot2, slot3, slot4 = (clean + defaults)[:3]
     con = db()
     con.execute(
         "INSERT INTO user_bottom_nav(user_id,slot2,slot3,slot4) VALUES(?,?,?,?) "
@@ -1291,7 +1657,12 @@ def save_user_bottom_nav_keys(user_id, keys):
     )
     con.commit()
     con.close()
-    return slot2, slot3, slot4
+    remote_backup_database()
+    return {
+        'slots': [slot2, slot3, slot4],
+        'had_duplicate': had_duplicate,
+        'had_forbidden': had_forbidden,
+    }
 
 
 def build_bottom_nav_slots():
@@ -2805,18 +3176,50 @@ def prepare_db():
     if request.endpoint not in ('healthz', 'health'):
         ensure_db()
 
+
+@app.before_request
+def restore_login_from_remember():
+    if request.endpoint in ('healthz', 'health', 'login', 'logout', 'static', 'manifest'):
+        return None
+    if current_user():
+        return None
+    uid = user_id_from_remember_cookie()
+    if uid:
+        session['uid'] = uid
+        session.permanent = True
+    return None
+
+
+@app.after_request
+def auto_backup_after_mutation(response):
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and response.status_code < 400:
+        if request.endpoint not in ('healthz', 'health', 'static', 'manifest'):
+            trigger_auto_backup()
+    return response
+
 @app.route('/login', methods=['GET','POST'])
 def login():
+    if request.method == 'GET' and current_user():
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         con = db(); u = con.execute("SELECT * FROM users WHERE username=? AND active=1", (request.form.get('username','').strip(),)).fetchone(); con.close()
         if u and check_password_hash(u['password_hash'], request.form.get('password','')):
-            session['uid'] = u['id']; return redirect(url_for('dashboard'))
+            return login_user_response(u)
         flash('Неверный логин или пароль')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.clear(); return redirect(url_for('login'))
+    u = current_user()
+    if u:
+        con = db()
+        con.execute("DELETE FROM auth_remember_tokens WHERE user_id=?", (u['id'],))
+        con.commit()
+        con.close()
+    session.clear()
+    resp = redirect(url_for('login'))
+    clear_remember_cookie(resp)
+    return resp
 
 @app.route('/dashboard')
 @login_required
@@ -4518,6 +4921,7 @@ def analytics():
         day_detail = compute_day_stats(con, start)
         day_archived = archived_days.get(start)
     period_label = {'today': 'Сегодня', 'week': 'Неделя', 'month': 'Месяц'}.get(period, start)
+    insights = analytics_insights(con, start, end, stats, extra, trends, extra_trends, by_employee, by_day)
     con.close()
     return render_template(
         'analytics.html',
@@ -4528,6 +4932,7 @@ def analytics():
         by_day=by_day,
         by_employee=by_employee,
         master_bars=master_bars,
+        insights=insights,
         start=start,
         end=end,
         period=period,
@@ -4756,8 +5161,13 @@ def profile():
                 request.form.get('nav_slot3', BOTTOM_NAV_DEFAULT[1]),
                 request.form.get('nav_slot4', BOTTOM_NAV_DEFAULT[2]),
             ]
-            save_user_bottom_nav_keys(u['id'], keys)
-            flash('Нижнее меню сохранено')
+            result = save_user_bottom_nav_keys(u['id'], keys)
+            if result['had_duplicate']:
+                flash('Нижнее меню сохранено. Каждая вкладка должна быть разной — повторы заменены.')
+            elif result['had_forbidden']:
+                flash('Нижнее меню сохранено. Недоступные для вашей роли пункты заменены.')
+            else:
+                flash('Нижнее меню сохранено')
             return redirect(url_for('profile'))
         if form_type == 'notifications' and u['role'] == 'director':
             con = db()

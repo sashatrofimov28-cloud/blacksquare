@@ -16,6 +16,23 @@
     <a href="{{ url_for('analytics', period='month') }}" class="an-period{% if period == 'month' %} active{% endif %}">Месяц</a>
   </nav>
 
+  {% if insights %}
+  <section class="an-insights" aria-label="Подсказки для бизнеса">
+    <h2 class="an-insights-title">Подсказки</h2>
+    <div class="an-insight-list">
+      {% for tip in insights %}
+      <article class="an-insight an-insight-{{ tip.kind }}">
+        <span class="an-insight-icon">{% if tip.kind == 'warn' %}⚠️{% elif tip.kind == 'good' %}✅{% else %}💡{% endif %}</span>
+        <div class="an-insight-body">
+          <b>{{ tip.title }}</b>
+          <p>{{ tip.text }}</p>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <div class="an-hero">
     <div class="an-hero-card tone-green">
       <span>Выручка</span>
