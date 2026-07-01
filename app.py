@@ -4,7 +4,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib
+import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib, secrets
 import os
 
 try:
@@ -24,8 +24,24 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_NAME'] = 'bs_session'
 if os.environ.get('PUBLIC_BASE_URL', '').startswith('https'):
     app.config['SESSION_COOKIE_SECURE'] = True
+
+def cookie_domain():
+    explicit = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if not explicit:
+        return None
+    from urllib.parse import urlparse
+    host = (urlparse(explicit).hostname or '').lower()
+    parts = host.split('.')
+    if len(parts) >= 2:
+        return '.' + '.'.join(parts[-2:])
+    return None
+
+_cookie_domain = cookie_domain()
+if _cookie_domain:
+    app.config['SESSION_COOKIE_DOMAIN'] = _cookie_domain
 DEFAULT_PASSWORD = 'blacksquare'
 DB_FILENAME = 'blacksquare_stock_crm_v2.db'
 PERSISTENT_DB_DIRS = ('/data', '/app/data')
@@ -1060,6 +1076,11 @@ def migrate_db(c):
         "CREATE TABLE IF NOT EXISTS user_bottom_nav("
         "user_id INTEGER PRIMARY KEY, slot2 TEXT, slot3 TEXT, slot4 TEXT)"
     )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS auth_remember_tokens("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
+        "token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)"
+    )
 
 def get_setting(key, default=''):
     con = db()
@@ -1236,6 +1257,69 @@ def current_user():
     if 'uid' not in session: return None
     con = db(); u = con.execute("SELECT * FROM users WHERE id=? AND active=1", (session['uid'],)).fetchone(); con.close()
     return u
+
+
+def remember_cookie_opts():
+    return {
+        'max_age': 365 * 24 * 3600,
+        'httponly': True,
+        'secure': bool(app.config.get('SESSION_COOKIE_SECURE')),
+        'samesite': 'Lax',
+        'domain': _cookie_domain,
+        'path': '/',
+    }
+
+
+def issue_remember_token(user_id):
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    expires_at = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d %H:%M:%S')
+    con = db()
+    con.execute("DELETE FROM auth_remember_tokens WHERE user_id=?", (user_id,))
+    con.execute(
+        "INSERT INTO auth_remember_tokens(user_id, token_hash, expires_at, created_at) VALUES(?,?,?,?)",
+        (user_id, token_hash, expires_at, now()),
+    )
+    con.commit()
+    con.close()
+    return token
+
+
+def user_id_from_remember_cookie():
+    token = request.cookies.get('bs_remember', '')
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    con = db()
+    row = con.execute(
+        "SELECT t.user_id FROM auth_remember_tokens t "
+        "JOIN users u ON u.id=t.user_id AND u.active=1 "
+        "WHERE t.token_hash=? AND t.expires_at>=?",
+        (token_hash, now()),
+    ).fetchone()
+    con.close()
+    return int(row['user_id']) if row else None
+
+
+def clear_remember_cookie(response=None):
+    token = request.cookies.get('bs_remember', '')
+    if token:
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        con = db()
+        con.execute("DELETE FROM auth_remember_tokens WHERE token_hash=?", (token_hash,))
+        con.commit()
+        con.close()
+    if response is not None:
+        response.delete_cookie('bs_remember', domain=_cookie_domain, path='/')
+
+
+def login_user_response(user):
+    session['uid'] = user['id']
+    session.permanent = True
+    token = issue_remember_token(user['id'])
+    resp = redirect(url_for('dashboard'))
+    resp.set_cookie('bs_remember', token, **remember_cookie_opts())
+    return resp
 
 def has_perm(perm):
     u = current_user()
@@ -2866,6 +2950,19 @@ def prepare_db():
     if request.endpoint not in ('healthz', 'health'):
         ensure_db()
 
+
+@app.before_request
+def restore_login_from_remember():
+    if request.endpoint in ('healthz', 'health', 'login', 'logout', 'static', 'manifest'):
+        return None
+    if current_user():
+        return None
+    uid = user_id_from_remember_cookie()
+    if uid:
+        session['uid'] = uid
+        session.permanent = True
+    return None
+
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'GET' and current_user():
@@ -2873,15 +2970,22 @@ def login():
     if request.method == 'POST':
         con = db(); u = con.execute("SELECT * FROM users WHERE username=? AND active=1", (request.form.get('username','').strip(),)).fetchone(); con.close()
         if u and check_password_hash(u['password_hash'], request.form.get('password','')):
-            session['uid'] = u['id']
-            session.permanent = request.form.get('remember') == '1'
-            return redirect(url_for('dashboard'))
+            return login_user_response(u)
         flash('Неверный логин или пароль')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.clear(); return redirect(url_for('login'))
+    u = current_user()
+    if u:
+        con = db()
+        con.execute("DELETE FROM auth_remember_tokens WHERE user_id=?", (u['id'],))
+        con.commit()
+        con.close()
+    session.clear()
+    resp = redirect(url_for('login'))
+    clear_remember_cookie(resp)
+    return resp
 
 @app.route('/dashboard')
 @login_required
