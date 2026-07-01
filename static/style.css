@@ -1,5 +1,5 @@
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;background:#f2f2f2;color:#080808;font-family:Inter,Arial,sans-serif}
+html,body{height:100%;margin:0;background:#f2f2f2;color:#080808;font-family:Inter,system-ui,sans-serif}
 a{text-decoration:none;color:inherit}
 body.menu-open{overflow:hidden}
 
@@ -897,7 +897,7 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
   --close-surface:#161616;
   --close-surface-2:#111;
   --close-input-bg:#0d0d0d;
-  font-family:Nunito,system-ui,sans-serif;
+  font-family:Inter,system-ui,sans-serif;
   padding-bottom:calc(132px + env(safe-area-inset-bottom,0px))
 }
 .close-page-b .close-header h1{font-size:17px;font-weight:800;letter-spacing:0}
