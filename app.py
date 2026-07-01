@@ -21,6 +21,11 @@ app = Flask(
 )
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'blacksquare_stock_crm_v2')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if os.environ.get('PUBLIC_BASE_URL', '').startswith('https'):
+    app.config['SESSION_COOKIE_SECURE'] = True
 DEFAULT_PASSWORD = 'blacksquare'
 DB_FILENAME = 'blacksquare_stock_crm_v2.db'
 PERSISTENT_DB_DIRS = ('/data', '/app/data')
@@ -1235,54 +1240,105 @@ def current_user():
 def has_perm(perm):
     u = current_user()
     if not u: return False
-    if u['role'] == 'director': return True
-    con = db(); r = con.execute("SELECT allowed FROM user_permissions WHERE user_id=? AND permission=?", (u['id'],perm)).fetchone(); con.close()
+    return user_has_perm(u['id'], perm)
+
+
+def user_has_perm(user_id, perm):
+    con = db()
+    u = con.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    if not u:
+        con.close()
+        return False
+    if u['role'] == 'director':
+        con.close()
+        return True
+    r = con.execute(
+        "SELECT allowed FROM user_permissions WHERE user_id=? AND permission=?",
+        (user_id, perm),
+    ).fetchone()
+    con.close()
     return bool(r and r['allowed'])
 
 
-def bottom_nav_item_allowed(key):
+def bottom_nav_allowed_for_user(user_id, key):
     meta = BOTTOM_NAV_ITEMS.get(key)
     if not meta:
         return False
-    return has_perm(meta['perm'])
+    return user_has_perm(user_id, meta['perm'])
+
+
+def bottom_nav_item_allowed(key):
+    u = current_user()
+    if not u:
+        return False
+    return bottom_nav_allowed_for_user(u['id'], key)
+
+
+def default_bottom_nav_keys_for_user(user_id):
+    keys = []
+    for key in BOTTOM_NAV_DEFAULT:
+        if bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+            keys.append(key)
+    if len(keys) < 3:
+        for key in BOTTOM_NAV_ITEMS:
+            if len(keys) >= 3:
+                break
+            if bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+                keys.append(key)
+    fallback = [k for k in ('calendar', 'crm', 'services') if k in BOTTOM_NAV_ITEMS]
+    for key in fallback:
+        if len(keys) >= 3:
+            break
+        if key not in keys:
+            keys.append(key)
+    return keys[:3]
 
 
 def get_user_bottom_nav_keys(user_id):
+    defaults = default_bottom_nav_keys_for_user(user_id)
     con = db()
     row = con.execute("SELECT slot2, slot3, slot4 FROM user_bottom_nav WHERE user_id=?", (user_id,)).fetchone()
     con.close()
     if not row:
-        return list(BOTTOM_NAV_DEFAULT)
-    return [row['slot2'] or BOTTOM_NAV_DEFAULT[0],
-            row['slot3'] or BOTTOM_NAV_DEFAULT[1],
-            row['slot4'] or BOTTOM_NAV_DEFAULT[2]]
+        return defaults
+    keys = []
+    for raw in (row['slot2'], row['slot3'], row['slot4']):
+        key = (raw or '').strip()
+        if key and bottom_nav_allowed_for_user(user_id, key) and key not in keys:
+            keys.append(key)
+    for key in defaults:
+        if len(keys) >= 3:
+            break
+        if key not in keys:
+            keys.append(key)
+    return keys[:3]
 
 
 def save_user_bottom_nav_keys(user_id, keys):
+    submitted = list(keys[:3])
+    while len(submitted) < 3:
+        submitted.append('')
     clean = []
-    seen = set()
-    for key in keys:
-        if key not in BOTTOM_NAV_ITEMS or key in seen:
+    had_duplicate = False
+    had_forbidden = False
+    for key in submitted:
+        key = (key or '').strip()
+        if not key or key not in BOTTOM_NAV_ITEMS:
             continue
-        if not bottom_nav_item_allowed(key):
+        if key in clean:
+            had_duplicate = True
+            continue
+        if not bottom_nav_allowed_for_user(user_id, key):
+            had_forbidden = True
             continue
         clean.append(key)
-        seen.add(key)
-    defaults = [k for k in BOTTOM_NAV_DEFAULT if bottom_nav_item_allowed(k) and k not in seen]
+    defaults = default_bottom_nav_keys_for_user(user_id)
     for key in defaults:
         if len(clean) >= 3:
             break
-        clean.append(key)
-        seen.add(key)
-    while len(clean) < 3:
-        for key in BOTTOM_NAV_ITEMS:
-            if key not in seen and bottom_nav_item_allowed(key):
-                clean.append(key)
-                seen.add(key)
-                break
-        else:
-            break
-    slot2, slot3, slot4 = (clean + ['calendar', 'crm', 'finance'])[:3]
+        if key not in clean:
+            clean.append(key)
+    slot2, slot3, slot4 = (clean + defaults)[:3]
     con = db()
     con.execute(
         "INSERT INTO user_bottom_nav(user_id,slot2,slot3,slot4) VALUES(?,?,?,?) "
@@ -1291,7 +1347,12 @@ def save_user_bottom_nav_keys(user_id, keys):
     )
     con.commit()
     con.close()
-    return slot2, slot3, slot4
+    remote_backup_database()
+    return {
+        'slots': [slot2, slot3, slot4],
+        'had_duplicate': had_duplicate,
+        'had_forbidden': had_forbidden,
+    }
 
 
 def build_bottom_nav_slots():
@@ -2807,10 +2868,14 @@ def prepare_db():
 
 @app.route('/login', methods=['GET','POST'])
 def login():
+    if request.method == 'GET' and current_user():
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         con = db(); u = con.execute("SELECT * FROM users WHERE username=? AND active=1", (request.form.get('username','').strip(),)).fetchone(); con.close()
         if u and check_password_hash(u['password_hash'], request.form.get('password','')):
-            session['uid'] = u['id']; return redirect(url_for('dashboard'))
+            session['uid'] = u['id']
+            session.permanent = request.form.get('remember') == '1'
+            return redirect(url_for('dashboard'))
         flash('Неверный логин или пароль')
     return render_template('login.html')
 
@@ -4756,8 +4821,13 @@ def profile():
                 request.form.get('nav_slot3', BOTTOM_NAV_DEFAULT[1]),
                 request.form.get('nav_slot4', BOTTOM_NAV_DEFAULT[2]),
             ]
-            save_user_bottom_nav_keys(u['id'], keys)
-            flash('Нижнее меню сохранено')
+            result = save_user_bottom_nav_keys(u['id'], keys)
+            if result['had_duplicate']:
+                flash('Нижнее меню сохранено. Каждая вкладка должна быть разной — повторы заменены.')
+            elif result['had_forbidden']:
+                flash('Нижнее меню сохранено. Недоступные для вашей роли пункты заменены.')
+            else:
+                flash('Нижнее меню сохранено')
             return redirect(url_for('profile'))
         if form_type == 'notifications' and u['role'] == 'director':
             con = db()
