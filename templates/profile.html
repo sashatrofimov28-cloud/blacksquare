@@ -63,6 +63,23 @@
     </div>
     <button style="margin-top:12px">Сохранить меню</button>
   </form>
+  <script>
+  (function () {
+    const ids = ['nav_slot2', 'nav_slot3', 'nav_slot4'];
+    const selects = ids.map((id) => document.querySelector(`select[name="${id}"]`)).filter(Boolean);
+    function syncSelects(changed) {
+      const chosen = new Set(selects.map((s) => s.value));
+      selects.forEach((sel) => {
+        Array.from(sel.options).forEach((opt) => {
+          const taken = chosen.has(opt.value) && opt.value !== sel.value;
+          opt.disabled = taken;
+        });
+      });
+    }
+    selects.forEach((sel) => sel.addEventListener('change', () => syncSelects(sel)));
+    syncSelects();
+  })();
+  </script>
 </div>
 
 {% if user.role == 'director' %}
