@@ -16,24 +16,27 @@
   </div>
 
   <div class="client-actions">
-    <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}">Позвонить</a>
-    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone) }}">Записать</a>
+    <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}"><span class="client-act-icon" aria-hidden="true">📞</span>Позвонить</a>
+    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone) }}"><span class="client-act-icon" aria-hidden="true">📅</span>Записать</a>
     {% if client.bonus_code %}
-    <button type="button" class="client-act" id="clientQrOpen">QR карты</button>
+    <button type="button" class="client-act" id="clientQrOpen"><span class="client-act-icon" aria-hidden="true">▦</span>QR карты</button>
     {% endif %}
   </div>
 
   <div class="client-stats">
     <div class="client-stat card-surface">
-      <span>Бонусы</span>
+      <span class="client-stat-icon" aria-hidden="true">★</span>
+      <span class="client-stat-label">Бонусы</span>
       <strong>{{ format_money(client.bonus_balance or 0) }} ₽</strong>
     </div>
     <div class="client-stat card-surface">
-      <span>Визитов</span>
+      <span class="client-stat-icon" aria-hidden="true">📅</span>
+      <span class="client-stat-label">Визитов</span>
       <strong>{{ closed_visits }}</strong>
     </div>
     <div class="client-stat card-surface">
-      <span>Начисление</span>
+      <span class="client-stat-icon" aria-hidden="true">%</span>
+      <span class="client-stat-label">Начисление</span>
       <strong>{% if client.bonus_percent is not none and client.bonus_percent != '' %}{{ client.bonus_percent }}%{% else %}{{ global_bonus_percent }}%{% endif %}</strong>
     </div>
   </div>
@@ -50,30 +53,30 @@
   <h2 class="client-section-title">Последний визит</h2>
   <article class="client-visit card-surface client-visit-featured">
     <div class="client-visit-top">
-      <b>{{ format_date_calendar_ru(last_visit.appointment_date) }}</b>
+      <b>{{ format_date_short_ru(last_visit.appointment_date) }}</b>
       <strong>{{ format_money(last_visit.price) }} ₽</strong>
     </div>
     <span>{{ last_visit.start_time[:5] }}–{{ last_visit.end_time[:5] }} · {{ last_visit.service_name }}</span>
     <span>{{ last_visit.car or '—' }}{% if last_visit.plate_number %} · {{ last_visit.plate_number }}{% endif %} · {{ last_visit.status }}</span>
-    <span>{{ last_visit.employee_name or '—' }}</span>
+    {% if last_visit.employee_name %}<span>{{ last_visit.employee_name }}</span>{% endif %}
   </article>
   {% endif %}
 
   {% if client.bonus_code %}
-  <button type="button" class="client-bonus-row card-surface" id="clientBonusRow">
+  <button type="button" class="client-bonus-row" id="clientBonusRow">
     <div class="client-bonus-row-text">
       <b>Бонусная карта</b>
       <span>{{ client.bonus_code }} · {{ format_money(client.bonus_balance or 0) }} ₽</span>
     </div>
     <img class="client-bonus-qr-thumb" src="{{ url_for('client_bonus_qr', cid=client.id) }}" alt="" width="44" height="44">
   </button>
-  <p class="close-hint client-bonus-hint">
-    Начисление с {{ bonus_from_visit }}-го визита.
-    {% if not client.bonus_enabled %}<b class="client-warn">Бонусы выключены.</b>{% endif %}
-  </p>
   <details class="close-fold">
     <summary>Управление бонусами</summary>
     <div class="close-fold-body">
+      <p class="close-hint client-bonus-hint">
+        Начисление с {{ bonus_from_visit }}-го визита.
+        {% if not client.bonus_enabled %}<b class="client-warn">Бонусы выключены.</b>{% endif %}
+      </p>
       <form method="post" action="{{ url_for('client_bonus_action', cid=client.id) }}" class="client-form-stack">
         <input type="hidden" name="action" value="adjust">
         <input name="bonus_delta" type="number" step="0.01" placeholder="+/- сумма бонусов">
