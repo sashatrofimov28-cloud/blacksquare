@@ -1194,3 +1194,79 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .sal-materials,.sal-comment{flex-direction:column;align-items:flex-start!important}
 .sal-materials b,.sal-comment b{text-align:left;margin-top:4px}
 
+/* Client card */
+.client-page{max-width:520px}
+.client-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.client-header-main{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+.client-avatar{
+  width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;
+  font-size:15px;font-weight:800;background:var(--surface-2,#222);border:1px solid var(--border,#2a2a2a)
+}
+.client-header-text{min-width:0;display:grid;gap:4px}
+.client-header-text h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
+.client-phone{font-size:13px;color:var(--muted,#888);text-decoration:none}
+.client-stage-pill{margin-top:2px}
+.client-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.client-stat{
+  padding:12px 10px;border-radius:14px;display:grid;gap:4px;text-align:center
+}
+.client-stat span{font-size:10px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;letter-spacing:.04em}
+.client-stat strong{font-size:16px;font-weight:800;line-height:1.1}
+.client-banner{
+  display:grid;gap:6px;margin-bottom:12px;padding:14px;
+  border-color:rgba(178,75,243,.35);background:rgba(178,75,243,.06)
+}
+.client-banner b{font-size:14px}
+.client-banner span{font-size:12px;color:var(--muted,#888)}
+.client-link-btn{
+  display:inline-flex;align-items:center;justify-content:center;margin-top:4px;
+  padding:8px 12px;border-radius:10px;border:1px solid var(--border,#2a2a2a);
+  background:var(--surface-2,#222);color:var(--text,#fff);font-size:12px;font-weight:700;
+  text-decoration:none;width:fit-content
+}
+.client-wallet{display:flex;align-items:stretch;gap:12px;margin-bottom:10px}
+.client-wallet-card{
+  flex:1;min-width:0;padding:14px;border-radius:14px;
+  background:linear-gradient(145deg,#1a1a1a,#0d0d0d);border:1px solid var(--border,#2a2a2a);
+  display:grid;gap:6px;align-content:center
+}
+.client-wallet-brand{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#888)}
+.client-wallet-balance{font-size:22px;font-weight:900;letter-spacing:-.4px}
+.client-wallet-code{
+  display:inline-block;width:fit-content;padding:4px 8px;border-radius:999px;
+  font-size:11px;font-weight:700;background:rgba(255,255,255,.06);color:var(--muted,#aaa)
+}
+.client-wallet-qr{
+  flex-shrink:0;display:grid;gap:8px;justify-items:center;align-content:start
+}
+.client-wallet-qr img{
+  width:96px;height:96px;border-radius:12px;background:#fff;padding:6px;box-sizing:border-box
+}
+.client-warn{color:var(--accent-red,#ff3b30)}
+.client-subfold{margin-top:10px;border:1px solid var(--border,#2a2a2a);border-radius:12px;background:var(--surface-2,#161616)}
+.client-subfold>summary{padding:12px 14px;font-size:13px;font-weight:700}
+.client-subfold .close-fold-body{padding:0 14px 12px}
+.client-form-stack{display:grid;gap:8px}
+.client-page input,.client-page select,.client-page textarea{
+  width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--border,#2a2a2a);background:var(--surface-2,#222);color:var(--text,#fff);font-size:14px
+}
+.client-page textarea{resize:vertical;min-height:64px}
+.client-btn-row{display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:4px}
+.client-lines{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.client-lines li{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;border-radius:12px;background:var(--surface-2,#161616);font-size:13px
+}
+.client-lines li strong{font-weight:700;white-space:nowrap}
+.client-visit-list{display:grid;gap:8px}
+.client-visit{margin-bottom:0!important;padding:12px 14px;display:grid;gap:4px}
+.client-visit-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.client-visit-top b{font-size:13px;font-weight:800}
+.client-visit-top strong{font-size:14px;font-weight:800;color:var(--accent-green,#00d97e);white-space:nowrap}
+.client-visit>span{font-size:12px;color:var(--muted,#888);line-height:1.35}
+.client-bonus-tx{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.client-bonus-tx li{margin-bottom:0!important;padding:12px 14px;display:grid;gap:4px}
+.client-bonus-tx .client-visit-top strong{color:inherit}
+.client-page .card-surface{margin-bottom:0}
+
