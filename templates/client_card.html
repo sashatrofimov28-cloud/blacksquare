@@ -17,7 +17,7 @@
 
   <div class="client-actions">
     <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}">Позвонить</a>
-    <a class="client-act" href="{{ url_for('calendar_view', date=today(), book='1', client_name=client.name, phone=client.phone) }}">Записать</a>
+    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone) }}">Записать</a>
     {% if client.bonus_code %}
     <button type="button" class="client-act" id="clientQrOpen">QR карты</button>
     {% endif %}
