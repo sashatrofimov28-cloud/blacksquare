@@ -778,8 +778,14 @@ def closed_today_sql():
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(DB, timeout=30, check_same_thread=False)
     con.row_factory = sqlite3.Row
+    try:
+        con.execute('PRAGMA journal_mode=WAL')
+        con.execute('PRAGMA synchronous=NORMAL')
+        con.execute('PRAGMA busy_timeout=30000')
+    except sqlite3.Error:
+        pass
     return con
 
 def now(): return datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -1136,8 +1142,8 @@ def init_db():
             c.execute("INSERT OR IGNORE INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (u['id'], p, allowed))
     con.commit(); con.close()
 
-def backup_database():
-    """Копия базы перед обновлениями — данные не теряются при деплое."""
+def backup_database(upload_remote=True):
+    """Local copy + optional S3 upload. Uses SQLite online backup to avoid long locks."""
     db_path = Path(DB)
     if not db_path.exists() or db_path.stat().st_size == 0:
         return
@@ -1146,22 +1152,49 @@ def backup_database():
     backup_dir = db_path.parent / 'backups'
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    shutil.copy2(db_path, backup_dir / f'blacksquare_{stamp}.db')
-    shutil.copy2(db_path, backup_dir / f'blacksquare_{today()}.db')
-    shutil.copy2(db_path, str(db_path) + '.latest.bak')
+    targets = [
+        backup_dir / f'blacksquare_{stamp}.db',
+        backup_dir / f'blacksquare_{today()}.db',
+        Path(str(db_path) + '.latest.bak'),
+    ]
+    src = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        for target in targets:
+            dst = sqlite3.connect(str(target))
+            try:
+                src.backup(dst)
+                dst.commit()
+            finally:
+                dst.close()
+    finally:
+        src.close()
     old = sorted(backup_dir.glob('blacksquare_2*.db'), key=lambda p: p.stat().st_mtime, reverse=True)
     for path in old[15:]:
         path.unlink(missing_ok=True)
-    remote_backup_database()
+    if upload_remote:
+        remote_backup_database()
 
 _auto_backup_lock = threading.Lock()
 _auto_backup_running = False
 _last_auto_backup_at = 0.0
-AUTO_BACKUP_MIN_INTERVAL = 15
+_last_s3_backup_at = 0.0
+AUTO_BACKUP_MIN_INTERVAL = 120
+S3_BACKUP_MIN_INTERVAL = 300
+
+
+def remote_backup_database_throttled():
+    global _last_s3_backup_at
+    now = time.time()
+    if now - _last_s3_backup_at < S3_BACKUP_MIN_INTERVAL:
+        return False
+    ok = remote_backup_database()
+    if ok:
+        _last_s3_backup_at = now
+    return ok
 
 
 def trigger_auto_backup():
-    """Create local + S3 backup after data changes (debounced, async)."""
+    """Debounced async backup after data changes — must not block user requests."""
     global _auto_backup_running, _last_auto_backup_at
     db_path = Path(DB)
     if not db_path.exists() or database_activity_score(db_path) == 0:
@@ -1177,8 +1210,9 @@ def trigger_auto_backup():
     def _run():
         global _auto_backup_running, _last_auto_backup_at
         try:
-            time.sleep(1)
-            backup_database()
+            time.sleep(3)
+            backup_database(upload_remote=False)
+            remote_backup_database_throttled()
             _last_auto_backup_at = time.time()
         except Exception:
             pass
@@ -1186,7 +1220,7 @@ def trigger_auto_backup():
             with _auto_backup_lock:
                 _auto_backup_running = False
 
-    threading.Thread(target=_run, daemon=True).start()
+    threading.Thread(target=_run, daemon=True, name='auto-backup').start()
 
 
 def migrate_db(c):
@@ -1657,7 +1691,7 @@ def save_user_bottom_nav_keys(user_id, keys):
     )
     con.commit()
     con.close()
-    remote_backup_database()
+    trigger_auto_backup()
     return {
         'slots': [slot2, slot3, slot4],
         'had_duplicate': had_duplicate,
@@ -2723,7 +2757,7 @@ def create_telegram_z_appointment(con, parsed, author='', source='text'):
     aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
     set_appointment_services(con, aid, bundle['ids'])
     con.commit()
-    remote_backup_database()
+    trigger_auto_backup()
     return {
         'id': aid,
         'date': parsed['date'],
@@ -2867,6 +2901,16 @@ def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, 
     notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, ', '.join(names) or '—', car, source)
     con.close()
 
+
+def defer_notify_new_appointment(employee_ids, ap_date, start_time, client_name, service_name, car='', source=''):
+    ids = list(employee_ids) if isinstance(employee_ids, (list, tuple)) else [employee_ids]
+
+    def _run():
+        with app.app_context():
+            notify_employee_appointment(ids, ap_date, start_time, client_name, service_name, car, source)
+
+    threading.Thread(target=_run, daemon=True, name='notify-new-appt').start()
+
 def get_directors(con):
     return con.execute("SELECT id, full_name FROM users WHERE role='director' AND active=1").fetchall()
 
@@ -3000,6 +3044,16 @@ def _daily_report_loop():
 _scheduler_started = False
 _scheduler_lock = threading.Lock()
 
+def _periodic_backup_loop():
+    time.sleep(60)
+    while True:
+        try:
+            backup_database(upload_remote=True)
+        except Exception:
+            pass
+        time.sleep(1800)
+
+
 def start_scheduler():
     global _scheduler_started
     with _scheduler_lock:
@@ -3008,6 +3062,7 @@ def start_scheduler():
         _scheduler_started = True
     threading.Thread(target=_daily_report_loop, daemon=True, name='daily-report').start()
     threading.Thread(target=telegram_poll_loop, daemon=True, name='telegram-bot').start()
+    threading.Thread(target=_periodic_backup_loop, daemon=True, name='periodic-backup').start()
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
@@ -3304,8 +3359,7 @@ def booking():
         set_appointment_employees(con, aid, [int(uid)])
         set_appointment_services(con, aid, service_ids)
         con.commit()
-        remote_backup_database()
-        notify_employee_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
+        defer_notify_new_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
         con.close()
         return render_template('booking_success.html', services=bundle['rows'], service_name=bundle['name'], emp=emp, d=d, start=start, end=end)
     services = con.execute(
@@ -3388,7 +3442,7 @@ def calendar_view():
                 set_appointment_employees(con, aid, employee_ids)
                 set_appointment_services(con, aid, service_ids)
                 con.commit()
-                notify_employee_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
+                defer_notify_new_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
                 flash('Запись добавлена вручную')
                 con.close()
                 return redirect(url_for('calendar_view', date=d, view=request.args.get('view', 'day')))
@@ -4323,7 +4377,7 @@ def reschedule_appointment(aid):
     con.commit()
     employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
     con.close()
-    notify_employee_appointment(employee_ids, d, start, ap['client_name'], ap['service_name'], ap['car'] or ap['plate_number'])
+    defer_notify_new_appointment(employee_ids, d, start, ap['client_name'], ap['service_name'], ap['car'] or ap['plate_number'], source='Перенос')
     flash('Запись перенесена'); return redirect(url_for('calendar_view', date=d))
 
 @app.route('/certificates', methods=['GET','POST'])
