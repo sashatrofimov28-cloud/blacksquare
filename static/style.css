@@ -1270,3 +1270,9 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .client-bonus-tx .client-visit-top strong{color:inherit}
 .client-page .card-surface{margin-bottom:0}
 
+.cal-client-hint{
+  margin:-4px 0 8px;font-size:12px;font-weight:700;color:var(--muted,#888);line-height:1.35
+}
+.cal-client-hint.found{color:var(--accent-green,#00d97e)}
+.cal-client-hint.new{color:var(--accent-orange,#ff9f1c)}
+

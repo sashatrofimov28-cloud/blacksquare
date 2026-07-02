@@ -14,6 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
+BUILD_VERSION = 'client-v31'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -1729,6 +1730,56 @@ def mask_phone(phone):
         return 'скрыт'
     return phone[:2] + '***' + phone[-2:]
 
+def phone_digits(phone):
+    return re.sub(r'\D', '', phone or '')
+
+def normalize_phone(phone):
+    d = phone_digits(phone)
+    if len(d) == 11 and d[0] == '8':
+        d = '7' + d[1:]
+    elif len(d) == 10:
+        d = '7' + d
+    return d if len(d) >= 10 else ''
+
+def find_client_by_phone(con, phone):
+    target = normalize_phone(phone)
+    if not target:
+        return None
+    rows = con.execute(
+        "SELECT * FROM clients WHERE phone IS NOT NULL AND TRIM(phone) != '' ORDER BY id DESC"
+    ).fetchall()
+    for row in rows:
+        if normalize_phone(row['phone']) == target:
+            return row
+    return None
+
+def client_lookup_payload(con, client):
+    car_row = con.execute(
+        "SELECT car_model, plate_number FROM cars WHERE client_id=? ORDER BY id DESC LIMIT 1",
+        (client['id'],),
+    ).fetchone()
+    ap_row = con.execute(
+        "SELECT car, plate_number FROM appointments WHERE client_id=? ORDER BY id DESC LIMIT 1",
+        (client['id'],),
+    ).fetchone()
+    car = ''
+    plate = ''
+    if car_row and (car_row['car_model'] or car_row['plate_number']):
+        car = car_row['car_model'] or ''
+        plate = car_row['plate_number'] or ''
+    elif ap_row:
+        car = ap_row['car'] or ''
+        plate = ap_row['plate_number'] or ''
+    return {
+        'found': True,
+        'id': client['id'],
+        'name': client['name'] or '',
+        'phone': client['phone'] or '',
+        'car': car,
+        'plate_number': plate,
+        'stage': client['stage'] or '',
+    }
+
 def phone_allowed_for_appointment(user_id, appointment_id):
     u = current_user()
     if not u:
@@ -1774,7 +1825,7 @@ def perm_required(perm):
     return deco
 
 def get_client(con, name, phone):
-    row = con.execute("SELECT id FROM clients WHERE phone=?", (phone,)).fetchone()
+    row = find_client_by_phone(con, phone)
     if row:
         ensure_client_bonus_code(con, row['id'])
         return row['id']
@@ -3194,7 +3245,7 @@ def design_variants():
 @app.route('/healthz')
 @app.route('/health')
 def healthz():
-    return jsonify(status='ok')
+    return jsonify(status='ok', build=BUILD_VERSION)
 
 _db_initialized = False
 
@@ -3407,6 +3458,23 @@ def api_slots():
     con.close()
     return jsonify(out)
 
+@app.route('/api/client-lookup')
+@login_required
+def api_client_lookup():
+    if not has_perm('calendar') and not has_perm('crm'):
+        return jsonify(found=False, error='forbidden'), 403
+    phone = request.args.get('phone', '').strip()
+    if len(phone_digits(phone)) < 10:
+        return jsonify(found=False)
+    con = db()
+    client = find_client_by_phone(con, phone)
+    if not client:
+        con.close()
+        return jsonify(found=False)
+    payload = client_lookup_payload(con, client)
+    con.close()
+    return jsonify(payload)
+
 @app.route('/calendar', methods=['GET','POST'])
 @login_required
 @perm_required('calendar')
@@ -3432,7 +3500,11 @@ def calendar_view():
                 bundle = resolve_services_bundle(con, service_ids)
                 d = request.form['appointment_date']; start = request.form['start_time']
                 end = m2hm(hm2m(start) + int(bundle['duration_min']))
-                name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
+                name = request.form['client_name'].strip(); phone = request.form['phone'].strip()
+                existing = find_client_by_phone(con, phone)
+                if existing and not name:
+                    name = existing['name'] or name
+                car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
                 cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
                 price = float(request.form.get('price') or bundle['base_price'] or 0)
                 primary = employee_ids[0]

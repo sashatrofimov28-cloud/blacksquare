@@ -40,7 +40,9 @@ Timeweb для Flask по умолчанию подставляет `gunicorn ma
 
 ### После push в `main`
 
-App Platform → BlackSquare CRM Prod → **Деплой** → запустить с последним коммитом `main`.
+App Platform → BlackSquare CRM Prod → **Деплой** → ветка `main` → последний коммит → **Запустить**.
+
+Проверка: https://blacksquare72.ru/healthz должен вернуть `"build":"client-v31"`, а в HTML страницы — `style.css?v=31` и `<meta name="bs-build" content="client-v31">`.
 
 ## Локальная проверка
 

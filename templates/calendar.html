@@ -149,10 +149,11 @@
       <p class="cal-booking-note" id="calBookingHint">Любое время — ограничения графика только для онлайн-записи. Нажмите на свободный слот в сетке выше.</p>
       <p class="cal-booking-link"><b>Ссылка клиенту:</b> <a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></p>
       <form method="post" class="form-grid cal-booking-form" id="manualBookingForm" autocomplete="off">
-        <input name="client_name" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
-        <input name="phone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required>
-        <input name="car" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
-        <input name="plate_number" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
+        <input name="client_name" id="calClientName" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
+        <input name="phone" id="calClientPhone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required inputmode="tel" autocomplete="tel">
+        <p class="cal-client-hint" id="calClientHint" hidden></p>
+        <input name="car" id="calClientCar" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
+        <input name="plate_number" id="calClientPlate" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
         <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
           <label class="master-picker-label">Услуги *</label>
           <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
@@ -195,7 +196,72 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
   const marker = document.getElementById('calSlotMarker');
   const dateInput = document.getElementById('calApptDate');
   const timeInput = document.getElementById('calStartTime');
-  const nameInput = document.querySelector('#manualBookingForm input[name="client_name"]');
+  const nameInput = document.getElementById('calClientName');
+  const phoneInput = document.getElementById('calClientPhone');
+  const carInput = document.getElementById('calClientCar');
+  const plateInput = document.getElementById('calClientPlate');
+  const clientHint = document.getElementById('calClientHint');
+  let lookupTimer = null;
+  let lookupToken = 0;
+
+  function setClientHint(text, tone) {
+    if (!clientHint) return;
+    if (!text) {
+      clientHint.hidden = true;
+      clientHint.textContent = '';
+      clientHint.className = 'cal-client-hint';
+      return;
+    }
+    clientHint.hidden = false;
+    clientHint.textContent = text;
+    clientHint.className = 'cal-client-hint' + (tone ? ' ' + tone : '');
+  }
+
+  function fillIfEmpty(input, value) {
+    if (!input || !value) return;
+    if (!input.value.trim() || input.dataset.autoFilled === '1') {
+      input.value = value;
+      input.dataset.autoFilled = '1';
+    }
+  }
+
+  function lookupClientByPhone() {
+    if (!phoneInput) return;
+    const phone = phoneInput.value.trim();
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setClientHint('');
+      return;
+    }
+    const token = ++lookupToken;
+    fetch('/api/client-lookup?phone=' + encodeURIComponent(phone), { credentials: 'same-origin' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (token !== lookupToken) return;
+        if (!data.found) {
+          setClientHint('Новый клиент — введите имя', 'new');
+          return;
+        }
+        fillIfEmpty(nameInput, data.name || '');
+        fillIfEmpty(carInput, data.car || '');
+        fillIfEmpty(plateInput, data.plate_number || '');
+        const label = data.name || 'Клиент найден';
+        setClientHint(label + (data.stage ? ' · ' + data.stage : ''), 'found');
+      })
+      .catch(function () {});
+  }
+
+  if (phoneInput) {
+    phoneInput.addEventListener('input', function () {
+      if (nameInput) nameInput.dataset.autoFilled = '0';
+      if (carInput) carInput.dataset.autoFilled = '0';
+      if (plateInput) plateInput.dataset.autoFilled = '0';
+      clearTimeout(lookupTimer);
+      lookupTimer = setTimeout(lookupClientByPhone, 350);
+    });
+    phoneInput.addEventListener('blur', lookupClientByPhone);
+  }
+
   if (!grid || !fold || !dateInput || !timeInput) return;
 
   const pxPerHour = parseFloat(getComputedStyle(document.querySelector('.cal-timeline')).getPropertyValue('--cal-hour')) || 72;
@@ -214,7 +280,7 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     fold.open = true;
     fold.classList.add('slot-active');
     fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    if (nameInput) setTimeout(function () { nameInput.focus(); }, 200);
+    if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 200);
   }
 
   grid.querySelectorAll('.cal-slot').forEach(function (slot) {
