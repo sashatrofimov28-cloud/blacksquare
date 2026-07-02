@@ -1,0 +1,82 @@
+/* CRM client card design variants — preview only */
+.client-gallery .close-variant-tag.now{background:rgba(255,59,48,.12);color:#ff6b6b}
+.client-gallery .close-variant-tag.a{background:rgba(0,217,126,.12);color:#2ecc71}
+.client-gallery .close-variant-tag.b{background:rgba(41,121,255,.12);color:#5b9cff}
+.client-gallery .close-variant-tag.c{background:rgba(178,75,243,.12);color:#b24bf3}
+
+.mk-client-hero{
+  display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:4px 0;
+}
+.mk-client-hero .mk-av{width:52px;height:52px;font-size:16px}
+.mk-client-hero h2{margin:0;font-size:20px;font-weight:900;letter-spacing:-.3px}
+.mk-client-hero p{margin:3px 0 0;font-size:12px;color:#888}
+.mk-pill{
+  display:inline-block;margin-top:6px;padding:4px 8px;border-radius:8px;
+  font-size:9px;font-weight:800;border:1px solid rgba(41,121,255,.35);
+  color:#5b9cff;background:rgba(41,121,255,.1);
+}
+.mk-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.mk-stat{
+  padding:10px 6px;border-radius:12px;background:#161616;border:1px solid #2a2a2a;text-align:center;
+}
+.mk-stat span{display:block;font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.04em}
+.mk-stat strong{display:block;margin-top:4px;font-size:15px;font-weight:800;color:#fff}
+.mk-actions{display:flex;gap:8px;margin-bottom:12px}
+.mk-act{
+  flex:1;padding:10px 8px;border-radius:12px;border:1px solid #2a2a2a;background:#161616;
+  font-size:11px;font-weight:700;color:#fff;text-align:center;
+}
+.mk-act.primary{background:#fff;color:#050505;border-color:#fff}
+.mk-visit{
+  padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a;margin-bottom:8px;
+}
+.mk-visit-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.mk-visit-top b{font-size:13px;font-weight:800}
+.mk-visit-top strong{font-size:13px;color:#2ecc71}
+.mk-visit span{display:block;font-size:11px;color:#888;line-height:1.35}
+.mk-section-title{font-size:12px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px}
+.mk-bonus-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px;border-radius:14px;background:#161616;border:1px solid #2a2a2a;margin-bottom:8px;
+}
+.mk-bonus-row b{font-size:13px}
+.mk-bonus-row span{font-size:11px;color:#888}
+.mk-bonus-row em{font-style:normal;font-size:12px;font-weight:800;color:#2ecc71}
+.mk-qr-mini{
+  width:44px;height:44px;border-radius:10px;background:#fff;padding:4px;flex-shrink:0;
+  display:grid;place-items:center;font-size:8px;color:#000;font-weight:800;text-align:center;line-height:1.1;
+}
+
+/* «Сейчас» — проблемный макет */
+.mk-old-title{margin:0 0 2px;font-size:22px;font-weight:800}
+.mk-old-phone{margin:0 0 14px;font-size:13px;color:#888}
+.mk-old-panel{
+  padding:14px;border-radius:16px;background:#1a1a1a;border:1px solid #2a2a2a;margin-bottom:10px;
+}
+.mk-old-panel h3{margin:0 0 10px;font-size:15px}
+.mk-old-card{
+  padding:14px;border-radius:14px;background:#0a0a0a;border:1px solid #222;margin-bottom:12px;
+}
+.mk-old-brand{font-size:10px;font-weight:800;letter-spacing:.1em;color:#666}
+.mk-old-bal{font-size:26px;font-weight:900;margin:6px 0}
+.mk-old-code{
+  display:inline-block;padding:4px 8px;border-radius:999px;background:#222;font-size:11px;color:#aaa;
+}
+.mk-old-qr{
+  width:100%;aspect-ratio:1;max-width:200px;margin:0 auto 10px;border-radius:12px;background:#fff;
+  display:grid;place-items:center;font-size:11px;color:#333;font-weight:700;
+}
+.mk-old-btn{
+  width:100%;padding:12px;border:0;border-radius:12px;background:#fff;color:#050505;
+  font-weight:800;font-size:14px;margin-bottom:10px;
+}
+.mk-old-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mk-old-stat{padding:12px;border-radius:12px;background:#161616;border:1px solid #2a2a2a}
+.mk-old-stat span{display:block;font-size:11px;color:#888}
+.mk-old-stat strong{font-size:16px}
+
+.mk-warn{
+  display:inline-block;margin-top:8px;padding:6px 10px;border-radius:8px;
+  background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);
+  font-size:10px;font-weight:700;color:#ff6b6b;
+}

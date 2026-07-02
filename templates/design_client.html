@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Карточка клиента CRM — варианты дизайна</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=31">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-client.css') }}">
+</head>
+<body class="theme-dark close-gallery client-gallery">
+  <header class="close-gallery-hero">
+    <a class="close-gallery-back" href="/design">← Все макеты</a>
+    <h1>Карточка клиента в CRM — 4 варианта</h1>
+    <p>Сейчас на экране доминирует бонусная карта и QR — имя и история визитов уезжают вниз, баланс дублируется. Ниже три альтернативы + текущий вид для сравнения. Выберите вариант — внедрим в прод.</p>
+  </header>
+
+  <div class="close-variant-grid">
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Сейчас (что не нравится)</b>
+        <span>Огромная карта + QR на полэкрана, баланс дважды, визиты и данные клиента не видны без долгого скролла.</span>
+        <span class="close-variant-tag now">Проблема</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">Как на скриншоте</div>
+        <div class="phone-scroll">
+          <h2 class="mk-old-title">Мерс</h2>
+          <p class="mk-old-phone">+79044736671</p>
+          <div class="mk-old-panel">
+            <h3>Бонусная карта</h3>
+            <div class="mk-old-card">
+              <div class="mk-old-brand">BLACKSQUARE</div>
+              <div class="mk-old-bal">0 ₽</div>
+              <span class="mk-old-code">BS000038</span>
+              <div style="margin-top:8px;font-size:12px;color:#888">Мерс</div>
+            </div>
+            <div class="mk-old-qr">QR 200×200</div>
+            <p style="text-align:center;font-size:10px;color:#666;margin:0 0 10px">Покажите клиенту — отсканирует и сохранит карту</p>
+            <button class="mk-old-btn" type="button">Открыть карту</button>
+            <div class="mk-old-stats">
+              <div class="mk-old-stat"><span>Баланс</span><strong>0 ₽</strong></div>
+              <div class="mk-old-stat"><span>Закрытых визитов</span><strong>1</strong></div>
+            </div>
+          </div>
+          <span class="mk-warn">↓ данные клиента и история — ещё ниже</span>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>QR нужен редко — не должен быть главным</li>
+          <li>Баланс уже на карте — плитка лишняя</li>
+          <li>Нет быстрых действий: позвонить, записать</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант A — профиль</b>
+        <span>Клиент и последний визит сверху. Бонусы — одна строка + кнопка «QR». Редактирование по кнопке.</span>
+        <span class="close-variant-tag a">Рекомендуем</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">A · Профиль</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Клиент</h2><p>CRM</p></div>
+          </div>
+          <div class="mk-client-hero">
+            <div class="mk-av">МЕ</div>
+            <div>
+              <h2>Мерс</h2>
+              <p>+7 904 473-66-71</p>
+              <span class="mk-pill">Новый</span>
+            </div>
+          </div>
+          <div class="mk-actions">
+            <span class="mk-act primary">Позвонить</span>
+            <span class="mk-act">Записать</span>
+            <span class="mk-act">QR карты</span>
+          </div>
+          <div class="mk-stat-row">
+            <div class="mk-stat"><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="mk-stat"><span>Визитов</span><strong>1</strong></div>
+            <div class="mk-stat"><span>%</span><strong>5%</strong></div>
+          </div>
+          <div class="mk-section-title">Последний визит</div>
+          <div class="mk-visit">
+            <div class="mk-visit-top"><b>12 июн 2026</b><strong>8 500 ₽</strong></div>
+            <span>14:00–16:30 · Тонировка задней части</span>
+            <span>BMW X5 · А123ВС77 · Стас · Закрыт</span>
+          </div>
+          <div class="mk-bonus-row">
+            <div><b>Бонусная карта</b><span>BS000038 · 0 ₽</span></div>
+            <div class="mk-qr-mini">QR</div>
+          </div>
+          <details class="mk-fold">
+            <summary>История визитов <em>1</em></summary>
+            <div class="mk-fold-body"><div class="mk-visit" style="margin:0"><div class="mk-visit-top"><b>12 июн</b><strong>8 500 ₽</strong></div></div></div>
+          </details>
+          <details class="mk-fold">
+            <summary>Данные и авто <em>редакт.</em></summary>
+            <div class="mk-fold-body"><input class="mk-inp" value="Мерс"><input class="mk-inp" value="+79044736671" style="margin-top:6px"></div>
+          </details>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Сразу видно кто это и что делали в последний раз</li>
+          <li>QR по тапу — не занимает экран</li>
+          <li>Кнопки «Позвонить» и «Записать» под рукой</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант B — компактные блоки</b>
+        <span>Всё в сворачиваемых секциях (как закрытие визита). Бонусная карта свёрнута по умолчанию.</span>
+        <span class="close-variant-tag b">Уже в коде</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Свёрнуто</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div class="mk-client-hero" style="margin:0;padding:0">
+              <div class="mk-av">МЕ</div>
+              <div><h2 style="font-size:17px">Мерс</h2><p>+79044736671 · Новый</p></div>
+            </div>
+          </div>
+          <div class="mk-stat-row">
+            <div class="mk-stat"><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="mk-stat"><span>Визитов</span><strong>1</strong></div>
+            <div class="mk-stat"><span>%</span><strong>5%</strong></div>
+          </div>
+          <details class="mk-fold">
+            <summary>Бонусная карта <em>BS000038</em></summary>
+            <div class="mk-fold-body">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <div class="mk-old-card" style="flex:1;margin:0;padding:10px">
+                  <div class="mk-old-brand">BlackSquare</div>
+                  <div class="mk-old-bal" style="font-size:18px">0 ₽</div>
+                  <span class="mk-old-code">BS000038</span>
+                </div>
+                <div class="mk-qr-mini" style="width:72px;height:72px;font-size:9px">QR 72px</div>
+              </div>
+              <button class="mk-act primary" style="display:block;width:100%;margin-top:8px" type="button">Открыть карту</button>
+            </div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>Данные клиента</summary>
+            <div class="mk-fold-body">
+              <input class="mk-inp" value="Мерс">
+              <input class="mk-inp" value="+79044736671" style="margin-top:6px">
+              <button class="mk-btn" style="margin-top:8px;padding:10px;font-size:13px" type="button">Сохранить</button>
+            </div>
+          </details>
+          <details class="mk-fold" open>
+            <summary>История визитов <em>1</em></summary>
+            <div class="mk-fold-body">
+              <div class="mk-visit" style="margin:0">
+                <div class="mk-visit-top"><b>12.06.2026</b><strong>8 500 ₽</strong></div>
+                <span>Тонировка · BMW X5</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Минимум шума — редкое спрятано</li>
+          <li>Уже реализован в ветке, ждёт деплой</li>
+          <li>Похож на экран «Закрыть визит» — единый стиль</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант C — вкладки</b>
+        <span>Инфо · Визиты · Бонусы — переключение без длинного скролла. Удобно при многих визитах.</span>
+        <span class="close-variant-tag c">Много истории</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">C · Вкладка «Визиты»</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Мерс</h2><p>+79044736671</p></div>
+          </div>
+          <div class="mk-tabs">
+            <span class="mk-tab">Инфо</span>
+            <span class="mk-tab on">Визиты</span>
+            <span class="mk-tab">Бонусы</span>
+          </div>
+          <div class="mk-visit">
+            <div class="mk-visit-top"><b>12 июн 2026</b><strong>8 500 ₽</strong></div>
+            <span>14:00 · Тонировка задней части</span>
+            <span>BMW X5 · Закрыт</span>
+          </div>
+          <div class="mk-visit">
+            <div class="mk-visit-top"><b>3 мая 2026</b><strong>3 200 ₽</strong></div>
+            <span>11:00 · Полировка фар</span>
+            <span>— · Закрыт</span>
+          </div>
+          <div class="mk-visit" style="opacity:.55">
+            <div class="mk-visit-top"><b>ещё 4 визита…</b></div>
+          </div>
+          <div style="height:80px"></div>
+          <div class="mk-sticky">
+            <div class="mk-total-bar"><span>Бонусы на счёте</span><strong>0 ₽</strong></div>
+            <button class="mk-btn" type="button">Показать QR карты</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>История визитов — отдельный экран</li>
+          <li>Бонусы и QR — только на вкладке «Бонусы»</li>
+          <li>Хорошо для постоянных клиентов с 10+ визитами</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <section style="max-width:720px;margin:0 auto;padding:0 16px 40px;text-align:center">
+    <p style="color:#888;font-size:14px;line-height:1.5;margin:0 0 16px">
+      Напишите, какой вариант ближе: <b style="color:#2ecc71">A</b>, <b style="color:#5b9cff">B</b> или <b style="color:#b24bf3">C</b> — или что взять из каждого. После выбора внедрим и задеплоим.
+    </p>
+    <p style="color:#555;font-size:12px;margin:0">Макет: <code>/design/client</code> · не требует входа</p>
+  </section>
+</body>
+</html>
