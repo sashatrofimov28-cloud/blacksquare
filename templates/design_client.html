@@ -13,6 +13,12 @@
     <a class="close-gallery-back" href="/design">← Все макеты</a>
     <h1>Карточка клиента в CRM — 4 варианта</h1>
     <p>Сейчас на экране доминирует бонусная карта и QR — имя и история визитов уезжают вниз, баланс дублируется. Ниже три альтернативы + текущий вид для сравнения. Выберите вариант — внедрим в прод.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;max-width:900px;margin:20px auto 0">
+      <figure style="margin:0"><img src="{{ url_for('static', filename='mockups/client-card-now.png') }}" alt="Сейчас" style="width:100%;border-radius:16px;border:1px solid #222"><figcaption style="font-size:11px;color:#888;margin-top:6px">Сейчас</figcaption></figure>
+      <figure style="margin:0"><img src="{{ url_for('static', filename='mockups/client-card-variant-a.png') }}" alt="Вариант A" style="width:100%;border-radius:16px;border:1px solid #222"><figcaption style="font-size:11px;color:#888;margin-top:6px">A — Профиль</figcaption></figure>
+      <figure style="margin:0"><img src="{{ url_for('static', filename='mockups/client-card-variant-b.png') }}" alt="Вариант B" style="width:100%;border-radius:16px;border:1px solid #222"><figcaption style="font-size:11px;color:#888;margin-top:6px">B — Компакт</figcaption></figure>
+      <figure style="margin:0"><img src="{{ url_for('static', filename='mockups/client-card-variant-c.png') }}" alt="Вариант C" style="width:100%;border-radius:16px;border:1px solid #222"><figcaption style="font-size:11px;color:#888;margin-top:6px">C — Вкладки</figcaption></figure>
+    </div>
   </header>
 
   <div class="close-variant-grid">
