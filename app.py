@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v31'
+BUILD_VERSION = 'client-v32'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -3204,6 +3204,7 @@ def inject():
         'today': today(),
         'stock_level_percent': stock_level_percent,
         'format_date_long_ru': format_date_long_ru,
+        'format_date_calendar_ru': format_date_calendar_ru,
         'format_money': format_money,
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
@@ -5205,6 +5206,9 @@ def client_card(cid):
     ).fetchall()
     closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (cid,)).fetchone()['c']
     friend_card = con.execute("SELECT * FROM friend_cards WHERE client_id=? AND active=1", (cid,)).fetchone()
+    last_visit = visits[0] if visits else None
+    status_key, status_label = crm_client_status(client, last_visit)
+    status_tone = crm_status_tone(status_key)
     con.close()
     card_url = bonus_card_url(client['bonus_code']) if client['bonus_code'] else ''
     friend_card_url_val = friend_card_url(friend_card['access_token']) if friend_card else ''
@@ -5218,6 +5222,9 @@ def client_card(cid):
         global_bonus_percent=global_bonus_percent(),
         bonus_from_visit=bonus_from_visit_number(),
         closed_visits=closed_visits,
+        last_visit=last_visit,
+        status_label=status_label,
+        status_tone=status_tone,
         friend_card=friend_card,
         friend_card_url=friend_card_url_val,
     )

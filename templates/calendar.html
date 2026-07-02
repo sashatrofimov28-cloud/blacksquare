@@ -262,6 +262,18 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     phoneInput.addEventListener('blur', lookupClientByPhone);
   }
 
+  var bookParams = new URLSearchParams(window.location.search);
+  if (bookParams.get('book') === '1' && fold) {
+    fold.open = true;
+    fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (bookParams.get('client_name') && nameInput) nameInput.value = bookParams.get('client_name');
+    if (bookParams.get('phone') && phoneInput) {
+      phoneInput.value = bookParams.get('phone');
+      lookupClientByPhone();
+    }
+    if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 300);
+  }
+
   if (!grid || !fold || !dateInput || !timeInput) return;
 
   const pxPerHour = parseFloat(getComputedStyle(document.querySelector('.cal-timeline')).getPropertyValue('--cal-hour')) || 72;
