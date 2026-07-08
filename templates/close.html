@@ -146,8 +146,10 @@
   {% if ap.status not in ['Закрыт','Отменен'] %}
   <dialog class="close-modal" id="closeMenuModal">
     <div class="close-modal-inner">
-      <button type="button" class="close-modal-close" id="closeMenuClose" aria-label="Закрыть">×</button>
-      <h3>Действия с записью</h3>
+      <div class="close-modal-head">
+        <h3>Действия с записью</h3>
+        <button type="button" class="close-modal-close" id="closeMenuClose" aria-label="Закрыть">×</button>
+      </div>
       <div class="close-menu-list">
         <button type="button" class="close-menu-item" id="openRescheduleModal">📅 Перенести на другой день</button>
         <a class="close-menu-item" href="{{ url_for('edit_appointment', aid=ap.id) }}">✎ Изменить запись</a>
@@ -162,8 +164,10 @@
 
   <dialog class="close-modal" id="rescheduleModal">
     <div class="close-modal-inner">
-      <button type="button" class="close-modal-close" id="rescheduleClose" aria-label="Закрыть">×</button>
-      <h3>Перенос записи</h3>
+      <div class="close-modal-head">
+        <h3>Перенос записи</h3>
+        <button type="button" class="close-modal-close" id="rescheduleClose" aria-label="Закрыть">×</button>
+      </div>
       <p class="close-hint">Укажите новую дату и время для {{ ap.client_name }}.</p>
       <form method="post" action="{{ url_for('reschedule_appointment', aid=ap.id) }}" class="close-reschedule-form">
         <input type="hidden" name="date" value="{{ ap.appointment_date }}">

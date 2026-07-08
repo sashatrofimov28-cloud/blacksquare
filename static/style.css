@@ -922,10 +922,13 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
   position:relative;padding:20px 18px 18px;border-radius:20px;
   background:var(--surface,#1a1a1a);border:1px solid var(--border,#2a2a2a)
 }
-.close-modal-inner h3{margin:0 0 8px;font-size:18px;font-weight:800}
+.close-modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}
+.close-modal-head h3{margin:0;font-size:18px;font-weight:800}
 .close-modal-close{
-  position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;
-  border:1px solid var(--border,#2a2a2a);background:var(--surface-2,#222);color:#fff;font-size:20px;cursor:pointer
+  position:static;flex:0 0 auto;
+  width:34px;height:34px;border-radius:12px;
+  border:1px solid var(--border,#2a2a2a);background:var(--surface-2,#161616);color:#fff;
+  font-size:22px;line-height:1;cursor:pointer
 }
 .close-menu-list{display:grid;gap:8px;margin-top:8px}
 .close-menu-item{
