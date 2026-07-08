@@ -3,15 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Акт выполненных работ №{{ ap.id }}</title>
+  <title>Акт сдачи-приемки №{{ ap.id }}</title>
   <style>
     body{font-family:Arial,sans-serif;color:#111;margin:24px;line-height:1.45}
-    h1{margin:0 0 10px;font-size:24px}
-    .muted{color:#666;font-size:13px}
-    .block{margin:18px 0}
-    ul{margin:8px 0 0 20px}
+    h1{margin:0 0 8px;font-size:22px}
+    h2{margin:0 0 10px;font-size:15px}
+    .muted{color:#666;font-size:12px}
+    .block{margin:16px 0}
+    .meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .party{padding:10px;border:1px solid #ddd;border-radius:6px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #d6d6d6;padding:8px;font-size:13px;vertical-align:top}
+    th{text-align:left;background:#f7f7f7}
+    .sum{font-weight:700}
+    .legal-list{margin:8px 0 0 20px;padding:0}
+    .legal-list li{margin:4px 0}
     .sign{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:42px}
     .line{border-top:1px solid #333;padding-top:6px;font-size:12px}
+    .line small{display:block;color:#777}
     .actions{margin-bottom:14px}
     @media print {.actions{display:none} body{margin:8mm}}
   </style>
@@ -20,40 +29,67 @@
   <div class="actions">
     <button onclick="window.print()">Печать</button>
   </div>
-  <h1>Акт выполненных работ №{{ ap.id }}</h1>
-  <div class="muted">Сформировано: {{ signed_at }}</div>
-
-  <div class="block">
-    Мы, нижеподписавшиеся, подтверждаем, что работы по заказу выполнены в полном объёме и приняты клиентом.
+  <h1>Акт сдачи-приемки выполненных работ (услуг) №{{ ap.id }}</h1>
+  <div class="meta muted">
+    <span>г. ____________________</span>
+    <span>Дата: {{ format_date_calendar_ru(ap.appointment_date) }}</span>
   </div>
 
   <div class="block">
-    <b>Данные заказа</b><br>
-    Дата визита: {{ format_date_calendar_ru(ap.appointment_date) }}<br>
-    Клиент: {{ ap.client_name }} ({{ ap.phone or '—' }})<br>
-    Автомобиль: {{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}<br>
-    Исполнитель: {{ ap.employee_name or '—' }}
+    <div class="party">
+      <b>Исполнитель:</b> ______________________________ (наименование / ИП), ИНН ____________, ОГРН(ИП) ____________, адрес ______________________________.
+    </div>
+    <div class="party" style="margin-top:8px">
+      <b>Заказчик:</b> {{ ap.client_name }}{% if ap.phone %}, тел. {{ ap.phone }}{% endif %}{% if ap.car %}, авто {{ ap.car }}{% endif %}{% if ap.plate_number %} ({{ ap.plate_number }}){% endif %}.
+    </div>
   </div>
 
   <div class="block">
-    <b>Перечень выполненных работ</b>
-    <ul>
-      <li>{{ ap.service_name }} — {{ format_money(ap.price or 0) }} ₽</li>
+    Настоящий акт составлен к заказ-наряду №{{ ap.id }} от {{ format_date_calendar_ru(ap.appointment_date) }}.
+    Работы выполнены в полном объеме и переданы Заказчику.
+  </div>
+
+  <div class="block">
+    <h2>1. Перечень выполненных работ (услуг)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:42px">№</th>
+          <th>Наименование</th>
+          <th style="width:120px">Сумма, ₽</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>{{ ap.service_name }}</td>
+          <td>{{ format_money(ap.price or 0) }}</td>
+        </tr>
       {% for e in extras %}
-      <li>{{ e.name }} — {{ format_money(e.price or 0) }} ₽</li>
+        <tr>
+          <td>{{ loop.index + 1 }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ format_money(e.price or 0) }}</td>
+        </tr>
       {% endfor %}
-    </ul>
+      </tbody>
+    </table>
   </div>
 
   <div class="block">
-    Общая стоимость работ: <b>{{ format_money(ap.price or 0) }} ₽</b>.<br>
-    Претензий по объёму, качеству и срокам выполнения работ клиент не имеет.
-    {% if ap.comment %}<br><span class="muted">Комментарий к заказу: {{ ap.comment }}</span>{% endif %}
+    <h2>2. Стоимость и приемка</h2>
+    <div class="sum">Общая стоимость работ по акту: {{ format_money(ap.price or 0) }} ₽.</div>
+    <ol class="legal-list">
+      <li>Работы выполнены качественно и в согласованные сроки.</li>
+      <li>Заказчик результат работ принял, претензий по объему, качеству и срокам не имеет.</li>
+      <li>Стороны подтверждают отсутствие взаимных претензий по настоящему акту.</li>
+    </ol>
+    {% if ap.comment %}<div class="muted" style="margin-top:8px">Комментарий к заказу: {{ ap.comment }}</div>{% endif %}
   </div>
 
   <div class="sign">
-    <div class="line">Исполнитель / представитель сервиса</div>
-    <div class="line">Клиент</div>
+    <div class="line">Исполнитель: ____________________ /____________________/<small>подпись / расшифровка</small></div>
+    <div class="line">Заказчик: ____________________ /____________________/<small>подпись / расшифровка</small></div>
   </div>
 </body>
 </html>
