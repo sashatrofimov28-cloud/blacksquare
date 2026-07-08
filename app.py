@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v37'
+BUILD_VERSION = 'client-v38'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
