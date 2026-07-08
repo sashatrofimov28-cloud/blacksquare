@@ -1298,6 +1298,10 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('openai_api_key','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_name','ИП ТРОФИМОВ АЛЕКСАНДР ВАЛЕРЬЕВИЧ')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_inn','723018468397')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_kpp','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_address','625013, РОССИЯ, ТЮМЕНСКАЯ ОБЛ, Г ТЮМЕНЬ, УЛ ЭНЕРГЕТИКОВ, Д 53, КОРП 3, КВ 62')")
     client_cols = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
     if 'bonus_code' not in client_cols:
         c.execute("ALTER TABLE clients ADD COLUMN bonus_code TEXT")
@@ -4005,11 +4009,19 @@ def appointment_completion_act(aid):
         flash('Можно работать только со своими записями')
         return redirect(url_for('calendar_view'))
     extras = con.execute("SELECT name, price FROM appointment_extras WHERE appointment_id=? ORDER BY id ASC", (aid,)).fetchall()
+    seller_name = get_setting('legal_seller_name', '')
+    seller_inn = get_setting('legal_seller_inn', '')
+    seller_kpp = get_setting('legal_seller_kpp', '')
+    seller_address = get_setting('legal_seller_address', '')
     con.close()
     return render_template(
         'appointment_completion_act.html',
         ap=ap,
         extras=extras,
+        seller_name=seller_name,
+        seller_inn=seller_inn,
+        seller_kpp=seller_kpp,
+        seller_address=seller_address,
         signed_at=now()[:16],
     )
 
@@ -5574,6 +5586,12 @@ def settings():
         elif action == 'friend_save':
             set_setting('friend_discount_percent', request.form.get('friend_discount_percent', '10').strip() or '10')
             flash('Настройки карт для друзей сохранены')
+        elif action == 'legal_seller':
+            set_setting('legal_seller_name', request.form.get('legal_seller_name', '').strip())
+            set_setting('legal_seller_inn', request.form.get('legal_seller_inn', '').strip().replace(' ', ''))
+            set_setting('legal_seller_kpp', request.form.get('legal_seller_kpp', '').strip().replace(' ', ''))
+            set_setting('legal_seller_address', request.form.get('legal_seller_address', '').strip())
+            flash('Реквизиты продавца для документов сохранены')
         elif action == 'friend_add':
             con = db()
             name = request.form.get('friend_name', '').strip()
@@ -5669,6 +5687,10 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
+    legal_seller_name = get_setting('legal_seller_name', '')
+    legal_seller_inn = get_setting('legal_seller_inn', '')
+    legal_seller_kpp = get_setting('legal_seller_kpp', '')
+    legal_seller_address = get_setting('legal_seller_address', '')
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
@@ -5692,6 +5714,10 @@ def settings():
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,
+        legal_seller_name=legal_seller_name,
+        legal_seller_inn=legal_seller_inn,
+        legal_seller_kpp=legal_seller_kpp,
+        legal_seller_address=legal_seller_address,
         friend_discount_percent=friend_discount_percent,
         friend_cards=friend_cards,
         clients=clients,

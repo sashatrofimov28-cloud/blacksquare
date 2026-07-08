@@ -37,7 +37,9 @@
 
   <div class="block">
     <div class="party">
-      <b>Исполнитель:</b> ______________________________ (наименование / ИП), ИНН ____________, ОГРН(ИП) ____________, адрес ______________________________.
+      <b>Исполнитель:</b> {{ seller_name or '______________________________ (наименование / ИП)' }},
+      ИНН {{ seller_inn or '____________' }}{% if seller_kpp %}, КПП {{ seller_kpp }}{% endif %},
+      адрес {{ seller_address or '______________________________' }}.
     </div>
     <div class="party" style="margin-top:8px">
       <b>Заказчик:</b> {{ ap.client_name }}{% if ap.phone %}, тел. {{ ap.phone }}{% endif %}{% if ap.car %}, авто {{ ap.car }}{% endif %}{% if ap.plate_number %} ({{ ap.plate_number }}){% endif %}.
