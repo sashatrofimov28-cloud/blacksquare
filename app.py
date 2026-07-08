@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v35'
+BUILD_VERSION = 'client-v36'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -249,6 +249,18 @@ def format_money(val, decimals=0):
         whole, frac = f"{v:,.1f}".split('.')
         return whole.replace(',', ' ') + '.' + frac
     return f"{int(round(v)):,}".replace(',', ' ')
+
+def format_phone_ru(value):
+    digits = re.sub(r'\D+', '', str(value or ''))
+    if not digits:
+        return ''
+    if len(digits) == 11 and digits.startswith('8'):
+        digits = '7' + digits[1:]
+    if len(digits) == 11 and digits.startswith('7'):
+        return f"+7 ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+    if len(digits) == 10:
+        return f"+7 ({digits[0:3]}) {digits[3:6]}-{digits[6:8]}-{digits[8:10]}"
+    return str(value)
 
 def appt_status_meta(status):
     s = status or 'Записан'
@@ -1286,6 +1298,10 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('openai_api_key','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_name','ИП ТРОФИМОВ АЛЕКСАНДР ВАЛЕРЬЕВИЧ')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_inn','723018468397')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_kpp','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_address','625013, РОССИЯ, ТЮМЕНСКАЯ ОБЛ, Г ТЮМЕНЬ, УЛ ЭНЕРГЕТИКОВ, Д 53, КОРП 3, КВ 62')")
     client_cols = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
     if 'bonus_code' not in client_cols:
         c.execute("ALTER TABLE clients ADD COLUMN bonus_code TEXT")
@@ -3212,6 +3228,7 @@ def inject():
         'format_date_short_ru': format_date_short_ru,
         'format_date_calendar_ru': format_date_calendar_ru,
         'format_money': format_money,
+        'format_phone_ru': format_phone_ru,
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
         'appt_closed_label': appt_closed_label,
@@ -3876,7 +3893,7 @@ def close_appointment(aid):
         if earn_msg:
             extra.append(earn_msg)
         flash('Запись закрыта' + (f'. {" · ".join(extra)}' if extra else ''))
-        return redirect(url_for('calendar_view', date=redirect_date))
+        return redirect(url_for('after_close_documents', aid=aid, date=redirect_date))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     client_bonus = None
@@ -3910,6 +3927,102 @@ def close_appointment(aid):
         master_error=request.args.get('master_error') == '1',
         low_stock=low_stock,
         appt_date_label=format_date_calendar_ru(ap['appointment_date']),
+    )
+
+@app.route('/appointment/<int:aid>/after-close')
+@login_required
+@perm_required('calendar')
+def after_close_documents(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    if ap['status'] != 'Закрыт':
+        con.close()
+        flash('Документы доступны только после закрытия визита')
+        return redirect(url_for('close_appointment', aid=aid))
+    date_q = request.args.get('date') or ap['appointment_date'] or today()
+    con.close()
+    return render_template('after_close_documents.html', ap=ap, date_q=date_q)
+
+@app.route('/appointment/<int:aid>/order-sheet')
+@login_required
+@perm_required('calendar')
+def appointment_order_sheet(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*, {EMPLOYEE_NAME_SQL} "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    extras = con.execute("SELECT name, price FROM appointment_extras WHERE appointment_id=? ORDER BY id ASC", (aid,)).fetchall()
+    used_materials = con.execute(
+        "SELECT am.*, si.name item_name, si.unit item_unit "
+        "FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id "
+        "WHERE am.appointment_id=? ORDER BY am.id ASC",
+        (aid,),
+    ).fetchall()
+    con.close()
+    return render_template(
+        'appointment_order_sheet.html',
+        ap=ap,
+        extras=extras,
+        used_materials=used_materials,
+    )
+
+@app.route('/appointment/<int:aid>/completion-act')
+@login_required
+@perm_required('calendar')
+def appointment_completion_act(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*, {EMPLOYEE_NAME_SQL} "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    extras = con.execute("SELECT name, price FROM appointment_extras WHERE appointment_id=? ORDER BY id ASC", (aid,)).fetchall()
+    seller_name = get_setting('legal_seller_name', '')
+    seller_inn = get_setting('legal_seller_inn', '')
+    seller_kpp = get_setting('legal_seller_kpp', '')
+    seller_address = get_setting('legal_seller_address', '')
+    con.close()
+    return render_template(
+        'appointment_completion_act.html',
+        ap=ap,
+        extras=extras,
+        seller_name=seller_name,
+        seller_inn=seller_inn,
+        seller_kpp=seller_kpp,
+        seller_address=seller_address,
+        signed_at=now()[:16],
     )
 
 @app.route('/api/friend_discount_check')
@@ -5215,8 +5328,28 @@ def client_card(cid):
         (cid,),
     ).fetchall()
     closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (cid,)).fetchone()['c']
+    ltv_total = con.execute(
+        "SELECT COALESCE(SUM(price), 0) AS s FROM appointments WHERE client_id=? AND status='Закрыт'",
+        (cid,),
+    ).fetchone()['s']
     friend_card = con.execute("SELECT * FROM friend_cards WHERE client_id=? AND active=1", (cid,)).fetchone()
     last_visit = visits[0] if visits else None
+    upcoming_visit = con.execute(
+        "SELECT a.*, u.full_name employee_name "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+        "WHERE a.client_id=? AND a.status NOT IN ('Закрыт','Отменен') "
+        "AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time >= ?)) "
+        "ORDER BY a.appointment_date ASC, a.start_time ASC LIMIT 1",
+        (cid, today(), today(), datetime.now().strftime('%H:%M')),
+    ).fetchone()
+    booking_car = ''
+    booking_plate = ''
+    if upcoming_visit:
+        booking_car = upcoming_visit['car'] or ''
+        booking_plate = upcoming_visit['plate_number'] or ''
+    elif last_visit:
+        booking_car = last_visit['car'] or ''
+        booking_plate = last_visit['plate_number'] or ''
     status_key, status_label = crm_client_status(client, last_visit)
     status_tone = crm_status_tone(status_key)
     con.close()
@@ -5232,7 +5365,11 @@ def client_card(cid):
         global_bonus_percent=global_bonus_percent(),
         bonus_from_visit=bonus_from_visit_number(),
         closed_visits=closed_visits,
+        ltv_total=ltv_total,
         last_visit=last_visit,
+        upcoming_visit=upcoming_visit,
+        booking_car=booking_car,
+        booking_plate=booking_plate,
         status_label=status_label,
         status_tone=status_tone,
         friend_card=friend_card,
@@ -5449,6 +5586,12 @@ def settings():
         elif action == 'friend_save':
             set_setting('friend_discount_percent', request.form.get('friend_discount_percent', '10').strip() or '10')
             flash('Настройки карт для друзей сохранены')
+        elif action == 'legal_seller':
+            set_setting('legal_seller_name', request.form.get('legal_seller_name', '').strip())
+            set_setting('legal_seller_inn', request.form.get('legal_seller_inn', '').strip().replace(' ', ''))
+            set_setting('legal_seller_kpp', request.form.get('legal_seller_kpp', '').strip().replace(' ', ''))
+            set_setting('legal_seller_address', request.form.get('legal_seller_address', '').strip())
+            flash('Реквизиты продавца для документов сохранены')
         elif action == 'friend_add':
             con = db()
             name = request.form.get('friend_name', '').strip()
@@ -5544,6 +5687,10 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
+    legal_seller_name = get_setting('legal_seller_name', '')
+    legal_seller_inn = get_setting('legal_seller_inn', '')
+    legal_seller_kpp = get_setting('legal_seller_kpp', '')
+    legal_seller_address = get_setting('legal_seller_address', '')
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
@@ -5567,6 +5714,10 @@ def settings():
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,
+        legal_seller_name=legal_seller_name,
+        legal_seller_inn=legal_seller_inn,
+        legal_seller_kpp=legal_seller_kpp,
+        legal_seller_address=legal_seller_address,
         friend_discount_percent=friend_discount_percent,
         friend_cards=friend_cards,
         clients=clients,

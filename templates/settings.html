@@ -6,6 +6,19 @@
 </header>
 
 <div class="panel profile-card">
+  <h2>Реквизиты продавца для актов</h2>
+  <p style="color:#666;font-size:14px">Автоподстановка в «Акт сдачи-приемки» и другие документы.</p>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="legal_seller">
+    <input name="legal_seller_name" class="span4" value="{{ legal_seller_name }}" placeholder="Компания или ИП">
+    <input name="legal_seller_inn" value="{{ legal_seller_inn }}" placeholder="ИНН">
+    <input name="legal_seller_kpp" value="{{ legal_seller_kpp }}" placeholder="КПП (если есть)">
+    <textarea name="legal_seller_address" class="span4" rows="2" placeholder="Юридический адрес">{{ legal_seller_address }}</textarea>
+    <button>Сохранить реквизиты</button>
+  </form>
+</div>
+
+<div class="panel profile-card">
   <h2>База данных</h2>
   <p style="color:#666;font-size:14px">Записи сохраняются в облачное хранилище (S3) и на диск сервера. При каждом обновлении создаётся копия — данные не должны пропадать. Если пропали — нажмите «Восстановить из копии».</p>
   <div class="cards simple" style="margin-top:12px">

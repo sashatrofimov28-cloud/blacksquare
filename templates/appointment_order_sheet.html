@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Заказ-наряд №{{ ap.id }}</title>
+  <style>
+    body{font-family:Arial,sans-serif;color:#111;margin:24px;line-height:1.35}
+    h1{margin:0 0 10px;font-size:24px}
+    .muted{color:#666;font-size:13px}
+    .block{margin:18px 0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #d6d6d6;padding:8px;font-size:13px;vertical-align:top}
+    th{text-align:left;background:#f7f7f7}
+    .totals{margin-top:10px;display:grid;gap:4px;justify-content:end}
+    .sign{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
+    .line{border-top:1px solid #333;padding-top:6px;font-size:12px}
+    .actions{margin-bottom:14px}
+    @media print {.actions{display:none} body{margin:8mm}}
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button onclick="window.print()">Печать</button>
+  </div>
+  <h1>Заказ-наряд №{{ ap.id }}</h1>
+  <div class="muted">Дата: {{ format_date_calendar_ru(ap.appointment_date) }} · Время: {{ ap.start_time[:5] }}–{{ ap.end_time[:5] }}</div>
+
+  <div class="block grid">
+    <div>
+      <b>Клиент</b><br>
+      {{ ap.client_name }}<br>
+      {{ ap.phone or '—' }}
+    </div>
+    <div>
+      <b>Автомобиль</b><br>
+      {{ ap.car or '—' }}<br>
+      {{ ap.plate_number or '—' }}
+    </div>
+  </div>
+
+  <div class="block">
+    <b>Работы</b>
+    <table>
+      <thead>
+        <tr><th>Услуга</th><th style="width:140px">Сумма</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ ap.service_name or 'Основная услуга' }}</td>
+          <td>{{ format_money(ap.price or 0) }} ₽</td>
+        </tr>
+        {% for e in extras %}
+        <tr>
+          <td>{{ e.name }}</td>
+          <td>{{ format_money(e.price or 0) }} ₽</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="block">
+    <b>Материалы</b>
+    <table>
+      <thead>
+        <tr><th>Материал</th><th style="width:180px">Расход</th></tr>
+      </thead>
+      <tbody>
+        {% if used_materials %}
+          {% for m in used_materials %}
+          <tr>
+            <td>{{ m.item_name or 'Материал' }}</td>
+            <td>
+              {% if m.length_m and m.width_cm %}
+                {{ format_money(m.length_m, 2) }} м × {{ format_money(m.width_cm, 1) }} см
+              {% else %}
+                {{ format_money(m.qty or 0, 2) }} {{ m.item_unit or '' }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="2">Без расходных материалов</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    <div class="totals">
+      <div><b>Итого к оплате: {{ format_money(ap.price or 0) }} ₽</b></div>
+      {% if ap.comment %}<div class="muted">Комментарий: {{ ap.comment }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="sign">
+    <div class="line">Подпись исполнителя</div>
+    <div class="line">Подпись клиента</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="close-page close-page-b">
+  <header class="close-header">
+    <a href="{{ url_for('calendar_view', date=date_q) }}" class="close-back" aria-label="Назад">‹</a>
+    <div>
+      <h1>Визит закрыт</h1>
+      <p>{{ ap.client_name }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
+    </div>
+  </header>
+
+  <section class="card-surface" style="padding:16px;display:grid;gap:12px">
+    <strong style="font-size:18px">Документы по заказу</strong>
+    <p class="close-hint" style="margin:0">Сразу после закрытия можно открыть и распечатать документы.</p>
+    <a class="close-submit" href="{{ url_for('appointment_order_sheet', aid=ap.id) }}" target="_blank" rel="noopener">Заказ-наряд</a>
+    <a class="close-link-btn" href="{{ url_for('appointment_completion_act', aid=ap.id) }}" target="_blank" rel="noopener" style="text-align:center;padding:14px;border-radius:14px">Акт выполненных работ</a>
+  </section>
+
+  <section class="card-surface" style="padding:14px;display:grid;gap:6px;margin-top:12px">
+    <b>Что дальше</b>
+    <a href="{{ url_for('calendar_view', date=date_q) }}">Вернуться в календарь</a>
+    {% if has_perm('edit_closed_appointments') %}
+    <a href="{{ url_for('edit_appointment', aid=ap.id) }}">Редактировать закрытый заказ</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
