@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Карточка клиента — улучшения</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:#030303;color:#f5f5f5;font-family:Inter,system-ui,sans-serif;padding:0 0 48px}
+    .hero{padding:28px 16px 20px;text-align:center;background:radial-gradient(ellipse 70% 50% at 50% -10%,rgba(0,217,126,.14),transparent);border-bottom:1px solid #1a1a1a}
+    .hero h1{margin:0 0 8px;font-size:clamp(22px,4vw,30px);font-weight:900}
+    .hero p{margin:0 auto;max-width:640px;color:#888;font-size:14px;line-height:1.5}
+    .back{display:inline-block;margin-bottom:12px;color:#2ecc71;font-size:13px;font-weight:700;text-decoration:none}
+    .compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:900px;margin:0 auto;padding:20px 16px}
+    .compare figure{margin:0;text-align:center}
+    .compare img{width:100%;max-width:360px;border-radius:16px;border:1px solid #333}
+    .compare figcaption{margin-top:8px;font-size:13px;font-weight:700;color:#2ecc71}
+    .changelog{max-width:720px;margin:0 auto 24px;padding:0 16px}
+    .changelog h2{font-size:17px;margin:0 0 10px}
+    .changelog ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+    .changelog li{padding:12px 14px;border-radius:12px;background:#111;border:1px solid #222;font-size:13px;color:#ccc;line-height:1.45}
+    .changelog b{color:#2ecc71}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;max-width:1100px;margin:0 auto;padding:0 16px 32px}
+    .card{background:#111;border:1px solid #222;border-radius:24px;overflow:hidden}
+    .label{padding:16px;border-bottom:1px solid #222}
+    .label b{display:block;font-size:17px;margin-bottom:4px}
+    .label span{font-size:13px;color:#888}
+    .tag{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:800;text-transform:uppercase}
+    .tag.now{background:rgba(255,107,107,.12);color:#ff6b6b}
+    .tag.goal{background:rgba(0,217,126,.12);color:#2ecc71}
+    .phone{margin:14px;border-radius:28px;border:2px solid #333;background:#050505;overflow:hidden}
+    .notch{height:26px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#555;background:#0a0a0a}
+    .scroll{max-height:580px;overflow-y:auto;padding:12px}
+    .hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .hdr .back-btn{width:36px;height:36px;border-radius:12px;background:#161616;border:1px solid #2a2a2a;display:grid;place-items:center;font-size:22px}
+    .hdr h2{margin:0;font-size:17px;font-weight:800}
+    .client{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:12px;border-radius:16px;background:#161616;border:1px solid #2a2a2a;margin-bottom:10px}
+    .av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#2979ff,#00d97e);display:grid;place-items:center;font-weight:800;font-size:14px}
+    .client b{display:block;font-size:14px}
+    .client span{display:block;font-size:10px;color:#888}
+    .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+    .act{padding:10px 4px;border-radius:10px;border:1px solid #2a2a2a;background:#0d0d0d;color:#fff;font-size:11px;font-weight:700;text-align:center}
+    .act.primary{background:#fff;color:#050505}
+    .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+    .stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+    .stat{padding:8px 4px;border-radius:12px;background:#161616;border:1px solid #2a2a2a;text-align:center}
+    .stat i{display:block;font-size:12px;color:#2ecc71;font-style:normal;margin-bottom:3px}
+    .stat span{display:block;font-size:8px;color:#888;font-weight:700;text-transform:uppercase}
+    .stat strong{display:block;font-size:12px;font-weight:800;margin-top:2px}
+    .pill{display:inline-block;padding:3px 8px;border-radius:8px;font-size:9px;font-weight:800;border:1px solid transparent;margin-top:4px;margin-right:4px}
+    .pill.blue{color:#5b9cff;border-color:rgba(41,121,255,.35);background:rgba(41,121,255,.1)}
+    .pill.grey{color:#888;border-color:#333;background:#1a1a1a}
+    .sec{font-size:10px;color:#888;text-transform:uppercase;margin-bottom:6px}
+    .visit{padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a;margin-bottom:10px}
+    .visit-top{display:flex;justify-content:space-between;margin-bottom:4px}
+    .visit-top strong{color:#2ecc71}
+    .visit small{font-size:11px;color:#888}
+    .visit-tap{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a;margin-bottom:10px}
+    .visit-tap::after{content:'›';color:#666;font-size:18px}
+    .comment{display:flex;gap:10px;padding:12px;border-radius:14px;background:rgba(255,159,28,.1);border:1px solid rgba(255,159,28,.35);margin-bottom:10px}
+    .comment p{margin:0;font-size:12px;color:#ffb84d;font-weight:600;line-height:1.4}
+    .upcoming{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border-radius:14px;margin-bottom:12px;background:rgba(0,217,126,.08);border:1px solid rgba(0,217,126,.35)}
+    .upcoming em{display:block;font-style:normal;font-size:10px;font-weight:800;text-transform:uppercase;color:#2ecc71}
+    .upcoming b{font-size:13px}
+    .upcoming .btn{padding:8px 12px;border-radius:10px;background:#2ecc71;color:#050505;font-size:11px;font-weight:800}
+    .bonus{display:flex;justify-content:space-between;padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a}
+    .bonus small{color:#888}
+    .qr{width:36px;height:36px;background:#fff;border-radius:8px}
+    .notes{padding:14px 16px;border-top:1px solid #222;font-size:12px;color:#888}
+    .notes ul{margin:8px 0 0;padding-left:18px}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <a class="back" href="/static/mockups/index.html">← Все макеты</a>
+    <h1>Улучшения карточки клиента</h1>
+    <p>Вариант A уже на проде. Ниже — 6 доработок поверх: контекст для работы с клиентом.</p>
+  </header>
+
+  <section class="compare">
+    <figure>
+      <img src="client-card-before-after-chat.png" alt="Сравнение до и после">
+      <figcaption>Сейчас → После исправлений</figcaption>
+    </figure>
+    <figure>
+      <img src="client-card-improved-chat.png" alt="Улучшенная карточка">
+      <figcaption>Целевой экран</figcaption>
+    </figure>
+  </section>
+
+  <section class="changelog">
+    <h2>6 исправлений</h2>
+    <ul>
+      <li><b>1. Комментарий наверху</b> — «Перезвонить / дорого» сразу виден</li>
+      <li><b>2. Предстоящая запись</b> — зелёный блок, если клиент уже записан</li>
+      <li><b>3. Плитка «Всего потратил»</b> — LTV рядом с бонусами</li>
+      <li><b>4. Две метки статуса</b> — CRM (Думает) + визит (Завершено)</li>
+      <li><b>5. Визит кликабельный</b> — тап → открыть запись</li>
+      <li><b>6. «Записать» с авто</b> — машина и госномер с прошлого визита</li>
+    </ul>
+  </section>
+
+  <div class="grid">
+    <article class="card">
+      <div class="label">
+        <b>Сейчас на проде (v34)</b>
+        <span>Не хватает «вперёд» и заметок</span>
+        <span class="tag now">Текущий</span>
+      </div>
+      <div class="phone">
+        <div class="notch">v34</div>
+        <div class="scroll">
+          <div class="hdr"><span class="back-btn">‹</span><h2>Клиент</h2></div>
+          <div class="client">
+            <div class="av">КО</div>
+            <div><b>Корола</b><span>+79220078811</span><span class="pill grey">Завершено</span></div>
+          </div>
+          <div class="acts"><span class="act primary">Позвонить</span><span class="act">Записать</span><span class="act">QR</span></div>
+          <div class="stats3">
+            <div class="stat"><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="stat"><span>Визитов</span><strong>1</strong></div>
+            <div class="stat"><span>%</span><strong>3%</strong></div>
+          </div>
+          <div class="sec">Последний визит</div>
+          <div class="visit">
+            <div class="visit-top"><b>2 июл 2026</b><strong>8 500 ₽</strong></div>
+            <small>19:00 · Атермальная плёнка</small>
+          </div>
+          <div class="bonus"><span><b>Бонусная карта</b><br><small>BS000040 · 0 ₽</small></span><span class="qr"></span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="label">
+        <b>После исправлений</b>
+        <span>Тот же A + контекст и быстрые действия</span>
+        <span class="tag goal">Цель</span>
+      </div>
+      <div class="phone">
+        <div class="notch">Улучшенный</div>
+        <div class="scroll">
+          <div class="hdr"><span class="back-btn">‹</span><h2>Клиент</h2></div>
+          <div class="client">
+            <div class="av">КО</div>
+            <div>
+              <b>Корола</b><span>+7 (922) 007-88-11</span>
+              <span class="pill blue">Думает</span><span class="pill grey">Завершено</span>
+            </div>
+          </div>
+          <div class="acts"><span class="act primary">📞 Позвонить</span><span class="act">📅 Записать</span><span class="act">▦ QR</span></div>
+          <div class="stats4">
+            <div class="stat"><i>★</i><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="stat"><i>📅</i><span>Визитов</span><strong>1</strong></div>
+            <div class="stat"><i>%</i><span>%</span><strong>3%</strong></div>
+            <div class="stat"><i>₽</i><span>Всего</span><strong>8.5k</strong></div>
+          </div>
+          <div class="comment"><span>💬</span><p>Перезвонить в пятницу — показалось дорого</p></div>
+          <div class="upcoming">
+            <div><em>Предстоящая запись</em><b>12 июл · 14:00 — Атермальная</b></div>
+            <span class="btn">Открыть</span>
+          </div>
+          <div class="sec">Последний визит</div>
+          <div class="visit-tap">
+            <div><b>2 июл 2026 · 8 500 ₽</b><small>Атермальная · Авенсис · Александр</small></div>
+          </div>
+          <div class="bonus"><span><b>Бонусная карта</b><br><small>BS000040 · 0 ₽</small></span><span class="qr"></span></div>
+        </div>
+      </div>
+      <div class="notes">
+        <ul>
+          <li>Комментарий и запись — без скролла</li>
+          <li>«Записать» подставляет авто + госномер</li>
+          <li>Тап по визиту → карточка записи</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
