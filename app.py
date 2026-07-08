@@ -3245,6 +3245,10 @@ def design_close_variants():
 def design_client_variants():
     return render_template('design_client.html')
 
+@app.route('/design/client-improved')
+def design_client_improved():
+    return render_template('design_client_improved.html')
+
 @app.route('/design/v1')
 def design_roadmap():
     return app.send_static_file('mockups/roadmap.html')

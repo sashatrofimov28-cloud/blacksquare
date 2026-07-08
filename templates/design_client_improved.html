@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Карточка клиента — улучшения</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=34">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-client-improved.css') }}">
+</head>
+<body class="theme-dark close-gallery client-improved-gallery">
+  <header class="close-gallery-hero">
+    <a class="close-gallery-back" href="/design/client">← Варианты A/B/C</a>
+    <h1>Улучшения карточки клиента</h1>
+    <p>Вариант A уже на проде. Ниже — что добавить поверх: контекст для работы с клиентом, меньше лишних тапов.</p>
+  </header>
+
+  <section class="client-improved-compare">
+    <figure>
+      <img src="{{ url_for('static', filename='mockups/client-card-before-after.png') }}" alt="Сравнение до и после">
+      <figcaption class="next">Сейчас → После исправлений</figcaption>
+    </figure>
+    <figure>
+      <img src="{{ url_for('static', filename='mockups/client-card-improved-v2.png') }}" alt="Улучшенная карточка">
+      <figcaption class="next">Целевой экран</figcaption>
+    </figure>
+  </section>
+
+  <section class="mk-changelog">
+    <h2>6 исправлений на одном экране</h2>
+    <ul>
+      <li><b>1. Комментарий наверху</b> — «Перезвонить / дорого» сразу виден, не в свёрнутой форме</li>
+      <li><b>2. Предстоящая запись</b> — зелёный блок, если клиент уже записан</li>
+      <li><b>3. Плитка «Всего потратил»</b> — LTV клиента рядом с бонусами</li>
+      <li><b>4. Две метки статуса</b> — стадия CRM (Думает) + статус визита (Завершено)</li>
+      <li><b>5. Визит кликабельный</b> — тап → открыть запись</li>
+      <li><b>6. «Записать» с авто</b> — подставляет машину и госномер с прошлого визита</li>
+    </ul>
+  </section>
+
+  <div class="close-variant-grid">
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Сейчас на проде (v34)</b>
+        <span>Вариант A — уже хорошо, но не хватает «вперёд» и заметок</span>
+        <span class="close-variant-tag now">Текущий</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">v34</div>
+        <div class="phone-scroll mk-client-v2">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Клиент</h2></div>
+          </div>
+          <div class="mk-client">
+            <div class="mk-av">КО</div>
+            <div>
+              <b>Корола</b>
+              <span>+79220078811</span>
+              <span class="mk-pill grey" style="margin-top:4px;display:inline-block">Завершено</span>
+            </div>
+          </div>
+          <div class="mk-row2" style="margin-bottom:10px">
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px;background:#fff;color:#050505">Позвонить</span>
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px">Записать</span>
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px">QR</span>
+          </div>
+          <div class="mk-stat-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
+            <div class="mk-stat4"><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="mk-stat4"><span>Визитов</span><strong>1</strong></div>
+            <div class="mk-stat4"><span>%</span><strong>3%</strong></div>
+          </div>
+          <div style="font-size:10px;color:#888;text-transform:uppercase;margin-bottom:6px">Последний визит</div>
+          <div class="mk-visit" style="margin-bottom:10px">
+            <div class="mk-visit-top" style="display:flex;justify-content:space-between"><b>2 июл 2026</b><strong style="color:#2ecc71">8 500 ₽</strong></div>
+            <span>19:00 · Атермальная плёнка</span>
+          </div>
+          <div class="mk-bonus-row" style="display:flex;justify-content:space-between;padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a">
+            <span><b>Бонусная карта</b><br><small style="color:#888">BS000040 · 0 ₽</small></span>
+            <span style="width:36px;height:36px;background:#fff;border-radius:8px"></span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>После исправлений</b>
+        <span>Тот же вариант A + контекст и быстрые действия</span>
+        <span class="close-variant-tag a">Цель</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">Улучшенный</div>
+        <div class="phone-scroll mk-client-v2">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Клиент</h2></div>
+          </div>
+          <div class="mk-client">
+            <div class="mk-av">КО</div>
+            <div>
+              <b>Корола</b>
+              <span>+7 (922) 007-88-11</span>
+              <div class="mk-pills">
+                <span class="mk-pill blue">Думает</span>
+                <span class="mk-pill grey">Завершено</span>
+              </div>
+            </div>
+          </div>
+          <div class="mk-row2" style="margin-bottom:10px">
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px;background:#fff;color:#050505">📞 Позвонить</span>
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px">📅 Записать</span>
+            <span class="mk-inp" style="text-align:center;padding:10px 4px;font-size:11px">▦ QR</span>
+          </div>
+          <div class="mk-stat-row4">
+            <div class="mk-stat4"><i>★</i><span>Бонусы</span><strong>0 ₽</strong></div>
+            <div class="mk-stat4"><i>📅</i><span>Визитов</span><strong>1</strong></div>
+            <div class="mk-stat4"><i>%</i><span>%</span><strong>3%</strong></div>
+            <div class="mk-stat4"><i>₽</i><span>Всего</span><strong>8.5k</strong></div>
+          </div>
+          <div class="mk-comment-pin">
+            <span>💬</span>
+            <p>Перезвонить в пятницу — показалось дорого</p>
+          </div>
+          <div class="mk-upcoming">
+            <div class="mk-upcoming-text">
+              <em>Предстоящая запись</em>
+              <b>12 июл · 14:00 — Атермальная плёнка</b>
+            </div>
+            <span class="mk-upcoming-btn">Открыть</span>
+          </div>
+          <div style="font-size:10px;color:#888;text-transform:uppercase;margin-bottom:6px">Последний визит</div>
+          <div class="mk-visit-tap">
+            <div class="mk-visit-tap-main">
+              <b>2 июл 2026 · 8 500 ₽</b>
+              <span>Атермальная · Авенсис · Александр</span>
+            </div>
+          </div>
+          <div class="mk-bonus-row" style="display:flex;justify-content:space-between;padding:12px;border-radius:14px;background:#161616;border:1px solid #2a2a2a">
+            <span><b>Бонусная карта</b><br><small style="color:#888">BS000040 · 0 ₽</small></span>
+            <span style="width:36px;height:36px;background:#fff;border-radius:8px"></span>
+          </div>
+          <details class="mk-fold"><summary>История визитов <em>1</em></summary></details>
+          <details class="mk-fold"><summary>Данные и авто</summary></details>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Комментарий и запись — без скролла</li>
+          <li>«Записать» подставляет Авенсис + госномер</li>
+          <li>Тап по визиту → карточка записи</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+</body>
+</html>
