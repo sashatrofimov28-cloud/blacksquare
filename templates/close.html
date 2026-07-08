@@ -5,9 +5,32 @@
     <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
     <div>
       <h1>Закрыть визит</h1>
-      <p>{{ ap.client_name }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
+      <p>{{ appt_date_label }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
     </div>
   </header>
+
+  {% if ap.status not in ['Закрыт','Отменен'] %}
+  <div class="close-quick-actions">
+    <button type="button" class="close-quick-btn" id="toggleReschedule" aria-expanded="false">📅 Перенести</button>
+    <a class="close-quick-btn" href="{{ url_for('edit_appointment', aid=ap.id) }}">✎ Изменить</a>
+    <form method="post" action="{{ url_for('cancel', aid=ap.id) }}" class="close-quick-cancel" onsubmit="return confirm('Отменить запись?')">
+      <input type="hidden" name="date" value="{{ ap.appointment_date }}">
+      <input type="hidden" name="cancel_reason" value="Клиент попросил перенести">
+      <button type="submit" class="close-quick-btn danger">✕ Отменить</button>
+    </form>
+  </div>
+
+  <div class="close-reschedule-panel card-surface" id="reschedulePanel" hidden>
+    <b>Перенос записи</b>
+    <p class="close-hint">Клиент просит другой день — укажите новую дату и время.</p>
+    <form method="post" action="{{ url_for('reschedule_appointment', aid=ap.id) }}" class="close-reschedule-form">
+      <input type="hidden" name="date" value="{{ ap.appointment_date }}">
+      <label>Новая дата <input type="date" name="appointment_date" value="{{ ap.appointment_date }}" required></label>
+      <label>Новое время <input type="time" name="start_time" value="{{ ap.start_time[:5] }}" required></label>
+      <button type="submit" class="close-mini-submit">Сохранить перенос</button>
+    </form>
+  </div>
+  {% endif %}
 
   <form method="post" id="closeForm" class="close-form">
     <div class="close-hero-total card-surface">
@@ -16,16 +39,25 @@
       <span class="close-hero-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</span>
     </div>
 
-    <div class="close-client card-surface">
-      <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
-      <div class="close-client-body">
-        <b>{{ ap.service_name }}</b>
-        <span>{{ ap.phone }}</span>
-        <span>{{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+    <div class="close-client card-surface close-client-v2">
+      <div class="close-client-top">
+        <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
+        <div class="close-client-main">
+          <b class="close-client-name">{{ ap.client_name }}</b>
+          <span class="close-client-phone">{{ format_phone_ru(ap.phone) or ap.phone }}</span>
+        </div>
       </div>
-      <label class="close-price-wrap" title="Сумма услуги">
-        <input name="price" type="number" step="0.01" class="close-price-inline" id="closePriceInput" value="{{ ap.price }}" required>
-        <span>₽</span>
+      <div class="close-client-service">{{ ap.service_name }}</div>
+      <div class="close-client-meta">
+        <span>{{ ap.car or 'Авто не указано' }}</span>
+        {% if ap.plate_number %}<span>{{ ap.plate_number }}</span>{% endif %}
+      </div>
+      <label class="close-price-row">
+        <span>Сумма услуги</span>
+        <div class="close-price-wrap">
+          <input name="price" type="number" step="0.01" class="close-price-inline" id="closePriceInput" value="{{ ap.price }}" required>
+          <span>₽</span>
+        </div>
       </label>
     </div>
 
@@ -40,7 +72,7 @@
       </div>
     </details>
 
-    <details class="close-fold" open>
+    <details class="close-fold">
       <summary>Материалы</summary>
       <div class="close-fold-body">
         <p class="close-hint" style="margin-top:0">Плёнка: м × см = м² · расходники — шт.</p>
@@ -114,10 +146,6 @@
       </div>
     </details>
     {% endif %}
-
-    <div class="close-sticky">
-      <button type="submit" class="close-submit">Закрыть и сохранить ✓</button>
-    </div>
   </form>
 
   {% if has_perm('extra_services') %}
@@ -132,6 +160,10 @@
     </div>
   </details>
   {% endif %}
+
+  <div class="close-footer-fixed">
+    <button type="submit" form="closeForm" class="close-submit">Закрыть и сохранить ✓</button>
+  </div>
 </div>
 
 <script>
@@ -221,6 +253,18 @@ document.getElementById('closeForm').addEventListener('submit', function () {
     }
   });
 });
+
+const toggleReschedule = document.getElementById('toggleReschedule');
+const reschedulePanel = document.getElementById('reschedulePanel');
+if (toggleReschedule && reschedulePanel) {
+  toggleReschedule.addEventListener('click', function () {
+    const open = reschedulePanel.hidden;
+    reschedulePanel.hidden = !open;
+    toggleReschedule.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggleReschedule.classList.toggle('active', open);
+    if (open) reschedulePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
 
 const certInput = document.getElementById('certNumber');
 const certBalance = document.getElementById('certBalance');
