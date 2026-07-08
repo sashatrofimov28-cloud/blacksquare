@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Акт выполненных работ №{{ ap.id }}</title>
+  <style>
+    body{font-family:Arial,sans-serif;color:#111;margin:24px;line-height:1.45}
+    h1{margin:0 0 10px;font-size:24px}
+    .muted{color:#666;font-size:13px}
+    .block{margin:18px 0}
+    ul{margin:8px 0 0 20px}
+    .sign{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:42px}
+    .line{border-top:1px solid #333;padding-top:6px;font-size:12px}
+    .actions{margin-bottom:14px}
+    @media print {.actions{display:none} body{margin:8mm}}
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button onclick="window.print()">Печать</button>
+  </div>
+  <h1>Акт выполненных работ №{{ ap.id }}</h1>
+  <div class="muted">Сформировано: {{ signed_at }}</div>
+
+  <div class="block">
+    Мы, нижеподписавшиеся, подтверждаем, что работы по заказу выполнены в полном объёме и приняты клиентом.
+  </div>
+
+  <div class="block">
+    <b>Данные заказа</b><br>
+    Дата визита: {{ format_date_calendar_ru(ap.appointment_date) }}<br>
+    Клиент: {{ ap.client_name }} ({{ ap.phone or '—' }})<br>
+    Автомобиль: {{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}<br>
+    Исполнитель: {{ ap.employee_name or '—' }}
+  </div>
+
+  <div class="block">
+    <b>Перечень выполненных работ</b>
+    <ul>
+      <li>{{ ap.service_name }} — {{ format_money(ap.price or 0) }} ₽</li>
+      {% for e in extras %}
+      <li>{{ e.name }} — {{ format_money(e.price or 0) }} ₽</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="block">
+    Общая стоимость работ: <b>{{ format_money(ap.price or 0) }} ₽</b>.<br>
+    Претензий по объёму, качеству и срокам выполнения работ клиент не имеет.
+    {% if ap.comment %}<br><span class="muted">Комментарий к заказу: {{ ap.comment }}</span>{% endif %}
+  </div>
+
+  <div class="sign">
+    <div class="line">Исполнитель / представитель сервиса</div>
+    <div class="line">Клиент</div>
+  </div>
+</body>
+</html>

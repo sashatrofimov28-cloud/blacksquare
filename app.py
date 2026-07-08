@@ -3889,7 +3889,7 @@ def close_appointment(aid):
         if earn_msg:
             extra.append(earn_msg)
         flash('Запись закрыта' + (f'. {" · ".join(extra)}' if extra else ''))
-        return redirect(url_for('calendar_view', date=redirect_date))
+        return redirect(url_for('after_close_documents', aid=aid, date=redirect_date))
     materials = list_stock_for_writeoff(con, u)
     extras = con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id DESC", (aid,)).fetchall()
     client_bonus = None
@@ -3923,6 +3923,94 @@ def close_appointment(aid):
         master_error=request.args.get('master_error') == '1',
         low_stock=low_stock,
         appt_date_label=format_date_calendar_ru(ap['appointment_date']),
+    )
+
+@app.route('/appointment/<int:aid>/after-close')
+@login_required
+@perm_required('calendar')
+def after_close_documents(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    if ap['status'] != 'Закрыт':
+        con.close()
+        flash('Документы доступны только после закрытия визита')
+        return redirect(url_for('close_appointment', aid=aid))
+    date_q = request.args.get('date') or ap['appointment_date'] or today()
+    con.close()
+    return render_template('after_close_documents.html', ap=ap, date_q=date_q)
+
+@app.route('/appointment/<int:aid>/order-sheet')
+@login_required
+@perm_required('calendar')
+def appointment_order_sheet(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*, {EMPLOYEE_NAME_SQL} "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    extras = con.execute("SELECT name, price FROM appointment_extras WHERE appointment_id=? ORDER BY id ASC", (aid,)).fetchall()
+    used_materials = con.execute(
+        "SELECT am.*, si.name item_name, si.unit item_unit "
+        "FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id "
+        "WHERE am.appointment_id=? ORDER BY am.id ASC",
+        (aid,),
+    ).fetchall()
+    con.close()
+    return render_template(
+        'appointment_order_sheet.html',
+        ap=ap,
+        extras=extras,
+        used_materials=used_materials,
+    )
+
+@app.route('/appointment/<int:aid>/completion-act')
+@login_required
+@perm_required('calendar')
+def appointment_completion_act(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute(
+        f"SELECT a.*, {EMPLOYEE_NAME_SQL} "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE a.id=?",
+        (aid,),
+    ).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        con.close()
+        flash('Можно работать только со своими записями')
+        return redirect(url_for('calendar_view'))
+    extras = con.execute("SELECT name, price FROM appointment_extras WHERE appointment_id=? ORDER BY id ASC", (aid,)).fetchall()
+    con.close()
+    return render_template(
+        'appointment_completion_act.html',
+        ap=ap,
+        extras=extras,
+        signed_at=now()[:16],
     )
 
 @app.route('/api/friend_discount_check')
