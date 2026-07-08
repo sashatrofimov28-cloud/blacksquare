@@ -267,6 +267,8 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     fold.open = true;
     fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     if (bookParams.get('client_name') && nameInput) nameInput.value = bookParams.get('client_name');
+    if (bookParams.get('car') && carInput) carInput.value = bookParams.get('car');
+    if (bookParams.get('plate_number') && plateInput) plateInput.value = bookParams.get('plate_number');
     if (bookParams.get('phone') && phoneInput) {
       phoneInput.value = bookParams.get('phone');
       lookupClientByPhone();

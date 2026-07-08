@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v35'
+BUILD_VERSION = 'client-v36'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -249,6 +249,18 @@ def format_money(val, decimals=0):
         whole, frac = f"{v:,.1f}".split('.')
         return whole.replace(',', ' ') + '.' + frac
     return f"{int(round(v)):,}".replace(',', ' ')
+
+def format_phone_ru(value):
+    digits = re.sub(r'\D+', '', str(value or ''))
+    if not digits:
+        return ''
+    if len(digits) == 11 and digits.startswith('8'):
+        digits = '7' + digits[1:]
+    if len(digits) == 11 and digits.startswith('7'):
+        return f"+7 ({digits[1:4]}) {digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+    if len(digits) == 10:
+        return f"+7 ({digits[0:3]}) {digits[3:6]}-{digits[6:8]}-{digits[8:10]}"
+    return str(value)
 
 def appt_status_meta(status):
     s = status or 'Записан'
@@ -3212,6 +3224,7 @@ def inject():
         'format_date_short_ru': format_date_short_ru,
         'format_date_calendar_ru': format_date_calendar_ru,
         'format_money': format_money,
+        'format_phone_ru': format_phone_ru,
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
         'appt_closed_label': appt_closed_label,
@@ -5215,8 +5228,28 @@ def client_card(cid):
         (cid,),
     ).fetchall()
     closed_visits = con.execute("SELECT COUNT(*) c FROM appointments WHERE client_id=? AND status='Закрыт'", (cid,)).fetchone()['c']
+    ltv_total = con.execute(
+        "SELECT COALESCE(SUM(price), 0) AS s FROM appointments WHERE client_id=? AND status='Закрыт'",
+        (cid,),
+    ).fetchone()['s']
     friend_card = con.execute("SELECT * FROM friend_cards WHERE client_id=? AND active=1", (cid,)).fetchone()
     last_visit = visits[0] if visits else None
+    upcoming_visit = con.execute(
+        "SELECT a.*, u.full_name employee_name "
+        "FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+        "WHERE a.client_id=? AND a.status NOT IN ('Закрыт','Отменен') "
+        "AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time >= ?)) "
+        "ORDER BY a.appointment_date ASC, a.start_time ASC LIMIT 1",
+        (cid, today(), today(), datetime.now().strftime('%H:%M')),
+    ).fetchone()
+    booking_car = ''
+    booking_plate = ''
+    if upcoming_visit:
+        booking_car = upcoming_visit['car'] or ''
+        booking_plate = upcoming_visit['plate_number'] or ''
+    elif last_visit:
+        booking_car = last_visit['car'] or ''
+        booking_plate = last_visit['plate_number'] or ''
     status_key, status_label = crm_client_status(client, last_visit)
     status_tone = crm_status_tone(status_key)
     con.close()
@@ -5232,7 +5265,11 @@ def client_card(cid):
         global_bonus_percent=global_bonus_percent(),
         bonus_from_visit=bonus_from_visit_number(),
         closed_visits=closed_visits,
+        ltv_total=ltv_total,
         last_visit=last_visit,
+        upcoming_visit=upcoming_visit,
+        booking_car=booking_car,
+        booking_plate=booking_plate,
         status_label=status_label,
         status_tone=status_tone,
         friend_card=friend_card,

@@ -10,14 +10,17 @@
     <div class="client-avatar client-avatar-lg">{{ client_initials(client.name) }}</div>
     <div class="client-hero-text">
       <h1>{{ client.name }}</h1>
-      <a class="client-phone" href="tel:{{ client.phone|replace(' ','') }}">{{ client.phone }}</a>
-      <span class="crm-pill {{ status_tone }}">{{ status_label }}</span>
+      <a class="client-phone" href="tel:{{ client.phone|replace(' ','') }}">{{ format_phone_ru(client.phone) or client.phone }}</a>
+      <div class="client-status-pills">
+        {% if client.stage %}<span class="crm-pill tone-blue">{{ client.stage }}</span>{% endif %}
+        <span class="crm-pill {{ status_tone }}">{{ status_label }}</span>
+      </div>
     </div>
   </div>
 
   <div class="client-actions">
     <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}"><span class="client-act-icon" aria-hidden="true">📞</span>Позвонить</a>
-    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone) }}"><span class="client-act-icon" aria-hidden="true">📅</span>Записать</a>
+    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone, car=booking_car, plate_number=booking_plate) }}"><span class="client-act-icon" aria-hidden="true">📅</span>Записать</a>
     {% if client.bonus_code %}
     <button type="button" class="client-act" id="clientQrOpen"><span class="client-act-icon" aria-hidden="true">▦</span>QR карты</button>
     {% endif %}
@@ -39,7 +42,29 @@
       <span class="client-stat-label">Начисление</span>
       <strong>{% if client.bonus_percent is not none and client.bonus_percent != '' %}{{ client.bonus_percent }}%{% else %}{{ global_bonus_percent }}%{% endif %}</strong>
     </div>
+    <div class="client-stat card-surface">
+      <span class="client-stat-icon" aria-hidden="true">₽</span>
+      <span class="client-stat-label">Всего</span>
+      <strong>{{ format_money(ltv_total) }} ₽</strong>
+    </div>
   </div>
+
+  {% if client.comment %}
+  <div class="client-comment-pin">
+    <span aria-hidden="true">💬</span>
+    <p>{{ client.comment }}</p>
+  </div>
+  {% endif %}
+
+  {% if upcoming_visit %}
+  <article class="client-upcoming card-surface">
+    <div class="client-upcoming-text">
+      <em>Предстоящая запись</em>
+      <b>{{ format_date_short_ru(upcoming_visit.appointment_date) }} · {{ upcoming_visit.start_time[:5] }} — {{ upcoming_visit.service_name }}</b>
+    </div>
+    <a class="client-upcoming-btn" href="{% if upcoming_visit.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=upcoming_visit.id) }}{% elif has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=upcoming_visit.id) }}{% else %}#{% endif %}">Открыть</a>
+  </article>
+  {% endif %}
 
   {% if friend_card %}
   <div class="client-banner card-surface">
@@ -51,7 +76,7 @@
 
   {% if last_visit %}
   <h2 class="client-section-title">Последний визит</h2>
-  <article class="client-visit card-surface client-visit-featured">
+  <a class="client-visit card-surface client-visit-featured client-visit-link" href="{% if last_visit.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=last_visit.id) }}{% elif has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=last_visit.id) }}{% else %}#{% endif %}">
     <div class="client-visit-top">
       <b>{{ format_date_short_ru(last_visit.appointment_date) }}</b>
       <strong>{{ format_money(last_visit.price) }} ₽</strong>
@@ -59,7 +84,7 @@
     <span>{{ last_visit.start_time[:5] }}–{{ last_visit.end_time[:5] }} · {{ last_visit.service_name }}</span>
     <span>{{ last_visit.car or '—' }}{% if last_visit.plate_number %} · {{ last_visit.plate_number }}{% endif %} · {{ last_visit.status }}</span>
     {% if last_visit.employee_name %}<span>{{ last_visit.employee_name }}</span>{% endif %}
-  </article>
+  </a>
   {% endif %}
 
   {% if client.bonus_code %}
@@ -108,7 +133,7 @@
       {% if visits %}
       <div class="client-visit-list">
         {% for v in visits %}
-        <article class="client-visit card-surface">
+        <a class="client-visit card-surface client-visit-link" href="{% if v.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=v.id) }}{% elif has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=v.id) }}{% else %}#{% endif %}">
           <div class="client-visit-top">
             <b>{{ v.appointment_date }}</b>
             <strong>{{ format_money(v.price) }} ₽</strong>
@@ -116,7 +141,7 @@
           <span>{{ v.start_time[:5] }}–{{ v.end_time[:5] }} · {{ v.service_name }}</span>
           <span>{{ v.car or '—' }}{% if v.plate_number %} · {{ v.plate_number }}{% endif %}</span>
           <span>{{ v.employee_name or '—' }} · {{ v.status }}</span>
-        </article>
+        </a>
         {% endfor %}
       </div>
       {% else %}
