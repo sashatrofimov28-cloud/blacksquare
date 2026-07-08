@@ -894,7 +894,51 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .theme-dark .close-master-picker-wrap .ghost{background:var(--surface-2,#222)!important;color:#fff!important;border:1px solid var(--border,#2a2a2a)!important}
 
 /* Close — variant B (compact folds) */
-.close-page-b{padding-bottom:88px}
+.close-page-b{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+.close-quick-actions{display:flex;gap:8px;margin-bottom:12px}
+.close-quick-btn{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:4px;
+  padding:10px 8px;border-radius:12px;border:1px solid var(--border,#2a2a2a);
+  background:var(--surface,#1a1a1a);color:var(--text,#fff);font-size:12px;font-weight:700;
+  text-decoration:none;cursor:pointer;font-family:inherit;min-height:44px
+}
+.close-quick-btn.active,.close-quick-btn:hover{border-color:rgba(0,217,126,.45)}
+.close-quick-btn.danger{color:#ff6b6b;border-color:rgba(255,59,48,.35);background:rgba(255,59,48,.08)}
+.close-quick-cancel{flex:1;display:flex;margin:0}
+.close-quick-cancel .close-quick-btn{width:100%}
+.close-reschedule-panel{display:grid;gap:10px;margin-bottom:12px}
+.close-reschedule-panel b{font-size:15px}
+.close-reschedule-form{display:grid;gap:8px}
+.close-reschedule-form label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted,#888)}
+.close-reschedule-form input{margin:0}
+.close-client-v2{display:grid;gap:10px}
+.close-client-top{display:flex;align-items:center;gap:12px}
+.close-client-main{min-width:0;display:grid;gap:2px}
+.close-client-name{font-size:18px;font-weight:900;letter-spacing:-.3px;line-height:1.1}
+.close-client-phone{font-size:13px;color:var(--muted,#888)}
+.close-client-service{
+  font-size:14px;font-weight:700;line-height:1.35;color:var(--accent-green,#00d97e);
+  padding-top:2px;border-top:1px solid var(--border,#2a2a2a)
+}
+.close-client-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted,#888)}
+.close-client-meta span{padding:4px 8px;border-radius:8px;background:var(--surface-2,#161616)}
+.close-price-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-top:10px;border-top:1px solid var(--border,#2a2a2a)
+}
+.close-price-row>span{font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;letter-spacing:.04em}
+.close-footer-fixed{
+  position:fixed;left:0;right:0;bottom:calc(56px + env(safe-area-inset-bottom,0px));z-index:30;
+  max-width:520px;margin:0 auto;padding:12px 16px;
+  background:linear-gradient(180deg,transparent,var(--bg,#050505) 28%);
+  pointer-events:none
+}
+.close-footer-fixed .close-submit{pointer-events:auto;margin:0;box-shadow:0 0 24px rgba(0,217,126,.25)}
+.theme-dark .close-quick-btn{background:var(--surface,#1a1a1a)!important;color:#fff!important;border:1px solid var(--border,#2a2a2a)!important;min-height:44px!important}
+.theme-dark .close-quick-btn.danger{color:#ff6b6b!important;background:rgba(255,59,48,.08)!important;border-color:rgba(255,59,48,.35)!important}
+.close-page-b .master-empty-hint{display:none}
+.close-page-b .master-add-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.close-page-b .master-chip{min-width:88px;padding:10px 12px}
 .close-hero-total{
   text-align:center;padding:18px 16px;margin-bottom:10px;
   background:linear-gradient(160deg,rgba(0,217,126,.1),var(--surface,#1a1a1a));
@@ -942,7 +986,8 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .close-page-b .master-picker{background:transparent;border:0;padding:0;margin-bottom:12px}
 .close-page-b .master-picker-label{font-size:13px;font-weight:700;margin-bottom:8px;display:block}
 @media(min-width:1025px){
-  .close-sticky{bottom:12px}
+  .close-footer-fixed{bottom:12px;max-width:none;padding:12px 24px}
+  .close-page-b{padding-bottom:96px}
 }
 @media(max-width:600px){
   .close-material-rows .close-material-row,.close-material-rows .close-material-row.consumable{grid-template-columns:1fr}
