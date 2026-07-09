@@ -3,125 +3,63 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Закрытие записи — варианты дизайна</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=23">
+  <title>Закрыть визит — варианты дизайна</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=38">
   <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
 </head>
 <body class="theme-dark close-gallery">
   <header class="close-gallery-hero">
     <a class="close-gallery-back" href="/design">← Все макеты</a>
-    <h1>Закрытие записи — 3 варианта</h1>
-    <p>Сейчас всё в одной длинной ленте — мастера, зарплата, плёнка, сертификат, бонусы… Ниже три способа разложить по полочкам. Листайте вниз — под каждым вариантом живой макет в рамке телефона.</p>
-    <img class="close-collage-img" src="{{ url_for('static', filename='mockups/close-variants-collage.png') }}" alt="Три варианта экрана закрытия записи">
+    <h1>Закрыть визит — 3 варианта</h1>
+    <p>Сейчас экран перегружен: две карточки, аккордеоны, дропдаун мастера и красная ошибка — всё на одном уровне. Ниже три способа сделать чище. Данные те же: Виктория, 2&nbsp;500&nbsp;₽, мастер Александр.</p>
   </header>
 
   <div class="close-variant-grid">
 
-    <!-- A: STEPS -->
     <article class="close-variant-card">
       <div class="close-variant-label">
-        <b>Вариант A — по шагам</b>
-        <span>Три экрана внутри одной формы: визит → работа → оплата. Видно только нужное сейчас.</span>
-        <span class="close-variant-tag a">Меньше скролла</span>
+        <b>Вариант A — единая карточка</b>
+        <span>Клиент, услуга и сумма в одном блоке. Мастера — чипами в ряд, без дропдауна на виду. Редкое — ссылками внизу.</span>
+        <span class="close-variant-tag a">Мой фаворит</span>
       </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-a-hero.png') }}" alt="Вариант A — единая карточка">
       <div class="phone">
-        <div class="phone-notch">A · Шаг 2 из 3</div>
+        <div class="phone-notch">A · Единая карточка</div>
         <div class="phone-scroll">
           <div class="mk-close-header">
             <span class="mk-close-back">‹</span>
-            <div><h2>Закрытие</h2><p>№42 · 19 июня · 14:00</p></div>
+            <div><h2>Закрыть визит</h2><p>9 июля · 13:00 · №58</p></div>
+            <span class="mk-dots">⋯</span>
           </div>
-          <div class="mk-steps">
-            <div class="mk-step">1 Визит</div>
-            <div class="mk-step on">2 Работа</div>
-            <div class="mk-step">3 Оплата</div>
-          </div>
-          <div class="mk-client">
-            <div class="mk-av">АК</div>
-            <div><b>Алексей К.</b><span>Audi A6 · С789МН77</span><span class="mk-svc">Тонировка задней части</span></div>
-            <span class="mk-price">5 500 ₽</span>
-          </div>
-          <details class="mk-fold" open>
-            <summary>Мастера <em>Стас</em></summary>
-            <div class="mk-fold-body">
-              <span class="mk-chip">Стас ×</span>
-              <div class="mk-row2"><input class="mk-inp" placeholder="Добавить мастера"><button class="mk-inp" style="width:auto">+</button></div>
+          <div class="mk-unified">
+            <div class="mk-unified-top">
+              <div class="mk-av">ВИ</div>
+              <div class="mk-unified-info">
+                <b>Виктория</b>
+                <span>+7 (912) 345-67-89</span>
+                <em class="mk-svc">Передние боковые</em>
+                <div class="mk-tags"><span>Сид</span></div>
+              </div>
+              <div class="mk-unified-price">
+                <small>к оплате</small>
+                <strong>2 500 <i>₽</i></strong>
+              </div>
             </div>
-          </details>
-          <details class="mk-fold" open>
-            <summary>Зарплата <em>2 200 ₽</em></summary>
-            <div class="mk-fold-body">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span>Стас</span><strong style="color:#fff">2 200 ₽</strong></div>
+          </div>
+          <div class="mk-section-label">Мастера</div>
+          <div class="mk-master-row">
+            <div class="mk-master-chip on">
+              <span class="mk-master-av">АЛ</span>
+              <div><b>Александр</b><span>ЗП 800 ₽</span></div>
+              <button type="button" aria-label="Убрать">×</button>
             </div>
-          </details>
-          <details class="mk-fold" open>
-            <summary>Материалы <em>840 ₽</em></summary>
-            <div class="mk-fold-body">
-              <div class="mk-mat"><b>LLumar ATC 5%</b><div class="mk-row2"><input class="mk-inp" value="3.2" placeholder="м"><input class="mk-inp" value="150" placeholder="см"></div></div>
-              <button style="margin-top:8px;background:transparent;border:0;color:#5b9cff;font-weight:700;font-size:12px">+ материал</button>
-            </div>
-          </details>
-          <div class="mk-sticky">
-            <div class="mk-total-bar"><span>Итого</span><strong>6 340 ₽</strong></div>
-            <button class="mk-btn">Далее: оплата →</button>
+            <button type="button" class="mk-master-add">+</button>
           </div>
-        </div>
-      </div>
-      <div class="mk-notes">
-        <ul>
-          <li>Шаг 1: клиент, цена, доп. услуги</li>
-          <li>Шаг 2: мастера, ЗП, материалы</li>
-          <li>Шаг 3: сертификат, бонусы, скидка, комментарий</li>
-        </ul>
-      </div>
-    </article>
-
-    <!-- B: ACCORDION + STICKY -->
-    <article class="close-variant-card">
-      <div class="close-variant-label">
-        <b>Вариант B — всё свёрнуто</b>
-        <span>Крупная карточка клиента и итог внизу. Редкие блоки (сертификат, бонусы) — по тапу.</span>
-        <span class="close-variant-tag b">Быстрое закрытие</span>
-      </div>
-      <div class="phone">
-        <div class="phone-notch">B · Компактный</div>
-        <div class="phone-scroll">
-          <div class="mk-close-header">
-            <span class="mk-close-back">‹</span>
-            <div><h2>Закрыть визит</h2><p>Алексей К. · 14:00</p></div>
+          <div class="mk-links">
+            <button type="button">Материалы <em>0 ₽</em></button>
+            <button type="button">Скидки</button>
+            <button type="button">Комментарий</button>
           </div>
-          <div class="mk-hero-total">
-            <span>К оплате</span>
-            <strong>6 340 ₽</strong>
-            <span style="font-size:11px;margin-top:6px">услуга 5 500 + материалы 840</span>
-          </div>
-          <div class="mk-client" style="margin-bottom:8px">
-            <div class="mk-av">АК</div>
-            <div><b>Тонировка задней части</b><span>+7 900 777-88-99</span></div>
-            <input class="mk-inp" style="width:72px;text-align:right;padding:8px" value="5500">
-          </div>
-          <details class="mk-fold" open>
-            <summary>Мастера и зарплата <em>Стас · 2 200 ₽</em></summary>
-            <div class="mk-fold-body"><span class="mk-chip">Стас</span></div>
-          </details>
-          <details class="mk-fold" open>
-            <summary>Материалы <em>1 поз.</em></summary>
-            <div class="mk-fold-body"><div class="mk-mat"><b>LLumar 3.2×150 см</b></div></div>
-          </details>
-          <details class="mk-fold">
-            <summary>Доп. услуги <em>нет</em></summary>
-            <div class="mk-fold-body"><input class="mk-inp" placeholder="Название"><input class="mk-inp" placeholder="₽" style="margin-top:6px"></div>
-          </details>
-          <details class="mk-fold">
-            <summary>Скидки и оплата <em>серт · бонусы</em></summary>
-            <div class="mk-fold-body">
-              <input class="mk-inp" placeholder="Сертификат"><input class="mk-inp" placeholder="Бонусы" style="margin-top:6px">
-            </div>
-          </details>
-          <details class="mk-fold">
-            <summary>Комментарий</summary>
-            <div class="mk-fold-body"><input class="mk-inp" placeholder="Необязательно"></div>
-          </details>
           <div class="mk-sticky">
             <button class="mk-btn">Закрыть и сохранить ✓</button>
           </div>
@@ -129,66 +67,144 @@
       </div>
       <div class="mk-notes">
         <ul>
-          <li>80% закрытий — только мастер + материал + цена</li>
-          <li>Серт/бонусы не занимают место, пока не нужны</li>
-          <li>Итог всегда виден сверху и внизу</li>
+          <li>Одна «главная» карточка вместо двух разрозненных</li>
+          <li>Мастер выбирается чипами, не выпадающим списком</li>
+          <li>Материалы и скидки не занимают место, пока не нужны</li>
         </ul>
       </div>
     </article>
 
-    <!-- C: TABS -->
     <article class="close-variant-card">
       <div class="close-variant-label">
-        <b>Вариант C — вкладки</b>
-        <span>Как в сертификатах: Визит · Работа · Оплата. Переключение без длинного скролла.</span>
-        <span class="close-variant-tag c">Привычный паттерн</span>
+        <b>Вариант B — по шагам</b>
+        <span>Три экрана внутри формы: визит → мастера → оплата. На каждом шаге — только то, что нужно сейчас.</span>
+        <span class="close-variant-tag b">Меньше каши</span>
       </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-b-steps.png') }}" alt="Вариант B — по шагам">
       <div class="phone">
-        <div class="phone-notch">C · Вкладка «Работа»</div>
+        <div class="phone-notch">B · Шаг 2 из 3</div>
         <div class="phone-scroll">
           <div class="mk-close-header">
             <span class="mk-close-back">‹</span>
-            <div><h2>№42</h2><p>Алексей К. · 5 500 ₽</p></div>
+            <div><h2>Закрыть визит</h2><p>Виктория · 2 500 ₽</p></div>
           </div>
-          <div class="mk-tabs">
-            <span class="mk-tab">Визит</span>
-            <span class="mk-tab on">Работа</span>
-            <span class="mk-tab">Оплата</span>
+          <div class="mk-steps">
+            <div class="mk-step done">1 Визит</div>
+            <div class="mk-step on">2 Мастера</div>
+            <div class="mk-step">3 Оплата</div>
           </div>
-          <details class="mk-fold" open>
-            <summary>Мастера</summary>
-            <div class="mk-fold-body"><span class="mk-chip">Стас</span></div>
+          <div class="mk-mini-bar">Передние боковые · Сид · 9 июля 13:00</div>
+          <div class="mk-section-label">Кто делал</div>
+          <div class="mk-avatar-picker">
+            <div class="mk-avatar on"><span>АЛ</span><small>Александр</small></div>
+            <div class="mk-avatar ghost"><span>+</span><small>Добавить</small></div>
+          </div>
+          <div class="mk-salary-card">
+            <span>Зарплата Александра</span>
+            <input class="mk-inp" value="800" placeholder="₽">
+          </div>
+          <details class="mk-fold">
+            <summary>Материалы <em>не добавлены</em></summary>
+            <div class="mk-fold-body"><button class="mk-link-btn">+ Добавить материал</button></div>
           </details>
-          <details class="mk-fold" open>
-            <summary>Зарплата мастеров</summary>
-            <div class="mk-fold-body" style="display:flex;justify-content:space-between"><span>Стас</span><strong style="color:#fff">2 200 ₽</strong></div>
-          </details>
-          <details class="mk-fold" open>
-            <summary>Материалы</summary>
-            <div class="mk-fold-body">
-              <div class="mk-mat"><b>LLumar ATC 5%</b><span>3.2 м × 150 см</span></div>
-              <button style="margin-top:8px;background:transparent;border:0;color:#5b9cff;font-weight:700;font-size:12px">+ Добавить</button>
-            </div>
-          </details>
-          <div style="height:120px"></div>
           <div class="mk-sticky">
-            <div class="mk-total-bar"><span>Итого</span><strong>6 340 ₽</strong></div>
             <div class="mk-row2">
-              <button class="mk-btn" style="background:#222;color:#fff;border:1px solid #333">← Визит</button>
-              <button class="mk-btn">Оплата →</button>
+              <button class="mk-btn ghost">← Назад</button>
+              <button class="mk-btn">Далее: оплата →</button>
             </div>
           </div>
         </div>
       </div>
       <div class="mk-notes">
         <ul>
-          <li><b>Визит</b> — клиент, цена, доп. услуги</li>
-          <li><b>Работа</b> — мастера, ЗП, плёнка</li>
-          <li><b>Оплата</b> — сертификат, бонусы, итог</li>
+          <li>Шаг 1 — клиент и цена</li>
+          <li>Шаг 2 — мастера, ЗП, материалы</li>
+          <li>Шаг 3 — сертификат, бонусы, закрытие</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант C — списки iOS</b>
+        <span>Крупный итог сверху, дальше аккуратные группы как в настройках iPhone. Без тяжёлых рамок.</span>
+        <span class="close-variant-tag c">Самый спокойный</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-c-ios.png') }}" alt="Вариант C — списки iOS">
+      <div class="phone">
+        <div class="phone-notch">C · Группы</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header mk-close-header-center">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Закрыть визит</h2><p>№58 · 9 июля 13:00</p></div>
+            <span class="mk-dots">⋯</span>
+          </div>
+          <div class="mk-ios-total">
+            <span>К оплате</span>
+            <strong>2 500 ₽</strong>
+            <em>услуга 2 500 · расходники 0</em>
+          </div>
+          <div class="mk-ios-group">
+            <div class="mk-ios-cap">Клиент</div>
+            <div class="mk-ios-row">
+              <div class="mk-av sm">ВИ</div>
+              <div><b>Виктория</b><span>Передние боковые · Сид</span></div>
+              <span class="mk-chev">›</span>
+            </div>
+          </div>
+          <div class="mk-ios-group">
+            <div class="mk-ios-cap">Мастера</div>
+            <div class="mk-ios-row">
+              <div class="mk-av sm">АЛ</div>
+              <div><b>Александр</b><span>Зарплата</span></div>
+              <strong class="mk-ios-val">800 ₽</strong>
+            </div>
+          </div>
+          <div class="mk-ios-group">
+            <div class="mk-ios-cap">Дополнительно</div>
+            <div class="mk-ios-row"><span>Материалы</span><span class="mk-ios-muted">0 ₽ ›</span></div>
+            <div class="mk-ios-row"><span>Скидки и бонусы</span><span class="mk-ios-muted">›</span></div>
+            <div class="mk-ios-row"><span>Комментарий</span><span class="mk-ios-muted">›</span></div>
+          </div>
+          <div class="mk-sticky">
+            <button class="mk-btn">Закрыть и сохранить ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Итог всегда на виду — крупно и по центру</li>
+          <li>Группы вместо пяти одинаковых аккордеонов</li>
+          <li>Тап по строке → отдельный экран/шит</li>
         </ul>
       </div>
     </article>
 
   </div>
+
+  <section class="close-compare">
+    <h2>Что не так сейчас</h2>
+    <div class="close-compare-grid">
+      <div class="close-compare-item bad">
+        <b>Сейчас</b>
+        <ul>
+          <li>Две карточки подряд (клиент + оплата)</li>
+          <li>Аккордеон «Мастера» открыт с дропдауном и ошибкой</li>
+          <li>Одинаковые рамки у всех блоков — нет иерархии</li>
+          <li>Красная ошибка висит между полями</li>
+        </ul>
+      </div>
+      <div class="close-compare-item good">
+        <b>Цель</b>
+        <ul>
+          <li>Один главный фокус — сумма и клиент</li>
+          <li>Мастера — чипы/аватары, не форма</li>
+          <li>Редкое спрятано, частое — на виду</li>
+          <li>Одна зелёная кнопка внизу</li>
+        </ul>
+      </div>
+    </div>
+    <p class="close-compare-cta">Напиши букву <strong>A</strong>, <strong>B</strong> или <strong>C</strong> — сделаю в проде.</p>
+  </section>
 </body>
 </html>
