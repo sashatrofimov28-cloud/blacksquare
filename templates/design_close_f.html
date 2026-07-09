@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вариант F — минимализм (подробно)</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=38">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
+</head>
+<body class="theme-dark close-gallery close-f-detail">
+  <header class="close-gallery-hero">
+    <a class="close-gallery-back" href="/design/close">← Все варианты закрытия</a>
+    <h1>Вариант F — подробно</h1>
+    <p>Главная идея: на экране только <strong>кто</strong>, <strong>что</strong> и <strong>сколько</strong>. Всё остальное — в шторке снизу. Три состояния ниже.</p>
+  </header>
+
+  <section class="close-f-flow">
+    <h2>Как это работает</h2>
+    <ol class="close-f-steps-list">
+      <li><b>Главный экран</b> — аватар, имя, услуга, огромная сумма, чип мастера</li>
+      <li><b>Свайп вверх</b> — шторка с мастерами, материалами, скидками</li>
+      <li><b>Тап по мастеру</b> — отдельная панель выбора и зарплаты</li>
+      <li><b>«Закрыть ✓»</b> — всегда на виду, не прячется за скроллом</li>
+    </ol>
+  </section>
+
+  <div class="close-variant-grid close-f-screens">
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Экран 1 — главный</b>
+        <span>90% закрытий: цена верная, мастер уже выбран — жмёшь «Закрыть» и всё.</span>
+        <span class="close-variant-tag f">По умолчанию</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-f-screen1-main.jpg') }}" alt="Экран 1 — главный">
+      <div class="phone phone-f">
+        <div class="phone-notch">1 · Главный</div>
+        <div class="phone-scroll mk-minimal-scroll">
+          <div class="mk-close-header mk-close-header-ghost">
+            <span class="mk-close-back">‹</span>
+            <span class="mk-dots">⋯</span>
+          </div>
+          <div class="mk-zen">
+            <div class="mk-av lg">ВИ</div>
+            <b>Виктория</b>
+            <span class="mk-svc">Передние боковые</span>
+            <span class="mk-zen-tag">Сид</span>
+            <strong class="mk-zen-price">2 500 ₽</strong>
+            <button type="button" class="mk-zen-chip">Александр · мастер</button>
+          </div>
+          <div class="mk-sheet mk-sheet-peek">
+            <i class="mk-sheet-handle"></i>
+            <span>Свайп вверх — детали визита</span>
+          </div>
+          <div class="mk-sticky mk-sticky-f">
+            <button class="mk-btn">Закрыть ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Сумма редактируется по тапу на цену</li>
+          <li>⋯ — перенести / изменить / отменить</li>
+          <li>Никаких аккордеонов на главном</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Экран 2 — шторка деталей</b>
+        <span>Материалы, сертификат, бонусы — только когда нужны. Группы как в iOS.</span>
+        <span class="close-variant-tag f">Свайп вверх</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-f-screen2-sheet.jpg') }}" alt="Экран 2 — детали">
+      <div class="phone phone-f">
+        <div class="phone-notch">2 · Детали</div>
+        <div class="phone-scroll mk-minimal-scroll mk-sheet-open">
+          <div class="mk-zen-compact">
+            <div class="mk-av sm">ВИ</div>
+            <div><b>Виктория</b><span>Передние боковые</span></div>
+            <strong>2 500 ₽</strong>
+          </div>
+          <div class="mk-sheet mk-sheet-full">
+            <i class="mk-sheet-handle"></i>
+            <div class="mk-ios-group">
+              <div class="mk-ios-cap">Мастера</div>
+              <div class="mk-ios-row"><div class="mk-av sm">АЛ</div><div><b>Александр</b><span>Зарплата</span></div><strong class="mk-ios-val">800 ₽</strong></div>
+              <div class="mk-ios-row mk-ios-action"><span>+ Добавить мастера</span></div>
+            </div>
+            <div class="mk-ios-group">
+              <div class="mk-ios-cap">Материалы</div>
+              <div class="mk-ios-row"><span>Не добавлены</span><span class="mk-ios-muted">›</span></div>
+            </div>
+            <div class="mk-ios-group">
+              <div class="mk-ios-cap">Оплата</div>
+              <div class="mk-ios-row"><span>Сертификат</span><span class="mk-ios-muted">›</span></div>
+              <div class="mk-ios-row"><span>Бонусы</span><span class="mk-ios-muted">›</span></div>
+              <div class="mk-ios-row"><span>Скидка для друзей</span><span class="mk-ios-muted">›</span></div>
+            </div>
+            <div class="mk-ios-group">
+              <div class="mk-ios-cap">Прочее</div>
+              <div class="mk-ios-row"><span>Комментарий</span><span class="mk-ios-muted">›</span></div>
+            </div>
+          </div>
+          <div class="mk-sticky mk-sticky-f">
+            <button class="mk-btn">Закрыть ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Каждая строка → отдельный экран ввода</li>
+          <li>Итог сверху остаётся виден</li>
+          <li>Шторку можно опустить — снова чистый экран</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Экран 3 — выбор мастера</b>
+        <span>Тап по мастеру или «+» — панель с аватарами и полем ЗП.</span>
+        <span class="close-variant-tag f">По тапу</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-f-screen3-master.jpg') }}" alt="Экран 3 — мастер">
+      <div class="phone phone-f">
+        <div class="phone-notch">3 · Мастер</div>
+        <div class="phone-scroll mk-minimal-scroll mk-has-overlay">
+          <div class="mk-zen mk-zen-dim">
+            <div class="mk-av lg">ВИ</div>
+            <b>Виктория</b>
+            <strong class="mk-zen-price">2 500 ₽</strong>
+          </div>
+          <div class="mk-overlay-panel">
+            <div class="mk-overlay-head">
+              <h4>Кто делал?</h4>
+              <button type="button" aria-label="Закрыть">×</button>
+            </div>
+            <div class="mk-avatar-picker">
+              <div class="mk-avatar on"><span>АЛ</span><small>Александр</small></div>
+              <div class="mk-avatar"><span>ДМ</span><small>Дмитрий</small></div>
+              <div class="mk-avatar"><span>ИВ</span><small>Иван</small></div>
+              <div class="mk-avatar ghost"><span>+</span><small></small></div>
+            </div>
+            <div class="mk-salary-card">
+              <span>Зарплата Александра</span>
+              <input class="mk-inp" value="800" placeholder="₽">
+            </div>
+            <button class="mk-btn">Готово</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes">
+        <ul>
+          <li>Без дропдауна «Выберите мастера»</li>
+          <li>ЗП сразу под выбранным</li>
+          <li>«Готово» — назад в шторку</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <section class="close-f-compare">
+    <h2>F vs сейчас</h2>
+    <div class="close-compare-grid">
+      <div class="close-compare-item bad">
+        <b>Сейчас</b>
+        <ul>
+          <li>5 аккордеонов сразу на экране</li>
+          <li>Дропдаун мастера + красная ошибка</li>
+          <li>Две карточки + зелёный блок оплаты</li>
+          <li>Глаз не знает, куда смотреть</li>
+        </ul>
+      </div>
+      <div class="close-compare-item good">
+        <b>Вариант F</b>
+        <ul>
+          <li>Один фокус — сумма по центру</li>
+          <li>Детали спрятаны, но в 1 свайпе</li>
+          <li>Мастер — чип, не форма</li>
+          <li>Закрытие — одна кнопка всегда внизу</li>
+        </ul>
+      </div>
+    </div>
+    <p class="close-compare-cta">Если F нравится — напиши <strong>«делай F»</strong>, внедрю в прод.</p>
+  </section>
+</body>
+</html>

@@ -3258,6 +3258,10 @@ def design_hub():
 def design_close_variants():
     return render_template('design_close.html')
 
+@app.route('/design/close-f')
+def design_close_f():
+    return render_template('design_close_f.html')
+
 @app.route('/design/client')
 def design_client_variants():
     return render_template('design_client.html')
