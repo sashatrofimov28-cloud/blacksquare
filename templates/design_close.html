@@ -10,11 +10,117 @@
 <body class="theme-dark close-gallery">
   <header class="close-gallery-hero">
     <a class="close-gallery-back" href="/design">← Все макеты</a>
-    <h1>Закрыть визит — 3 варианта</h1>
-    <p>Сейчас экран перегружен: две карточки, аккордеоны, дропдаун мастера и красная ошибка — всё на одном уровне. Ниже три способа сделать чище. Данные те же: Виктория, 2&nbsp;500&nbsp;₽, мастер Александр.</p>
+    <h1>Закрыть визит — раунд 2</h1>
+    <p>A/B/C не зашли — ок. Ниже <strong>три других стиля</strong>, не карточки и не аккордеоны: касса, документ, минимализм. Листай вниз — там ещё первый раунд для сравнения.</p>
   </header>
 
-  <div class="close-variant-grid">
+  <div class="close-round-banner">Новые варианты D · E · F</div>
+
+  <div class="close-variant-grid close-variant-grid-v2">
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант D — касса</b>
+        <span>Как терминал оплаты: строки чека, итог внизу. Мастер — бейдж, не форма. Быстро и привычно, если закрываешь 20 визитов в день.</span>
+        <span class="close-variant-tag d">POS / чек</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-d-pos.jpg') }}" alt="Вариант D — касса">
+      <div class="phone">
+        <div class="phone-notch">D · Касса</div>
+        <div class="phone-scroll">
+          <div class="mk-close-header">
+            <span class="mk-close-back">‹</span>
+            <div><h2>Закрыть визит</h2><p>Виктория · Передние боковые</p></div>
+          </div>
+          <div class="mk-receipt">
+            <div class="mk-receipt-row"><span>Услуга</span><strong>2 500 ₽</strong></div>
+            <div class="mk-receipt-row"><span>Мастер <em class="mk-badge">Александр</em></span><strong>800 ₽</strong></div>
+            <div class="mk-receipt-row muted"><span>Материалы</span><strong>0 ₽</strong></div>
+            <div class="mk-receipt-row muted"><span>Скидки</span><strong>—</strong></div>
+            <div class="mk-receipt-divider"></div>
+            <div class="mk-receipt-row total"><span>Итого</span><strong>2 500 ₽</strong></div>
+          </div>
+          <div class="mk-pos-edit">
+            <span>Сумма услуги</span>
+            <input class="mk-inp" value="2500">
+          </div>
+          <div class="mk-sticky">
+            <button class="mk-btn">Принять оплату ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes"><ul><li>Строки вместо карточек</li><li>Итог всегда внизу чека</li><li>Редкое — серым, не мешает</li></ul></div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант E — документ</b>
+        <span>Как заказ-наряд на бумаге: поля друг под другом, тонкие линии. Серьёзно и по-деловому, не «мобильное приложение».</span>
+        <span class="close-variant-tag e">Заказ-наряд</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-e-doc.jpg') }}" alt="Вариант E — документ">
+      <div class="phone">
+        <div class="phone-notch">E · Документ</div>
+        <div class="phone-scroll">
+          <div class="mk-doc">
+            <div class="mk-doc-head">
+              <small>Закрытие визита №58</small>
+              <b>9 июля 2026 · 13:00</b>
+            </div>
+            <div class="mk-doc-field"><label>Клиент</label><span>Виктория</span></div>
+            <div class="mk-doc-field"><label>Услуга</label><span>Передние боковые</span></div>
+            <div class="mk-doc-field"><label>Авто</label><span>Сид</span></div>
+            <div class="mk-doc-field"><label>Исполнитель</label><span>Александр ›</span></div>
+            <div class="mk-doc-field accent"><label>Сумма</label><span>2 500 ₽</span></div>
+            <div class="mk-doc-field"><label>Зарплата</label><span>800 ₽</span></div>
+            <div class="mk-doc-links"><button type="button">+ Материалы</button><button type="button">+ Скидки</button></div>
+          </div>
+          <div class="mk-sticky">
+            <button class="mk-btn">Закрыть визит</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes"><ul><li>Похоже на бумажный бланк</li><li>Все поля на виду, но аккуратно</li><li>Хорошо, если важен «официальный» вид</li></ul></div>
+    </article>
+
+    <article class="close-variant-card">
+      <div class="close-variant-label">
+        <b>Вариант F — минимализм</b>
+        <span>Почти пустой экран: аватар, имя, огромная сумма. Всё остальное — выезжает снизу по свайпу. Как Apple Pay.</span>
+        <span class="close-variant-tag f">Zen</span>
+      </div>
+      <img class="close-variant-shot" src="{{ url_for('static', filename='mockups/close-variant-f-minimal.jpg') }}" alt="Вариант F — минимализм">
+      <div class="phone">
+        <div class="phone-notch">F · Минимализм</div>
+        <div class="phone-scroll mk-minimal-scroll">
+          <div class="mk-close-header mk-close-header-ghost">
+            <span class="mk-close-back">‹</span>
+            <span class="mk-dots">⋯</span>
+          </div>
+          <div class="mk-zen">
+            <div class="mk-av lg">ВИ</div>
+            <b>Виктория</b>
+            <span class="mk-svc">Передние боковые</span>
+            <strong class="mk-zen-price">2 500 ₽</strong>
+            <span class="mk-zen-chip">Александр</span>
+          </div>
+          <div class="mk-sheet">
+            <i class="mk-sheet-handle"></i>
+            <span>Детали · материалы · скидки · комментарий</span>
+          </div>
+          <div class="mk-sticky">
+            <button class="mk-btn">Закрыть ✓</button>
+          </div>
+        </div>
+      </div>
+      <div class="mk-notes"><ul><li>Максимум воздуха</li><li>Детали не мешают, пока не нужны</li><li>Самый «премиальный» вид</li></ul></div>
+    </article>
+
+  </div>
+
+  <details class="close-archive">
+    <summary>Раунд 1 — варианты A · B · C (не понравились)</summary>
+    <div class="close-variant-grid">
 
     <article class="close-variant-card">
       <div class="close-variant-label">
@@ -181,6 +287,7 @@
     </article>
 
   </div>
+  </details>
 
   <section class="close-compare">
     <h2>Что не так сейчас</h2>
@@ -204,7 +311,7 @@
         </ul>
       </div>
     </div>
-    <p class="close-compare-cta">Напиши букву <strong>A</strong>, <strong>B</strong> или <strong>C</strong> — сделаю в проде.</p>
+    <p class="close-compare-cta">Напиши <strong>D</strong>, <strong>E</strong> или <strong>F</strong> — или опиши словами, что хочешь видеть (например: «как в YCLIENTS» / «ещё проще»).</p>
   </section>
 </body>
 </html>
