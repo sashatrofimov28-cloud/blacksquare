@@ -3262,7 +3262,7 @@ def notify_telegram_new_appointment(ap_date, start_time, client_name, service_na
         f'<b>Новая запись</b>{src}\n'
         f'📅 {ap_date} {start_time}\n'
         f'👤 {client_name}{car_part}\n'
-        f'🚗 {service_name}\n'
+        f'📋 {service_name}\n'
         f'👨‍🔧 {masters_str}'
     )
     send_telegram_message(text)
