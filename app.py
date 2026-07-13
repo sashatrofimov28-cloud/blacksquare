@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timedelta
 from pathlib import Path
 import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib, secrets
 import os
