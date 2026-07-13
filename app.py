@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v45'
+BUILD_VERSION = 'client-v46'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -221,7 +221,7 @@ BOTTOM_NAV_ITEMS = {
                   'active': ('analytics',)},
     'stock': {'label': 'Склад', 'icon': '📦', 'endpoint': 'stock', 'perm': 'stock',
               'active': ('stock',)},
-    'services': {'label': 'Услуги', 'icon': '✂️', 'endpoint': 'services', 'perm': 'services',
+    'services': {'label': 'Услуги', 'icon': '🚗', 'endpoint': 'services', 'perm': 'services',
                  'active': ('services',)},
     'employees': {'label': 'Команда', 'icon': '👤', 'endpoint': 'employees', 'perm': 'employees',
                   'active': ('employees',)},
@@ -3041,7 +3041,7 @@ def process_telegram_booking(chat_id, parsed, author='', reply_to=None, source='
             f'<b>✅ Записано #{ap["id"]}</b>\n'
             f'📅 {ap["date"]} {ap["start"]}–{ap["end"]}\n'
             f'🚗 {ap["car"]}\n'
-            f'✂️ {ap["service_name"]}\n'
+            f'📋 {ap["service_name"]}\n'
             f'💰 {ap["price"]:.0f} ₽'
         ),
         reply_to,
@@ -3262,7 +3262,7 @@ def notify_telegram_new_appointment(ap_date, start_time, client_name, service_na
         f'<b>Новая запись</b>{src}\n'
         f'📅 {ap_date} {start_time}\n'
         f'👤 {client_name}{car_part}\n'
-        f'✂️ {service_name}\n'
+        f'🚗 {service_name}\n'
         f'👨‍🔧 {masters_str}'
     )
     send_telegram_message(text)

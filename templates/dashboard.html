@@ -1,112 +1,118 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="dash-page">
-  <header class="dash-header">
+<div class="dash-page dash-page-z">
+  <header class="dash-z-header">
     <div>
       <h1>Главная</h1>
-      <p class="dash-date">{{ format_date_long_ru() }}</p>
+      <p class="dash-z-date">{{ format_date_long_ru() }}</p>
     </div>
-    <a href="{{ url_for('profile') }}" class="dash-bell" aria-label="Профиль">
+    <a href="{{ url_for('profile') }}" class="dash-z-bell" aria-label="Профиль">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
     </a>
   </header>
 
-  <div class="m-strip">
-    <div class="m-card tone-green">
-      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M7 15h.01"/><path d="M11 15h2"/></svg></div>
-      <div class="m-text"><span class="m-label">Касса</span><strong class="m-value">{{ format_money(stats.revenue) }} ₽</strong></div>
+  <div class="dash-z-stats">
+    <div class="dash-z-stat tone-green">
+      <div class="dash-z-stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M7 15h.01"/><path d="M11 15h2"/></svg></div>
+      <small>Касса</small>
+      <strong>{{ format_money(stats.revenue) }} ₽</strong>
     </div>
-    <div class="m-card tone-blue">
-      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-10"/><path d="M17 5h4v4"/></svg></div>
-      <div class="m-text"><span class="m-label">Прибыль</span><strong class="m-value">{{ format_money(stats.profit) }} ₽</strong></div>
+    <div class="dash-z-stat tone-blue">
+      <div class="dash-z-stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-10"/><path d="M17 5h4v4"/></svg></div>
+      <small>Прибыль</small>
+      <strong>{{ format_money(stats.profit) }} ₽</strong>
     </div>
-    <div class="m-card tone-orange">
-      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
-      <div class="m-text"><span class="m-label">ЗП</span><strong class="m-value">{{ format_money(stats.salary) }} ₽</strong></div>
+    <div class="dash-z-stat tone-orange">
+      <div class="dash-z-stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
+      <small>ЗП</small>
+      <strong>{{ format_money(stats.salary) }} ₽</strong>
     </div>
-    <div class="m-card tone-purple">
-      <div class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
-      <div class="m-text"><span class="m-label">м²</span><strong class="m-value">{{ format_money(stats.material_m2, 1) }}</strong></div>
+    <div class="dash-z-stat tone-purple">
+      <div class="dash-z-stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+      <small>м²</small>
+      <strong>{{ format_money(stats.material_m2, 1) }}</strong>
     </div>
   </div>
 
-  <nav class="dash-periods scrollable-x" aria-label="Период">
-    <a href="{{ url_for('dashboard', period='today') }}" class="dash-period{% if period == 'today' %} active{% endif %}">Сегодня</a>
-    <a href="{{ url_for('dashboard', period='yesterday') }}" class="dash-period{% if period == 'yesterday' %} active{% endif %}">Вчера</a>
-    <a href="{{ url_for('dashboard', period='week') }}" class="dash-period{% if period == 'week' %} active{% endif %}">Неделя</a>
-    <a href="{{ url_for('dashboard', period='month') }}" class="dash-period{% if period == 'month' %} active{% endif %}">Месяц</a>
-    <a href="{{ url_for('dashboard', period='year') }}" class="dash-period{% if period == 'year' %} active{% endif %}">Год</a>
+  <nav class="dash-z-seg scrollable-x" aria-label="Период">
+    <a href="{{ url_for('dashboard', period='today') }}" class="dash-z-seg-btn{% if period == 'today' %} active{% endif %}">Сегодня</a>
+    <a href="{{ url_for('dashboard', period='yesterday') }}" class="dash-z-seg-btn{% if period == 'yesterday' %} active{% endif %}">Вчера</a>
+    <a href="{{ url_for('dashboard', period='week') }}" class="dash-z-seg-btn{% if period == 'week' %} active{% endif %}">Неделя</a>
+    <a href="{{ url_for('dashboard', period='month') }}" class="dash-z-seg-btn{% if period == 'month' %} active{% endif %}">Месяц</a>
+    <a href="{{ url_for('dashboard', period='year') }}" class="dash-z-seg-btn{% if period == 'year' %} active{% endif %}">Год</a>
   </nav>
 
   {% if requests %}
-  <div class="dash-panel">
-    <h2 class="dash-panel-title">Запросы на номер</h2>
-    {% for r in requests %}
-    <div class="dash-request">
-      <div><b>{{ r.user_name }}</b> → {{ r.client_name }}</div>
-      <div class="dash-request-actions">
-        <form method="post" action="{{ url_for('approve_phone_request', rid=r.id) }}" class="inline"><button class="ghost">Одобрить</button></form>
-        <form method="post" action="{{ url_for('deny_phone_request', rid=r.id) }}" class="inline"><button class="danger">Отклонить</button></form>
+  <div class="dash-z-group">
+    <div class="dash-z-cap">Запросы на номер</div>
+    <div class="dash-z-list">
+      {% for r in requests %}
+      <div class="dash-z-row dash-z-row-static">
+        <div class="dash-z-body">
+          <b>{{ r.user_name }} → {{ r.client_name }}</b>
+        </div>
+        <div class="dash-z-request-actions">
+          <form method="post" action="{{ url_for('approve_phone_request', rid=r.id) }}" class="inline"><button type="submit" class="dash-z-btn-sm">Одобрить</button></form>
+          <form method="post" action="{{ url_for('deny_phone_request', rid=r.id) }}" class="inline"><button type="submit" class="dash-z-btn-sm danger">Отклонить</button></form>
+        </div>
       </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% endif %}
 
-  <section class="dash-section">
-    <div class="dash-section-head">
-      <h2>Ближайшие записи</h2>
-      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="dash-link">Смотреть все ›</a>{% endif %}
+  <section class="dash-z-group">
+    <div class="dash-z-cap-row">
+      <div class="dash-z-cap">Ближайшие записи</div>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="dash-z-link">Все ›</a>{% endif %}
     </div>
-    <div class="dash-appt-list">
+    <div class="dash-z-list">
       {% for r in upcoming %}
       {% set meta = appt_status_meta(r.status) %}
-      <a class="dash-appt {{ meta.bar }}" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-        <div class="dash-appt-time">
-          <strong>{{ r.start_time }}</strong>
+      <a class="dash-z-row dash-z-appt {{ meta.bar }}" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <div class="dash-z-time">
+          <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
           <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
         </div>
-        <div class="dash-appt-body">
+        <div class="dash-z-body">
           <b>{{ r.client_name }}</b>
-          <span>{{ r.service_name }}</span>
-          <span>{{ r.employee_name }}</span>
+          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
         </div>
-        <div class="dash-appt-side">
-          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
+        <div class="dash-z-side">
+          <span class="dash-z-pill {{ meta.pill }}">{{ meta.label }}</span>
           <strong>{{ format_money(r.price or 0) }} ₽</strong>
         </div>
       </a>
       {% else %}
-      <p class="dash-empty">Нет ближайших записей</p>
+      <p class="dash-z-empty">Нет ближайших записей</p>
       {% endfor %}
     </div>
   </section>
 
-  <section class="dash-section">
-    <div class="dash-section-head">
-      <h2>Закрыто сегодня</h2>
-      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view', date=today) }}" class="dash-link">Календарь ›</a>{% endif %}
+  <section class="dash-z-group">
+    <div class="dash-z-cap-row">
+      <div class="dash-z-cap">Закрыто сегодня</div>
+      {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view', date=today) }}" class="dash-z-link">Календарь ›</a>{% endif %}
     </div>
-    <div class="dash-appt-list">
+    <div class="dash-z-list">
       {% for r in closed_today %}
       {% set meta = appt_status_meta(r.status) %}
-      <a class="dash-appt {{ meta.bar }}" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-        <div class="dash-appt-time">
+      <a class="dash-z-row dash-z-appt {{ meta.bar }}" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <div class="dash-z-time">
           <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
           <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
         </div>
-        <div class="dash-appt-body">
+        <div class="dash-z-body">
           <b>{{ r.client_name }}</b>
-          <span>{{ r.service_name }}</span>
-          <span>{{ r.employee_name }}</span>
+          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
         </div>
-        <div class="dash-appt-side">
-          <span class="status-pill {{ meta.pill }}">{{ meta.label }}</span>
+        <div class="dash-z-side">
+          <span class="dash-z-pill {{ meta.pill }}">{{ meta.label }}</span>
           <strong>{{ format_money(r.price or 0) }} ₽</strong>
         </div>
       </a>
       {% else %}
-      <p class="dash-empty">Сегодня ещё нет закрытых записей</p>
+      <p class="dash-z-empty">Сегодня ещё нет закрытых записей</p>
       {% endfor %}
     </div>
   </section>
