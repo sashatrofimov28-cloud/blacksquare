@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v44'
+BUILD_VERSION = 'client-v45'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -3597,6 +3597,10 @@ def index():
 @app.route('/design')
 def design_hub():
     return app.send_static_file('mockups/index.html')
+
+@app.route('/design/dashboard')
+def design_dashboard():
+    return render_template('design_dashboard.html')
 
 @app.route('/design/close')
 def design_close_variants():

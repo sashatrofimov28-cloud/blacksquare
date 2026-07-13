@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Главная — вариант Z (как закрытие визита)</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-close.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}">
+</head>
+<body class="dash-gallery">
+  <header class="dash-gallery-hero">
+    <a class="dash-gallery-back" href="/design">← Все макеты</a>
+    <h1>Главная — стиль Z</h1>
+    <p>Тот же светлый YCLIENTS-стиль, что понравился на <strong>закрытии визита</strong>: фон <code>#f2f2f7</code>, белые группы, зелёный акцент. Два варианта раскладки — выберите, какой ближе.</p>
+  </header>
+
+  <div class="dash-variant-grid">
+
+    <article class="dash-variant-card">
+      <div class="dash-variant-label">
+        <b>Вариант Z — классика</b>
+        <span>Как сейчас по структуре: 4 метрики сверху, период табами, списки записей группами iOS. Минимум сюрпризов — просто светлая тема.</span>
+        <span class="dash-variant-tag">Рекомендуем</span>
+      </div>
+      <img class="dash-variant-shot" src="{{ url_for('static', filename='mockups/dashboard-variant-z-main.png') }}" alt="Главная Z — классика">
+      <div class="phone">
+        <div class="phone-notch">Z · Классика</div>
+        <div class="phone-scroll">
+          <div class="dz">
+            <header class="dz-head">
+              <div>
+                <h2>Главная</h2>
+                <p>Понедельник, 13 июля</p>
+              </div>
+              <div class="dz-bell" aria-hidden="true">🔔</div>
+            </header>
+
+            <div class="dz-stats">
+              <div class="dz-stat">
+                <div class="dz-stat-ic g">₽</div>
+                <small>Касса</small>
+                <strong>48 500</strong>
+              </div>
+              <div class="dz-stat">
+                <div class="dz-stat-ic b">↗</div>
+                <small>Прибыль</small>
+                <strong>32 100</strong>
+              </div>
+              <div class="dz-stat">
+                <div class="dz-stat-ic o">👤</div>
+                <small>ЗП</small>
+                <strong>18 200</strong>
+              </div>
+              <div class="dz-stat">
+                <div class="dz-stat-ic p">▦</div>
+                <small>м²</small>
+                <strong>12,4</strong>
+              </div>
+            </div>
+
+            <div class="dz-seg" role="tablist">
+              <button type="button" class="on">Сегодня</button>
+              <button type="button">Вчера</button>
+              <button type="button">Неделя</button>
+              <button type="button">Месяц</button>
+            </div>
+
+            <div class="dz-sec-head">
+              <div class="dz-cap">Ближайшие записи</div>
+              <a class="dz-link" href="#">Все ›</a>
+            </div>
+            <div class="dz-list">
+              <a class="dz-row" href="#">
+                <div class="dz-time"><strong>14:00</strong><span>через 1 ч</span></div>
+                <div class="dz-body">
+                  <b>Виктория</b>
+                  <span>Передние боковые · Александр</span>
+                </div>
+                <div class="dz-side">
+                  <span class="dz-pill">Подтв.</span>
+                  <strong>2 500 ₽</strong>
+                </div>
+              </a>
+              <a class="dz-row" href="#">
+                <div class="dz-time"><strong>16:30</strong><span>через 3 ч</span></div>
+                <div class="dz-body">
+                  <b>Дмитрий</b>
+                  <span>Задние боковые · Игорь</span>
+                </div>
+                <div class="dz-side">
+                  <span class="dz-pill">Новая</span>
+                  <strong>3 200 ₽</strong>
+                </div>
+              </a>
+            </div>
+
+            <div class="dz-cap">Закрыто сегодня</div>
+            <div class="dz-list">
+              <a class="dz-row" href="#">
+                <div class="dz-time"><strong>11:00</strong><span>закрыт</span></div>
+                <div class="dz-body">
+                  <b>Анна</b>
+                  <span>Лобовое · Максим</span>
+                </div>
+                <div class="dz-side">
+                  <span class="dz-pill">Закрыт</span>
+                  <strong>4 800 ₽</strong>
+                </div>
+              </a>
+            </div>
+
+            <nav class="dz-nav" aria-hidden="true">
+              <span class="on">🏠<br>Главная</span>
+              <span>📅<br>Календарь</span>
+              <span>👥<br>CRM</span>
+              <span>📦<br>Склад</span>
+              <span>⋯<br>Ещё</span>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <div class="dash-notes">
+        <ul>
+          <li>Те же блоки, что сейчас — только светлые карточки</li>
+          <li>Период — сегментированный контрол вместо подчёркивания</li>
+          <li>Записи — как группы «Услуги / Визит» на закрытии</li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="dash-variant-card">
+      <div class="dash-variant-label">
+        <b>Вариант Z — герой</b>
+        <span>Крупная карточка «Сегодня» с кассой, быстрые кнопки (календарь, запись, CRM). Более «дашбордный» вид, если хочется акцент на цифрах дня.</span>
+        <span class="dash-variant-tag">Альтернатива</span>
+      </div>
+      <img class="dash-variant-shot" src="{{ url_for('static', filename='mockups/dashboard-variant-z-hero.png') }}" alt="Главная Z — герой">
+      <div class="phone">
+        <div class="phone-notch">Z · Герой</div>
+        <div class="phone-scroll">
+          <div class="dz">
+            <header class="dz-head">
+              <div>
+                <h2>Главная</h2>
+                <p>Понедельник, 13 июля</p>
+              </div>
+              <div class="dz-bell" aria-hidden="true">🔔</div>
+            </header>
+
+            <div class="dz-hero">
+              <small>Сегодня · касса</small>
+              <strong>48 500 ₽</strong>
+              <span>12 визитов · прибыль 32 100 ₽</span>
+            </div>
+
+            <div class="dz-pills">
+              <div class="dz-pill-stat"><small>ЗП</small><b>18 200</b></div>
+              <div class="dz-pill-stat"><small>м²</small><b>12,4</b></div>
+              <div class="dz-pill-stat"><small>Ср. чек</small><b>4 040</b></div>
+            </div>
+
+            <div class="dz-actions">
+              <a class="dz-act" href="#"><span class="dz-act-ic">📅</span>Календарь</a>
+              <a class="dz-act" href="#"><span class="dz-act-ic">＋</span>Запись</a>
+              <a class="dz-act" href="#"><span class="dz-act-ic">👥</span>CRM</a>
+            </div>
+
+            <div class="dz-seg" role="tablist">
+              <button type="button" class="on">Сегодня</button>
+              <button type="button">Вчера</button>
+              <button type="button">Неделя</button>
+              <button type="button">Месяц</button>
+            </div>
+
+            <div class="dz-sec-head">
+              <div class="dz-cap">Ближайшие записи</div>
+              <a class="dz-link" href="#">Все ›</a>
+            </div>
+            <div class="dz-list">
+              <a class="dz-row" href="#">
+                <div class="dz-time"><strong>14:00</strong><span>через 1 ч</span></div>
+                <div class="dz-body">
+                  <b>Виктория</b>
+                  <span>Передние боковые</span>
+                </div>
+                <div class="dz-side">
+                  <span class="dz-pill">Подтв.</span>
+                  <strong>2 500 ₽</strong>
+                </div>
+              </a>
+              <a class="dz-row" href="#">
+                <div class="dz-time"><strong>16:30</strong><span>через 3 ч</span></div>
+                <div class="dz-body">
+                  <b>Дмитрий</b>
+                  <span>Задние боковые</span>
+                </div>
+                <div class="dz-side">
+                  <span class="dz-pill">Новая</span>
+                  <strong>3 200 ₽</strong>
+                </div>
+              </a>
+            </div>
+
+            <nav class="dz-nav" aria-hidden="true">
+              <span class="on">🏠<br>Главная</span>
+              <span>📅<br>Календарь</span>
+              <span>👥<br>CRM</span>
+              <span>📦<br>Склад</span>
+              <span>⋯<br>Ещё</span>
+            </nav>
+          </div>
+        </div>
+      </div>
+      <div class="dash-notes">
+        <ul>
+          <li>Главная цифра дня — сразу в глаза</li>
+          <li>Быстрые действия без лишних кликов</li>
+          <li>Списки записей — те же белые группы</li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <div style="max-width:680px;margin:0 auto;padding:0 16px 32px;text-align:center;color:#666;font-size:13px;line-height:1.5">
+  <p>Макет: <code>/design/dashboard</code> · не требует входа · после выбора варианта внедрим в <code>dashboard.html</code> так же, как сделали закрытие визита Z.</p>
+  </div>
+</body>
+</html>
