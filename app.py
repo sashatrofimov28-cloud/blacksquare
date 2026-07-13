@@ -2,10 +2,15 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 import sqlite3, calendar as pycal, json, shutil, threading, time, re, random, io, base64, hashlib, secrets
 import os
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore
 
 try:
     from pywebpush import webpush, WebPushException
@@ -14,7 +19,8 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v52'
+BUILD_VERSION = 'client-v53'
+APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -387,7 +393,7 @@ def employee_tenure_label(user):
         d = date.fromisoformat(str(ref)[:10])
     except ValueError:
         return '—'
-    days = (date.today() - d).days
+    days = (app_today() - d).days
     years = days // 365
     if years >= 1:
         return f'Стаж {years} г.'
@@ -416,7 +422,7 @@ def enrich_employee(con, user, user_services_map, service_names):
     }
 
 def analytics_period_bounds(period):
-    d = date.today()
+    d = app_today()
     if period == 'today':
         s = e = d
     elif period == 'week':
@@ -428,7 +434,7 @@ def analytics_period_bounds(period):
     return s.isoformat(), e.isoformat()
 
 def analytics_previous_bounds(period):
-    d = date.today()
+    d = app_today()
     if period == 'today':
         prev = d - timedelta(days=1)
         return prev.isoformat(), prev.isoformat()
@@ -775,7 +781,7 @@ def appt_countdown_label(appt_date, start_time):
         start = datetime.strptime(f"{appt_date} {normalize_hm(start_time)}", '%Y-%m-%d %H:%M')
     except ValueError:
         return ''
-    delta = int((start - datetime.now()).total_seconds() // 60)
+    delta = int((start - app_now()).total_seconds() // 60)
     if delta < 0:
         return 'Сейчас'
     if delta < 60:
@@ -810,8 +816,16 @@ def db():
         pass
     return con
 
-def now(): return datetime.now().strftime('%Y-%m-%d %H:%M')
-def today(): return date.today().isoformat()
+def now(): return app_now().strftime('%Y-%m-%d %H:%M')
+def today(): return app_today().isoformat()
+
+def app_now():
+    """Текущее локальное время салона (Москва), naive — как в БД."""
+    return datetime.now(APP_TZ).replace(tzinfo=None)
+
+def app_today():
+    """Текущая календарная дата салона (Москва)."""
+    return app_now().date()
 def hm2m(hm):
     parts = (hm or '0:0').split(':')
     return int(parts[0]) * 60 + int(parts[1])
@@ -1067,7 +1081,7 @@ def apply_appointment_masters_from_form(con, aid, form, fallback_primary_id=None
 
 def save_appointment_salaries(con, aid, salaries, comment=''):
     con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
-    period = datetime.now().strftime('%m.%Y')
+    period = app_now().strftime('%m.%Y')
     text = comment or 'ЗП из закрытой записи'
     for eid, amount in salaries.items():
         if amount > 0:
@@ -1173,7 +1187,7 @@ def backup_database(upload_remote=True):
         return
     backup_dir = db_path.parent / 'backups'
     backup_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    stamp = app_now().strftime('%Y%m%d_%H%M%S')
     targets = [
         backup_dir / f'blacksquare_{stamp}.db',
         backup_dir / f'blacksquare_{today()}.db',
@@ -1457,8 +1471,19 @@ def period_date_range(period):
 
 def compute_period_stats(con, period='today'):
     start, end = period_date_range(period)
-    closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
-    range_args = (start, end)
+    # Для дня касса считается по факту закрытия (МСК), иначе «после 00:00»
+    # остаётся вчерашняя сумма, а «Закрыто сегодня» уже другое.
+    if period in ('today', 'yesterday'):
+        closed_range = (
+            "status='Закрыт' AND ("
+            "(closed_at IS NOT NULL AND date(closed_at)=?) OR "
+            "(closed_at IS NULL AND appointment_date=?)"
+            ")"
+        )
+        range_args = (start, start)
+    else:
+        closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
+        range_args = (start, end)
     label = {'today': 'Сегодня', 'yesterday': 'Вчера', 'week': f'{start} — {end}', 'month': MONTHS_RU[date.fromisoformat(start).month], 'year': str(date.fromisoformat(start).year)}.get(period, start)
     return {
         'period': period,
@@ -1466,7 +1491,7 @@ def compute_period_stats(con, period='today'):
         'date_from': start,
         'date_to': end,
         'appointments': con.execute(
-            "SELECT COUNT(*) c FROM appointments WHERE status='Закрыт' AND appointment_date>=? AND appointment_date<=?",
+            f"SELECT COUNT(*) c FROM appointments WHERE {closed_range}",
             range_args,
         ).fetchone()['c'],
         'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
@@ -1537,7 +1562,7 @@ def dashboard_stats(period='today'):
         cached = json.loads(cached_raw)
     except json.JSONDecodeError:
         cached = {}
-    now_dt = datetime.now()
+    now_dt = app_now()
     need_refresh = True
     if cached.get('at'):
         last = datetime.strptime(cached['at'], '%Y-%m-%d %H:%M')
@@ -1585,7 +1610,7 @@ def remember_cookie_opts():
 def issue_remember_token(user_id):
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
-    expires_at = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d %H:%M:%S')
+    expires_at = (app_now() + timedelta(days=365)).strftime('%Y-%m-%d %H:%M:%S')
     con = db()
     con.execute("DELETE FROM auth_remember_tokens WHERE user_id=?", (user_id,))
     con.execute(
@@ -1907,7 +1932,7 @@ def get_incoming_call_notify_user_ids(con):
 def recent_incoming_call_duplicate(con, session_id):
     if not session_id:
         return False
-    cutoff = (datetime.now() - timedelta(seconds=45)).strftime('%Y-%m-%d %H:%M:%S')
+    cutoff = (app_now() - timedelta(seconds=45)).strftime('%Y-%m-%d %H:%M:%S')
     row = con.execute(
         "SELECT id FROM incoming_calls WHERE call_session_id=? AND created_at >= ?",
         (session_id, cutoff),
@@ -1935,7 +1960,7 @@ def store_incoming_call(con, info, client, book_url, card_url):
             now(),
         ),
     )
-    cutoff = (datetime.now() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+    cutoff = (app_now() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
     con.execute("DELETE FROM incoming_calls WHERE created_at < ?", (cutoff,))
     con.commit()
     return con.execute("SELECT last_insert_rowid() id").fetchone()['id']
@@ -2280,14 +2305,14 @@ def issue_friend_discount_code(con, friend_card_id):
             (code, now()),
         ).fetchone()
         if not busy:
-            expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
+            expires = (app_now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
             con.execute(
                 "INSERT INTO friend_discount_codes(friend_card_id,code,created_at,expires_at) VALUES(?,?,?,?)",
                 (friend_card_id, code, now(), expires),
             )
             return code
     code = '1' + str(int(time.time()) % 1000).zfill(3)
-    expires = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
+    expires = (app_now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M')
     con.execute(
         "INSERT INTO friend_discount_codes(friend_card_id,code,created_at,expires_at) VALUES(?,?,?,?)",
         (friend_card_id, code, now(), expires),
@@ -2867,15 +2892,15 @@ def parse_telegram_booking_date(token):
     if not token or str(token).lower() == 'сегодня':
         return today()
     if str(token).lower() == 'завтра':
-        return (date.today() + timedelta(days=1)).isoformat()
+        return (app_today() + timedelta(days=1)).isoformat()
     if str(token).lower() == 'послезавтра':
-        return (date.today() + timedelta(days=2)).isoformat()
+        return (app_today() + timedelta(days=2)).isoformat()
     token = str(token).replace('/', '.')
     parts = token.split('.')
     try:
         if len(parts) == 2:
             d, m = int(parts[0]), int(parts[1])
-            y = date.today().year
+            y = app_today().year
         else:
             d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
             if y < 100:
@@ -3430,11 +3455,11 @@ def save_and_notify_daily_report(con, report_date):
     return True
 
 def daily_report_target_date():
-    now_dt = datetime.now()
+    now_dt = app_now()
     if now_dt.hour == 23 and now_dt.minute >= 59:
         return today()
     if now_dt.hour == 0 and now_dt.minute < 10:
-        return (date.today() - timedelta(days=1)).isoformat()
+        return (app_today() - timedelta(days=1)).isoformat()
     return None
 
 def maybe_run_daily_report():
@@ -3499,7 +3524,7 @@ def check_finance_reminders(user):
     ).fetchall()
     con.close()
     for r in rows:
-        days = (datetime.strptime(r['due_date'], '%Y-%m-%d').date() - date.today()).days
+        days = (datetime.strptime(r['due_date'], '%Y-%m-%d').date() - app_today()).days
         if days < 0:
             msg = f'Просрочено: {r["title"]} — {r["amount"]:.0f} ₽'
         elif days == 0:
@@ -4572,7 +4597,7 @@ def approve_phone_request(rid):
         return redirect(url_for('dashboard'))
     con = db()
     # доступ до конца текущего дня
-    until = datetime.now().strftime('%Y-%m-%d') + ' 23:59'
+    until = app_now().strftime('%Y-%m-%d') + ' 23:59'
     con.execute("UPDATE phone_access_requests SET status='Одобрен', approved_until=?, decided_at=?, decided_by=? WHERE id=?",
                 (until, now(), current_user()['id'], rid))
     con.commit()
@@ -5825,7 +5850,7 @@ def client_card(cid):
         "WHERE a.client_id=? AND a.status NOT IN ('Закрыт','Отменен') "
         "AND (a.appointment_date > ? OR (a.appointment_date = ? AND a.start_time >= ?)) "
         "ORDER BY a.appointment_date ASC, a.start_time ASC LIMIT 1",
-        (cid, today(), today(), datetime.now().strftime('%H:%M')),
+        (cid, today(), today(), app_now().strftime('%H:%M')),
     ).fetchone()
     booking_car = ''
     booking_plate = ''
@@ -6298,7 +6323,7 @@ def finance():
         con.close()
         return redirect(url_for('finance', month=request.form.get('month') or request.args.get('month')))
 
-    month_s = request.args.get('month') or date.today().strftime('%Y-%m')
+    month_s = request.args.get('month') or app_today().strftime('%Y-%m')
     month = datetime.strptime(month_s + '-01', '%Y-%m-%d').date()
     first, days = pycal.monthrange(month.year, month.month)
     cells = [None] * first
@@ -6473,7 +6498,7 @@ def api_incoming_call():
     if not has_perm('calendar') and not has_perm('crm'):
         return jsonify({'active': False})
     con = db()
-    cutoff = (datetime.now() - timedelta(minutes=3)).strftime('%Y-%m-%d %H:%M:%S')
+    cutoff = (app_now() - timedelta(minutes=3)).strftime('%Y-%m-%d %H:%M:%S')
     row = con.execute(
         "SELECT * FROM incoming_calls WHERE dismissed_at IS NULL AND created_at >= ? ORDER BY id DESC LIMIT 1",
         (cutoff,),
