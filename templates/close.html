@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="close-page close-page-b">
-  <header class="close-header">
+<div class="close-page close-page-f">
+  <header class="close-header close-f-header">
     <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
     <div class="close-header-main">
       <h1>Закрыть визит</h1>
@@ -12,135 +12,131 @@
     {% endif %}
   </header>
 
-  <form method="post" id="closeForm" class="close-form">
-    <div class="close-client card-surface close-client-compact">
-      <div class="close-client-top">
-        <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
-        <div class="close-client-main">
-          <b class="close-client-name">{{ ap.client_name }}</b>
-          <span class="close-client-phone">{{ format_phone_ru(ap.phone) or ap.phone }}</span>
-        </div>
-      </div>
-      <div class="close-client-service">{{ ap.service_name }}</div>
+  <form method="post" id="closeForm" class="close-form close-f-form">
+    <section class="close-f-zen">
+      <div class="close-f-avatar">{{ client_initials(ap.client_name) }}</div>
+      <b class="close-f-name">{{ ap.client_name }}</b>
+      <span class="close-f-service">{{ ap.service_name }}</span>
       {% if ap.car or ap.plate_number %}
-      <div class="close-client-meta">
+      <div class="close-f-tags">
         {% if ap.car %}<span>{{ ap.car }}</span>{% endif %}
         {% if ap.plate_number %}<span>{{ ap.plate_number }}</span>{% endif %}
       </div>
       {% endif %}
-    </div>
-
-    <div class="close-pay-card card-surface">
-      <span class="close-hero-label">К оплате</span>
-      <label class="close-pay-input-wrap">
-        <input name="price" type="number" step="0.01" class="close-pay-input" id="closePriceInput" value="{{ ap.price }}" required>
+      <label class="close-f-price-wrap">
+        <input name="price" type="number" step="0.01" class="close-f-price" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
         <span>₽</span>
       </label>
-      <span class="close-hero-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</span>
+      <span class="close-f-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</span>
+      <button type="button" class="close-f-master-pill{% if master_error %} is-error{% endif %}" id="closeFMasterPill">Указать мастера</button>
+    </section>
+
+    <div class="close-f-sheet" id="closeFSheet">
+      <button type="button" class="close-f-sheet-handle" id="closeFSheetToggle" aria-expanded="false">
+        <i class="close-f-sheet-bar"></i>
+        <span class="close-f-sheet-hint">Детали визита</span>
+      </button>
+      <div class="close-f-sheet-body" id="closeFSheetBody" hidden>
+        <div class="close-f-group">
+          <div class="close-f-cap">Материалы</div>
+          <div class="close-f-panel">
+            <p class="close-hint close-f-hint">Плёнка: м × см = м² · расходники — шт.</p>
+            <div id="materialRows" class="material-rows close-material-rows"></div>
+            <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
+          </div>
+        </div>
+
+        {% if has_perm('extra_services') %}
+        <div class="close-f-group">
+          <div class="close-f-cap">Доп. услуги{% if extras %} · {{ extras|length }}{% endif %}</div>
+          <div class="close-f-panel">
+            {% if extras %}
+            <ul class="close-lines">
+              {% for e in extras %}
+              <li>
+                <span>{{ e.name }}</span>
+                <strong>{{ format_money(e.price) }} ₽</strong>
+                <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
+                  <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+            <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form close-inline-stack close-f-extra-form">
+              <input name="extra_name" placeholder="Что добавили">
+              <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
+              <button type="submit" class="close-mini-submit">Добавить</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="close-f-group">
+          <div class="close-f-cap">Скидки и оплата</div>
+          <div class="close-f-panel">
+            <label class="close-field-label">Сертификат</label>
+            <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
+            <div id="certBalance" class="close-hint">Введите номер — баланс появится здесь</div>
+            <div class="close-inline-form close-inline-stack">
+              <input name="cert_amount" type="number" step="0.01" placeholder="Списать ₽">
+              <input name="cert_comment" placeholder="Комментарий">
+            </div>
+            {% if client_bonus and client_bonus.bonus_enabled %}
+            <label class="close-field-label">Бонусы</label>
+            <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
+            <div id="bonusBalance" class="close-hint">Баланс: {{ format_money(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }}</div>
+            {% endif %}
+            <label class="close-field-label">Скидка для друзей</label>
+            <input name="friend_discount_code" id="friendDiscountCode" placeholder="Код (4 цифры)" maxlength="4" inputmode="numeric">
+            <div id="friendDiscountHint" class="close-hint">Код с карты друга · скидка {{ friend_discount_percent|int }}%</div>
+          </div>
+        </div>
+
+        <div class="close-f-group">
+          <div class="close-f-cap">Комментарий</div>
+          <div class="close-f-panel">
+            <textarea name="comment" placeholder="Комментарий к визиту" rows="2"></textarea>
+          </div>
+        </div>
+
+        {% if low_stock %}
+        <div class="close-f-group close-f-stock">
+          <div class="close-f-cap">⚠ Низкий остаток</div>
+          <div class="close-f-panel">
+            <div class="close-stock-grid">
+              {% for s in low_stock %}
+              <div class="close-stock-item">
+                <span>{{ s.item.name }}</span>
+                <div class="close-stock-bar"><i style="width:{{ s.percent }}%"></i></div>
+                <small>Остаток: {{ format_money(s.balance, 1) }} {{ s.unit }}</small>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
     </div>
 
-    <details class="close-fold" open>
-      <summary>Мастера и зарплата</summary>
-      <div class="close-fold-body">
+    <dialog class="close-modal close-f-master-modal" id="masterModal">
+      <div class="close-modal-inner">
+        <div class="close-modal-head">
+          <h3>Кто делал?</h3>
+          <button type="button" class="close-modal-close" id="masterModalClose" aria-label="Закрыть">×</button>
+        </div>
         {% set master_form_id = 'closeForm' %}
-        <div class="close-master-picker-wrap">
+        <div class="close-f-master-body">
           {% include '_master_picker.html' %}
+          {% include '_salary_by_master.html' %}
         </div>
-        {% include '_salary_by_master.html' %}
+        <button type="button" class="close-submit close-f-master-done" id="masterModalDone">Готово</button>
       </div>
-    </details>
-
-    <details class="close-fold">
-      <summary>Материалы</summary>
-      <div class="close-fold-body">
-        <p class="close-hint" style="margin-top:0">Плёнка: м × см = м² · расходники — шт.</p>
-        <div id="materialRows" class="material-rows close-material-rows"></div>
-        <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
-      </div>
-    </details>
-
-    {% if has_perm('extra_services') %}
-    <details class="close-fold"{% if extras %} open{% endif %}>
-      <summary>Доп. услуги{% if extras %} <em>{{ extras|length }}</em>{% else %} <em>нет</em>{% endif %}</summary>
-      <div class="close-fold-body">
-        {% if extras %}
-        <ul class="close-lines">
-          {% for e in extras %}
-          <li>
-            <span>{{ e.name }}</span>
-            <strong>{{ format_money(e.price) }} ₽</strong>
-            <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
-              <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
-            </form>
-          </li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-      </div>
-    </details>
-    {% endif %}
-
-    <details class="close-fold">
-      <summary>Скидки и оплата</summary>
-      <div class="close-fold-body">
-        <label class="close-field-label">Сертификат</label>
-        <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
-        <div id="certBalance" class="close-hint">Введите номер — баланс появится здесь</div>
-        <div class="close-inline-form close-inline-stack">
-          <input name="cert_amount" type="number" step="0.01" placeholder="Списать ₽">
-          <input name="cert_comment" placeholder="Комментарий">
-        </div>
-        {% if client_bonus and client_bonus.bonus_enabled %}
-        <label class="close-field-label">Бонусы</label>
-        <input name="bonus_spent" id="bonusSpent" type="number" step="0.01" min="0" max="{{ client_bonus.bonus_balance or 0 }}" placeholder="Списать бонусами ₽">
-        <div id="bonusBalance" class="close-hint">Баланс: {{ format_money(client_bonus.bonus_balance or 0) }} ₽ · код {{ client_bonus.bonus_code }}</div>
-        {% endif %}
-        <label class="close-field-label">Скидка для друзей</label>
-        <input name="friend_discount_code" id="friendDiscountCode" placeholder="Код (4 цифры)" maxlength="4" inputmode="numeric">
-        <div id="friendDiscountHint" class="close-hint">Код с карты друга · скидка {{ friend_discount_percent|int }}%</div>
-      </div>
-    </details>
-
-    <details class="close-fold">
-      <summary>Комментарий</summary>
-      <div class="close-fold-body">
-        <textarea name="comment" placeholder="Комментарий к визиту" rows="2"></textarea>
-      </div>
-    </details>
-
-    {% if low_stock %}
-    <details class="close-fold close-stock-fold">
-      <summary>⚠ Низкий остаток на складе</summary>
-      <div class="close-fold-body">
-        <div class="close-stock-grid">
-          {% for s in low_stock %}
-          <div class="close-stock-item">
-            <span>{{ s.item.name }}</span>
-            <div class="close-stock-bar"><i style="width:{{ s.percent }}%"></i></div>
-            <small>Остаток: {{ format_money(s.balance, 1) }} {{ s.unit }}</small>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-    </details>
-    {% endif %}
+    </dialog>
   </form>
 
-  {% if has_perm('extra_services') %}
-  <details class="close-fold close-extra-add">
-    <summary>＋ Добавить доп. услугу</summary>
-    <div class="close-fold-body">
-      <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form close-inline-stack">
-        <input name="extra_name" placeholder="Что добавили">
-        <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
-        <button type="submit" class="close-mini-submit">Добавить</button>
-      </form>
-    </div>
-  </details>
-  {% endif %}
-
-  <div class="close-footer-fixed">
-    <button type="submit" form="closeForm" class="close-submit">Закрыть и сохранить ✓</button>
+  <div class="close-footer-fixed close-f-footer">
+    <button type="submit" form="closeForm" class="close-submit">Закрыть ✓</button>
   </div>
 
   {% if ap.status not in ['Закрыт','Отменен'] %}
@@ -244,12 +240,80 @@ function recalcCloseTotals() {
   if (sub) sub.textContent = 'услуга ' + fmt(price) + ' · расходники ' + fmt(matCost);
 }
 
+function syncCloseFMasterPill() {
+  const pill = document.getElementById('closeFMasterPill');
+  const chips = document.querySelectorAll('#masterChips .master-chip');
+  if (!pill) return;
+  if (!chips.length) {
+    pill.textContent = 'Указать мастера';
+    pill.classList.add('is-empty');
+  } else {
+    const names = Array.from(chips).map(c => c.childNodes[0].textContent.trim());
+    pill.textContent = names.length === 1 ? names[0] + ' · мастер' : names.join(', ');
+    pill.classList.remove('is-empty');
+  }
+}
+
+function wireCloseModal(modal, openBtn, closeBtn) {
+  if (!modal) return null;
+  function openModal() { if (modal.showModal) modal.showModal(); }
+  function closeModal() { if (modal.close) modal.close(); }
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  return { openModal, closeModal };
+}
+
+function initCloseFSheet() {
+  const sheet = document.getElementById('closeFSheet');
+  const toggle = document.getElementById('closeFSheetToggle');
+  const body = document.getElementById('closeFSheetBody');
+  if (!sheet || !toggle || !body) return;
+  function setOpen(open) {
+    sheet.classList.toggle('is-open', open);
+    body.hidden = !open;
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.querySelector('.close-f-sheet-hint').textContent = open ? 'Свернуть детали' : 'Детали визита';
+  }
+  toggle.addEventListener('click', () => setOpen(!sheet.classList.contains('is-open')));
+}
+
+function initCloseFMaster() {
+  const masterModal = document.getElementById('masterModal');
+  const pill = document.getElementById('closeFMasterPill');
+  const done = document.getElementById('masterModalDone');
+  const modalApi = wireCloseModal(masterModal, pill, document.getElementById('masterModalClose'));
+  if (done && modalApi) done.addEventListener('click', () => { syncCloseFMasterPill(); modalApi.closeModal(); });
+  window.addEventListener('load', function () {
+    syncCloseFMasterPill();
+    const chips = document.getElementById('masterChips');
+    if (chips) new MutationObserver(syncCloseFMasterPill).observe(chips, { childList: true, subtree: true });
+  });
+  {% if master_error %}
+  if (modalApi) modalApi.openModal();
+  {% endif %}
+}
+
 document.getElementById('addMaterialBtn').addEventListener('click', () => {
   document.getElementById('materialRows').appendChild(buildMaterialRow());
+  document.getElementById('closeFSheet')?.classList.add('is-open');
+  const body = document.getElementById('closeFSheetBody');
+  if (body) body.hidden = false;
 });
 document.getElementById('materialRows').appendChild(buildMaterialRow());
 
-document.getElementById('closeForm').addEventListener('submit', function () {
+document.getElementById('closeForm').addEventListener('submit', function (e) {
+  const hidden = document.getElementById('masterHiddenInputs');
+  const hasMaster = hidden && hidden.querySelector('input[name="employee_ids"]');
+  if (!hasMaster) {
+    e.preventDefault();
+    const picker = document.getElementById('masterPicker');
+    if (picker) picker.classList.add('field-error');
+    const hint = picker?.querySelector('.master-required-hint');
+    if (hint) hint.hidden = false;
+    document.getElementById('masterModal')?.showModal();
+    return;
+  }
   document.querySelectorAll('#materialRows .material-row').forEach(row => {
     const id = row.querySelector('.mat-select').value;
     if (!id) {
@@ -265,16 +329,6 @@ document.getElementById('closeForm').addEventListener('submit', function () {
     }
   });
 });
-
-function wireCloseModal(modal, openBtn, closeBtn) {
-  if (!modal) return null;
-  function openModal() { if (modal.showModal) modal.showModal(); }
-  function closeModal() { if (modal.close) modal.close(); }
-  if (openBtn) openBtn.addEventListener('click', openModal);
-  if (closeBtn) closeBtn.addEventListener('click', closeModal);
-  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-  return { openModal, closeModal };
-}
 
 const menuModal = wireCloseModal(
   document.getElementById('closeMenuModal'),
@@ -334,5 +388,7 @@ window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
 window.BS_CLOSE_SKIP_MASTER_REQUIRED = true;
 if (priceInput) priceInput.addEventListener('input', recalcCloseTotals);
 recalcCloseTotals();
+initCloseFSheet();
+initCloseFMaster();
 </script>
 {% endblock %}
