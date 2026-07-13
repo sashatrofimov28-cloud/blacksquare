@@ -152,7 +152,7 @@
         <input name="client_name" id="calClientName" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
         <input name="phone" id="calClientPhone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required inputmode="tel" autocomplete="tel">
         <p class="cal-client-hint" id="calClientHint" hidden></p>
-        <input name="car" id="calClientCar" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
+        <input name="car" id="calClientCar" class="js-car-ac" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
         <input name="plate_number" id="calClientPlate" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
         <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
           <label class="master-picker-label">Услуги *</label>

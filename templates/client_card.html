@@ -156,7 +156,7 @@
       <form method="post" action="{{ url_for('client_update', cid=client.id) }}" class="client-form-stack">
         <input name="name" value="{{ client.name }}" placeholder="Имя" required>
         <input name="phone" value="{{ client.phone }}" placeholder="Телефон" required>
-        <input name="car" placeholder="Добавить авто">
+        <input name="car" class="js-car-ac" placeholder="Добавить авто">
         <input name="plate_number" placeholder="Госномер">
         <select name="stage">
           <option {% if client.stage=='Новый' %}selected{% endif %}>Новый</option>

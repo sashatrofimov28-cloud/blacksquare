@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v50'
+BUILD_VERSION = 'client-v51'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -3873,6 +3873,76 @@ def api_slots():
     out = available_slots_for_duration(con, uid, bundle['duration_min'], d) if bundle else []
     con.close()
     return jsonify(out)
+
+_CAR_CATALOG = None
+
+def load_car_catalog():
+    global _CAR_CATALOG
+    if _CAR_CATALOG is None:
+        with open(BASE_DIR / 'static' / 'data' / 'car-catalog.json', encoding='utf-8') as f:
+            _CAR_CATALOG = json.load(f)
+    return _CAR_CATALOG
+
+def _car_norm(s):
+    return (s or '').lower().replace('ё', 'е').strip()
+
+def suggest_cars_from_catalog(query, limit=12):
+    q = _car_norm(query)
+    if not q:
+        return []
+    results, seen = [], set()
+    for brand in load_car_catalog().get('brands', []):
+        name = brand['name']
+        names = [name] + list(brand.get('aliases') or [])
+        brand_hit = any(
+            _car_norm(n).startswith(q) or q in _car_norm(n)
+            for n in names
+        )
+        if brand_hit:
+            if name not in seen:
+                results.append({'label': name, 'value': name, 'kind': 'brand'})
+                seen.add(name)
+        for model in brand.get('models', []):
+            full = f'{name} {model}'
+            fl, ml = _car_norm(full), _car_norm(model)
+            if fl.startswith(q) or ml.startswith(q) or q in fl:
+                if full not in seen:
+                    results.append({'label': full, 'value': full, 'kind': 'model'})
+                    seen.add(full)
+                if len(results) >= limit:
+                    return results
+    return results[:limit]
+
+def suggest_cars_from_db(con, query, limit=5):
+    q = f'%{query.strip()}%'
+    rows = con.execute(
+        "SELECT v FROM ("
+        "SELECT DISTINCT car AS v FROM appointments WHERE car IS NOT NULL AND TRIM(car) != '' AND car LIKE ? "
+        "UNION SELECT DISTINCT car_model AS v FROM cars WHERE car_model IS NOT NULL AND TRIM(car_model) != '' AND car_model LIKE ?"
+        ") ORDER BY v LIMIT ?",
+        (q, q, limit),
+    ).fetchall()
+    return [{'label': r['v'], 'value': r['v'], 'kind': 'history'} for r in rows if r['v']]
+
+@app.route('/api/cars/suggest')
+def api_cars_suggest():
+    q = request.args.get('q', '').strip()
+    if len(q) < 1:
+        return jsonify(items=[])
+    con = db()
+    try:
+        merged, seen = [], set()
+        for item in suggest_cars_from_db(con, q, 5) + suggest_cars_from_catalog(q, 12):
+            v = item['value']
+            if v in seen:
+                continue
+            seen.add(v)
+            merged.append(item)
+            if len(merged) >= 12:
+                break
+        return jsonify(items=merged)
+    finally:
+        con.close()
 
 @app.route('/api/client-lookup')
 @login_required

@@ -196,7 +196,7 @@ recalcEditTotals();
       <div class="close-z-list close-z-list-pad">
         <input name="client_name" value="{{ ap.client_name }}" placeholder="Имя" required>
         <input name="phone" value="{{ ap.phone }}" placeholder="Телефон" required>
-        <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
+        <input name="car" class="js-car-ac" value="{{ ap.car or '' }}" placeholder="Авто">
         <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
       </div>
     </div>
