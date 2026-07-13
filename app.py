@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v47'
+BUILD_VERSION = 'client-v48'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -234,6 +234,10 @@ MONTHS_RU = ['', 'Январь', 'Февраль', 'Март', 'Апрель', '
 MONTHS_RU_GEN = ['', 'января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 MONTHS_RU_SHORT = ['', 'янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 WEEKDAYS_LONG = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+
+def format_date_dashboard_ru(day_s=None):
+    d = date.fromisoformat(day_s or today())
+    return f"{WEEKDAYS_LONG[d.weekday()].capitalize()}, {d.day} {MONTHS_RU_GEN[d.month]}"
 
 def format_date_short_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
