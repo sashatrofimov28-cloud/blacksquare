@@ -85,6 +85,33 @@
 </div>
 
 <div class="panel profile-card">
+  <h2>SMS клиентам</h2>
+  <p style="color:#666;font-size:14px">Подтверждение записи и напоминания за 24 часа и за 1 час до визита. Работает через <a href="https://sms.ru" target="_blank" rel="noopener">sms.ru</a>.</p>
+  <ol style="color:#666;font-size:14px;margin:12px 0;padding-left:20px">
+    <li>Зарегистрируйтесь на sms.ru и скопируйте <b>api_id</b> из личного кабинета.</li>
+    <li>Укажите api_id ниже или переменную <code>SMSRU_API_ID</code> на сервере.</li>
+    <li>Включите нужные типы сообщений и отправьте тест на свой номер.</li>
+  </ol>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="client_sms_save">
+    <label class="check span4"><input type="checkbox" name="client_sms_enabled" {% if client_sms_on %}checked{% endif %}> Включить SMS клиентам</label>
+    <input name="client_sms_api_id" class="span4" value="{{ client_sms_api }}" placeholder="API ID sms.ru" autocomplete="off">
+    <input name="client_sms_brand" value="{{ client_sms_brand }}" placeholder="Название в SMS (Black Square)">
+    <input name="client_sms_address" class="span4" value="{{ client_sms_address }}" placeholder="Адрес студии в SMS">
+    <label class="check"><input type="checkbox" name="client_sms_confirm" {% if client_sms_confirm %}checked{% endif %}> Подтверждение при записи</label>
+    <label class="check"><input type="checkbox" name="client_sms_remind_24h" {% if client_sms_remind_24h %}checked{% endif %}> Напоминание за 24 часа</label>
+    <label class="check"><input type="checkbox" name="client_sms_remind_1h" {% if client_sms_remind_1h %}checked{% endif %}> Напоминание за 1 час</label>
+    <button>Сохранить SMS</button>
+  </form>
+  <form method="post" class="form-grid" style="margin-top:16px">
+    <input type="hidden" name="action" value="client_sms_test">
+    <input name="client_sms_test_phone" placeholder="Телефон для теста +7..." required>
+    <button class="ghost">Отправить тестовое SMS</button>
+  </form>
+  <p class="hint" style="margin-top:12px">В SMS с подтверждением — ссылка, где клиент может нажать «Подтверждаю запись».</p>
+</div>
+
+<div class="panel profile-card">
   <h2>Карты «Для друзей»</h2>
   <p style="color:#666;font-size:14px">Постоянная скидка вместо бонусов. У карты номер <b>10001, 10002…</b> (начинается с 1). При открытии ссылки другу выдаётся короткий код скидки (4 цифры, начинается с 1) — сотрудник вводит его при закрытии заказа. Код меняется при каждом открытии ссылки.</p>
   <form method="post" class="form-grid" style="margin-top:12px">

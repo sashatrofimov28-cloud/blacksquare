@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v39'
+BUILD_VERSION = 'client-v40'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -1320,6 +1320,24 @@ def migrate_db(c):
         c.execute("ALTER TABLE appointments ADD COLUMN friend_discount_code TEXT")
     if 'friend_discount_amount' not in appt_cols:
         c.execute("ALTER TABLE appointments ADD COLUMN friend_discount_amount REAL DEFAULT 0")
+    if 'confirmation_token' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN confirmation_token TEXT")
+    if 'client_confirmed_at' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN client_confirmed_at TEXT")
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS appointment_notifications("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, kind TEXT, phone TEXT, "
+        "status TEXT, error TEXT, sent_at TEXT, "
+        "UNIQUE(appointment_id, kind))"
+    )
+    c.execute("CREATE INDEX IF NOT EXISTS idx_appt_notif_aid ON appointment_notifications(appointment_id)")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_enabled','0')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_api_id','')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_confirm','1')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_remind_24h','1')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_remind_1h','1')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_brand','Black Square')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_address','Тюмень, ул. Энергетиков, 53')")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -2361,6 +2379,180 @@ def send_telegram_message(text, force=False):
     except Exception as e:
         return False, str(e)[:200]
 
+# ——— SMS клиентам (sms.ru): подтверждение и напоминания ———
+
+def client_sms_enabled():
+    return get_setting('client_sms_enabled', '0') == '1'
+
+def client_sms_api_id():
+    return os.environ.get('SMSRU_API_ID', '').strip() or get_setting('client_sms_api_id', '').strip()
+
+def client_sms_kind_enabled(kind):
+    keys = {
+        'confirm': 'client_sms_confirm',
+        'remind_24h': 'client_sms_remind_24h',
+        'remind_1h': 'client_sms_remind_1h',
+    }
+    key = keys.get(kind)
+    if not key:
+        return False
+    return get_setting(key, '1') == '1'
+
+def client_phone_sendable(phone):
+    raw = (phone or '').strip()
+    if not raw or raw.upper().startswith('TG:'):
+        return False
+    return len(normalize_phone(raw)) >= 11
+
+def send_client_sms(phone, text, force=False):
+    if not force and not client_sms_enabled():
+        return False, 'SMS клиентам выключены в настройках'
+    api_id = client_sms_api_id()
+    if not api_id:
+        return False, 'Укажите API ID sms.ru в настройках'
+    to = normalize_phone(phone)
+    if not client_phone_sendable(phone):
+        return False, 'Некорректный номер клиента'
+    import urllib.parse
+    import urllib.request
+    qs = urllib.parse.urlencode({'api_id': api_id, 'to': to, 'msg': text, 'json': 1})
+    try:
+        with urllib.request.urlopen(f'https://sms.ru/sms/send?{qs}', timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+        if data.get('status') == 'OK':
+            sms = data.get('sms', {}).get(to, {})
+            if sms.get('status') == 'OK':
+                return True, None
+            return False, sms.get('status_text', 'Ошибка SMS')
+        return False, data.get('status_text', 'Ошибка sms.ru')
+    except Exception as e:
+        return False, str(e)[:200]
+
+def ensure_confirmation_token(con, aid):
+    row = con.execute("SELECT confirmation_token FROM appointments WHERE id=?", (aid,)).fetchone()
+    if row and row['confirmation_token']:
+        return row['confirmation_token']
+    token = secrets.token_urlsafe(12)
+    con.execute("UPDATE appointments SET confirmation_token=? WHERE id=?", (token, aid))
+    return token
+
+def appointment_visit_url(token):
+    base = public_base_url().rstrip('/')
+    return f'{base}/visit/{token}'
+
+def appointment_datetime_sql_expr():
+    return "datetime(appointment_date || ' ' || substr(start_time, 1, 5))"
+
+def appointment_sms_message(ap, kind):
+    brand = get_setting('client_sms_brand', 'Black Square').strip() or 'Black Square'
+    addr = get_setting('client_sms_address', '').strip()
+    date_l = format_date_calendar_ru(ap['appointment_date'])
+    time_s = (ap['start_time'] or '')[:5]
+    service = (ap['service_name'] or 'услугу').strip()
+    if kind == 'confirm':
+        url = appointment_visit_url(ap['confirmation_token'])
+        parts = [f'{brand}: вы записаны {date_l} в {time_s}, {service}.']
+        if addr:
+            parts.append(f'Адрес: {addr}.')
+        parts.append(f'Детали: {url}')
+        return ' '.join(parts)
+    if kind == 'remind_24h':
+        msg = f'{brand}: напоминаем — завтра в {time_s} ждём вас на {service}.'
+        if addr:
+            msg += f' {addr}.'
+        return msg
+    if kind == 'remind_1h':
+        msg = f'{brand}: через час запись на {service} ({time_s}). Ждём вас!'
+        if addr:
+            msg += f' {addr}'
+        return msg
+    return ''
+
+def notification_already_sent(con, aid, kind):
+    return con.execute(
+        "SELECT 1 FROM appointment_notifications WHERE appointment_id=? AND kind=? AND status='sent'",
+        (aid, kind),
+    ).fetchone()
+
+def record_appointment_notification(con, aid, kind, phone, status, error=''):
+    con.execute(
+        "INSERT INTO appointment_notifications(appointment_id,kind,phone,status,error,sent_at) VALUES(?,?,?,?,?,?)",
+        (aid, kind, phone, status, (error or '')[:500], now()),
+    )
+
+def clear_appointment_client_notifications(con, aid):
+    con.execute("DELETE FROM appointment_notifications WHERE appointment_id=?", (aid,))
+
+def send_appointment_client_sms(con, aid, kind):
+    if not client_sms_enabled() or not client_sms_kind_enabled(kind):
+        return False, 'disabled'
+    ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+    if not ap or ap['status'] != 'Записан':
+        return False, 'not_active'
+    phone = ap['phone'] or ''
+    if not client_phone_sendable(phone):
+        return False, 'bad_phone'
+    if notification_already_sent(con, aid, kind):
+        return False, 'already_sent'
+    ap = dict(ap)
+    if kind == 'confirm':
+        ap['confirmation_token'] = ensure_confirmation_token(con, aid)
+        con.commit()
+    text = appointment_sms_message(ap, kind)
+    if not text:
+        return False, 'no_template'
+    ok, err = send_client_sms(phone, text)
+    record_appointment_notification(con, aid, kind, phone, 'sent' if ok else 'error', err or '')
+    con.commit()
+    return ok, err
+
+def defer_client_appointment_notify(aid, kind='confirm'):
+    def _run():
+        with app.app_context():
+            con = db()
+            try:
+                send_appointment_client_sms(con, aid, kind)
+            except Exception:
+                pass
+            finally:
+                con.close()
+    threading.Thread(target=_run, daemon=True, name=f'client-sms-{kind}-{aid}').start()
+
+def maybe_run_appointment_reminders():
+    if not client_sms_enabled():
+        return
+    con = db()
+    dt = appointment_datetime_sql_expr()
+    windows = (
+        ('remind_24h', '+23 hours', '+25 hours'),
+        ('remind_1h', '+50 minutes', '+70 minutes'),
+    )
+    for kind, tmin, tmax in windows:
+        if not client_sms_kind_enabled(kind):
+            continue
+        rows = con.execute(
+            f"SELECT id FROM appointments WHERE status='Записан' "
+            f"AND {dt} BETWEEN datetime('now', ?) AND datetime('now', ?) "
+            f"AND NOT EXISTS (SELECT 1 FROM appointment_notifications n "
+            f"WHERE n.appointment_id=appointments.id AND n.kind=? AND n.status='sent')",
+            (tmin, tmax, kind),
+        ).fetchall()
+        for row in rows:
+            try:
+                send_appointment_client_sms(con, row['id'], kind)
+            except Exception:
+                pass
+    con.close()
+
+def _appointment_reminder_loop():
+    time.sleep(45)
+    while True:
+        try:
+            maybe_run_appointment_reminders()
+        except Exception:
+            pass
+        time.sleep(60)
+
 def telegram_discover_chats():
     token = telegram_bot_token()
     if not token:
@@ -3135,6 +3327,7 @@ def start_scheduler():
     threading.Thread(target=_daily_report_loop, daemon=True, name='daily-report').start()
     threading.Thread(target=telegram_poll_loop, daemon=True, name='telegram-bot').start()
     threading.Thread(target=_periodic_backup_loop, daemon=True, name='periodic-backup').start()
+    threading.Thread(target=_appointment_reminder_loop, daemon=True, name='client-reminders').start()
 
 def check_finance_reminders(user):
     if user['role'] != 'director' and not has_perm('finance'):
@@ -3447,6 +3640,7 @@ def booking():
         set_appointment_services(con, aid, service_ids)
         con.commit()
         defer_notify_new_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
+        defer_client_appointment_notify(aid, 'confirm')
         con.close()
         return render_template('booking_success.html', services=bundle['rows'], service_name=bundle['name'], emp=emp, d=d, start=start, end=end)
     services = con.execute(
@@ -3456,6 +3650,32 @@ def booking():
     service_groups = group_services_by_category(services, categories)
     con.close()
     return render_template('booking.html', services=services, service_groups=service_groups, default_date=today())
+
+@app.route('/visit/<token>', methods=['GET', 'POST'])
+def visit_confirm(token):
+    con = db()
+    ap = con.execute("SELECT * FROM appointments WHERE confirmation_token=?", (token,)).fetchone()
+    if not ap:
+        con.close()
+        return render_template('visit_confirm.html', found=False), 404
+    if request.method == 'POST' and ap['status'] == 'Записан':
+        con.execute("UPDATE appointments SET client_confirmed_at=? WHERE id=?", (now(), ap['id']))
+        con.commit()
+        con.close()
+        return redirect(url_for('visit_confirm', token=token))
+    emp = None
+    if ap['employee_id']:
+        emp = con.execute("SELECT full_name FROM users WHERE id=?", (ap['employee_id'],)).fetchone()
+    con.close()
+    return render_template(
+        'visit_confirm.html',
+        found=True,
+        ap=ap,
+        emp=emp,
+        date_label=format_date_calendar_ru(ap['appointment_date']),
+        confirmed=bool(ap['client_confirmed_at']),
+        cancelled=ap['status'] == 'Отменен',
+    )
 
 @app.route('/api/masters')
 def api_masters():
@@ -3551,6 +3771,7 @@ def calendar_view():
                 set_appointment_services(con, aid, service_ids)
                 con.commit()
                 defer_notify_new_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
+                defer_client_appointment_notify(aid, 'confirm')
                 flash('Запись добавлена вручную')
                 con.close()
                 return redirect(url_for('calendar_view', date=d, view=request.args.get('view', 'day')))
@@ -4578,10 +4799,12 @@ def reschedule_appointment(aid):
         "UPDATE appointments SET appointment_date=?, start_time=?, end_time=?, duration_min=?, comment=? WHERE id=?",
         (d, start, end, duration, comment, aid),
     )
+    clear_appointment_client_notifications(con, aid)
     con.commit()
     employee_ids = get_appointment_employee_ids(con, aid, ap['employee_id'])
     con.close()
     defer_notify_new_appointment(employee_ids, d, start, ap['client_name'], ap['service_name'], ap['car'] or ap['plate_number'], source='Перенос')
+    defer_client_appointment_notify(aid, 'confirm')
     flash('Запись перенесена'); return redirect(url_for('calendar_view', date=d))
 
 @app.route('/certificates', methods=['GET','POST'])
@@ -5657,6 +5880,22 @@ def settings():
         elif action == 'telegram_test':
             ok, err = send_telegram_message('<b>Тест</b>\nУведомления BlackSquare CRM работают.', force=True)
             flash('Тестовое сообщение отправлено в чат' if ok else f'Telegram: {err}')
+        elif action == 'client_sms_save':
+            set_setting('client_sms_enabled', '1' if request.form.get('client_sms_enabled') else '0')
+            api_id = request.form.get('client_sms_api_id', '').strip()
+            if api_id:
+                set_setting('client_sms_api_id', api_id)
+            set_setting('client_sms_confirm', '1' if request.form.get('client_sms_confirm') else '0')
+            set_setting('client_sms_remind_24h', '1' if request.form.get('client_sms_remind_24h') else '0')
+            set_setting('client_sms_remind_1h', '1' if request.form.get('client_sms_remind_1h') else '0')
+            set_setting('client_sms_brand', request.form.get('client_sms_brand', 'Black Square').strip() or 'Black Square')
+            set_setting('client_sms_address', request.form.get('client_sms_address', '').strip())
+            flash('Настройки SMS клиентам сохранены')
+        elif action == 'client_sms_test':
+            phone = request.form.get('client_sms_test_phone', '').strip()
+            brand = get_setting('client_sms_brand', 'Black Square')
+            ok, err = send_client_sms(phone, f'{brand}: тестовое SMS. Уведомления о записи работают.', force=True)
+            flash('Тестовое SMS отправлено' if ok else f'SMS: {err}')
         elif action == 'telegram_discover':
             telegram_autoconfigure()
             chats = telegram_discover_chats()
@@ -5695,6 +5934,13 @@ def settings():
     legal_seller_inn = get_setting('legal_seller_inn', '')
     legal_seller_kpp = get_setting('legal_seller_kpp', '')
     legal_seller_address = get_setting('legal_seller_address', '')
+    client_sms_on = get_setting('client_sms_enabled', '0') == '1'
+    client_sms_api = get_setting('client_sms_api_id', '')
+    client_sms_confirm = get_setting('client_sms_confirm', '1') == '1'
+    client_sms_remind_24h = get_setting('client_sms_remind_24h', '1') == '1'
+    client_sms_remind_1h = get_setting('client_sms_remind_1h', '1') == '1'
+    client_sms_brand = get_setting('client_sms_brand', 'Black Square')
+    client_sms_address = get_setting('client_sms_address', '')
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
@@ -5722,6 +5968,13 @@ def settings():
         legal_seller_inn=legal_seller_inn,
         legal_seller_kpp=legal_seller_kpp,
         legal_seller_address=legal_seller_address,
+        client_sms_on=client_sms_on,
+        client_sms_api=client_sms_api,
+        client_sms_confirm=client_sms_confirm,
+        client_sms_remind_24h=client_sms_remind_24h,
+        client_sms_remind_1h=client_sms_remind_1h,
+        client_sms_brand=client_sms_brand,
+        client_sms_address=client_sms_address,
         friend_discount_percent=friend_discount_percent,
         friend_cards=friend_cards,
         clients=clients,
@@ -5894,6 +6147,14 @@ def push_unsubscribe():
         con.close()
     return jsonify({'ok': True})
 
+
+@app.route('/api/cron/appointment-reminders')
+def cron_appointment_reminders():
+    token = request.args.get('token') or request.headers.get('X-Cron-Token', '')
+    if token != os.environ.get('CRON_SECRET', 'blacksquare-cron'):
+        return jsonify({'ok': False, 'error': 'forbidden'}), 403
+    maybe_run_appointment_reminders()
+    return jsonify({'ok': True})
 
 @app.route('/api/cron/daily-report')
 def cron_daily_report():

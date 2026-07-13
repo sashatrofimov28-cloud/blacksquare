@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="public-wrap">
+  <div class="public-card">
+    <div class="wordmark center">BlackSquare</div>
+    {% if not found %}
+    <h1>Запись не найдена</h1>
+    <p>Ссылка устарела или запись удалена.</p>
+    {% elif cancelled %}
+    <h1>Запись отменена</h1>
+    <p>Эта запись была отменена. Для новой записи: <a href="{{ url_for('booking') }}">онлайн-запись</a>.</p>
+    {% else %}
+    <h1>Ваша запись</h1>
+    <p><b>{{ ap.client_name }}</b></p>
+    <p>{{ ap.service_name }}</p>
+    {% if emp %}<p>Мастер: {{ emp.full_name }}</p>{% endif %}
+    <p><b>{{ date_label }}</b> · {{ ap.start_time[:5] }}{% if ap.end_time %}–{{ ap.end_time[:5] }}{% endif %}</p>
+    {% if ap.car or ap.plate_number %}
+    <p style="color:#888;font-size:14px">{{ ap.car }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</p>
+    {% endif %}
+    {% if confirmed %}
+    <p style="color:#2ecc71;font-weight:700;margin-top:16px">✓ Вы подтвердили визит</p>
+    {% elif ap.status == 'Закрыт' %}
+    <p style="margin-top:16px">Визит уже завершён.</p>
+    {% else %}
+    <form method="post" style="margin-top:20px">
+      <button type="submit" class="close-submit" style="width:100%">Подтверждаю запись ✓</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
