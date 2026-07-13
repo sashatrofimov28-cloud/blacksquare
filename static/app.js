@@ -91,6 +91,57 @@
     setTimeout(function () { el.remove(); }, 10000);
   }
 
+  var lastIncomingCallId = null;
+
+  function showIncomingCallBanner(data) {
+    if (!data || !data.active) return;
+    var existing = document.getElementById('incomingCallBanner');
+    if (existing && String(data.id) === String(lastIncomingCallId)) return;
+    lastIncomingCallId = data.id;
+    if (existing) existing.remove();
+    var el = document.createElement('div');
+    el.id = 'incomingCallBanner';
+    el.className = 'incoming-call-banner';
+    var title = data.known ? (data.client_name || 'Клиент в CRM') : 'Новый номер';
+    var sub = data.phone || '';
+    var actions = '<a class="incoming-call-btn primary" href="' + (data.book_url || '/calendar?book=1') + '">Записать</a>';
+    if (data.card_url) {
+      actions += '<a class="incoming-call-btn" href="' + data.card_url + '">Карточка</a>';
+    }
+    actions += '<button type="button" class="incoming-call-btn ghost" data-dismiss-call>Закрыть</button>';
+    el.innerHTML =
+      '<div class="incoming-call-pulse" aria-hidden="true"></div>' +
+      '<div class="incoming-call-body">' +
+        '<div class="incoming-call-label">Входящий звонок</div>' +
+        '<div class="incoming-call-name">' + title + '</div>' +
+        '<div class="incoming-call-phone">' + sub + '</div>' +
+        '<div class="incoming-call-actions">' + actions + '</div>' +
+      '</div>';
+    document.body.appendChild(el);
+    el.querySelector('[data-dismiss-call]').addEventListener('click', function () {
+      fetch('/api/incoming-call/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: data.id }),
+      }).catch(function () {});
+      el.remove();
+    });
+    if (data.known && data.book_url) {
+      showLocalNotification('Входящий звонок', (data.client_name || 'Клиент') + ' · ' + sub, data.book_url);
+    } else if (sub) {
+      showLocalNotification('Входящий звонок', sub, data.book_url || '/calendar?book=1');
+    }
+  }
+
+  function pollIncomingCall() {
+    fetch('/api/incoming-call', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.active) showIncomingCallBanner(data);
+      })
+      .catch(function () {});
+  }
+
   function showLocalNotification(title, body, url) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     try {
@@ -561,6 +612,8 @@
       refreshPushStatus();
       initMasterPicker();
       initServicePicker();
+      pollIncomingCall();
+      setInterval(pollIncomingCall, 2500);
       const tabs = document.getElementById('mobileTabs');
       if (tabs) {
         const active = tabs.querySelector('a.active');

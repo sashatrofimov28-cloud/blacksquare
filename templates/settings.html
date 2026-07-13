@@ -85,6 +85,23 @@
 </div>
 
 <div class="panel profile-card">
+  <h2>Novofon — входящие звонки</h2>
+  <p style="color:#666;font-size:14px">При звонке на телефонию CRM покажет баннер «Записать» с автоподстановкой клиента, если номер уже есть в базе.</p>
+  <p class="hint" style="margin-top:8px"><b>URL webhook в Novofon:</b><br><code>{{ novofon_webhook_url }}</code></p>
+  <form method="post" class="form-grid" style="margin-top:12px">
+    <input type="hidden" name="action" value="novofon_save">
+    <label class="check span4"><input type="checkbox" name="novofon_enabled" {% if novofon_on %}checked{% endif %}> Принимать звонки из Novofon</label>
+    <button>Сохранить</button>
+  </form>
+  <form method="post" class="form-grid" style="margin-top:16px">
+    <input type="hidden" name="action" value="novofon_test">
+    <input name="novofon_test_phone" placeholder="Телефон для теста +7..." required>
+    <button class="ghost">Симулировать входящий звонок</button>
+  </form>
+  <p class="hint" style="margin-top:12px">В Novofon: Интеграции → HTTP-уведомление, метод POST, тело JSON как вы сохранили. Включите уведомление после деплоя.</p>
+</div>
+
+<div class="panel profile-card">
   <h2>SMS клиентам</h2>
   <p style="color:#666;font-size:14px">Подтверждение записи и напоминания за 24 часа и за 1 час до визита. Работает через <a href="https://sms.ru" target="_blank" rel="noopener">sms.ru</a>.</p>
   <ol style="color:#666;font-size:14px;margin:12px 0;padding-left:20px">

@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v40'
+BUILD_VERSION = 'client-v41'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -1338,6 +1338,14 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_remind_1h','1')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_brand','Black Square')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('client_sms_address','Тюмень, ул. Энергетиков, 53')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('novofon_enabled','1')")
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS incoming_calls("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, call_session_id TEXT, phone TEXT, client_id INTEGER, "
+        "client_name TEXT, car TEXT, plate_number TEXT, direction TEXT, notification_name TEXT, "
+        "book_url TEXT, card_url TEXT, created_at TEXT, dismissed_at TEXT)"
+    )
+    c.execute("CREATE INDEX IF NOT EXISTS idx_incoming_calls_created ON incoming_calls(created_at)")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
         c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
@@ -1818,6 +1826,149 @@ def client_lookup_payload(con, client):
         'plate_number': plate,
         'stage': client['stage'] or '',
     }
+
+def novofon_enabled():
+    return get_setting('novofon_enabled', '1') == '1'
+
+def parse_novofon_payload(data):
+    if not isinstance(data, dict):
+        return None
+    contact = data.get('contact_info') or {}
+    call = data.get('call_info') or {}
+    phone = (
+        contact.get('contact_phone_number')
+        or contact.get('communication_number')
+        or data.get('contact_phone_number')
+        or data.get('phone')
+        or data.get('PHONE_FROM')
+        or ''
+    )
+    session_id = (
+        call.get('call_session_id')
+        or data.get('call_session_id')
+        or data.get('SESSION_ID')
+        or data.get('external_id')
+        or ''
+    )
+    return {
+        'phone': str(phone or '').strip(),
+        'direction': str(call.get('direction') or data.get('direction') or data.get('DIRECTION') or '').strip(),
+        'session_id': str(session_id or '').strip(),
+        'notification_name': str(data.get('notification_name') or '').strip(),
+    }
+
+def is_incoming_novofon_call(info):
+    direction = (info.get('direction') or '').lower()
+    name = (info.get('notification_name') or '').lower()
+    if direction in ('out', 'outgoing', 'исходящий', 'outbound'):
+        return False
+    if direction in ('in', 'incoming', 'входящий', 'inbound'):
+        return True
+    if 'исход' in name or 'outgoing' in name:
+        return False
+    if 'вход' in name or 'incoming' in name or 'ожидан' in name:
+        return True
+    return True
+
+def incoming_call_book_url(con, phone, client=None):
+    params = {'date': today(), 'book': '1', 'phone': phone}
+    if client:
+        payload = client_lookup_payload(con, client)
+        if payload.get('name'):
+            params['client_name'] = payload['name']
+        if payload.get('car'):
+            params['car'] = payload['car']
+        if payload.get('plate_number'):
+            params['plate_number'] = payload['plate_number']
+    return url_for('calendar_view', **params)
+
+def get_incoming_call_notify_user_ids(con):
+    ids = []
+    seen = set()
+    for d in get_directors(con):
+        if d['id'] not in seen:
+            ids.append(d['id'])
+            seen.add(d['id'])
+    rows = con.execute(
+        "SELECT DISTINCT u.id FROM users u "
+        "JOIN user_permissions p ON p.user_id=u.id "
+        "WHERE u.active=1 AND p.permission IN ('calendar','crm') AND p.allowed=1"
+    ).fetchall()
+    for row in rows:
+        if row['id'] not in seen:
+            ids.append(row['id'])
+            seen.add(row['id'])
+    return ids
+
+def recent_incoming_call_duplicate(con, session_id):
+    if not session_id:
+        return False
+    cutoff = (datetime.now() - timedelta(seconds=45)).strftime('%Y-%m-%d %H:%M:%S')
+    row = con.execute(
+        "SELECT id FROM incoming_calls WHERE call_session_id=? AND created_at >= ?",
+        (session_id, cutoff),
+    ).fetchone()
+    return bool(row)
+
+def store_incoming_call(con, info, client, book_url, card_url):
+    payload = client_lookup_payload(con, client) if client else {}
+    con.execute(
+        "INSERT INTO incoming_calls("
+        "call_session_id,phone,client_id,client_name,car,plate_number,"
+        "direction,notification_name,book_url,card_url,created_at"
+        ") VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            info.get('session_id') or '',
+            normalize_phone(info.get('phone')),
+            client['id'] if client else None,
+            payload.get('name') or (client['name'] if client else ''),
+            payload.get('car', ''),
+            payload.get('plate_number', ''),
+            info.get('direction', ''),
+            info.get('notification_name', ''),
+            book_url,
+            card_url or '',
+            now(),
+        ),
+    )
+    cutoff = (datetime.now() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+    con.execute("DELETE FROM incoming_calls WHERE created_at < ?", (cutoff,))
+    con.commit()
+    return con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+
+def handle_novofon_incoming_call(data):
+    if not novofon_enabled():
+        return {'ok': False, 'error': 'disabled'}
+    info = parse_novofon_payload(data)
+    if not info or not normalize_phone(info.get('phone')):
+        return {'ok': False, 'error': 'no_phone'}
+    if not is_incoming_novofon_call(info):
+        return {'ok': True, 'skipped': 'outgoing'}
+    con = db()
+    if recent_incoming_call_duplicate(con, info.get('session_id')):
+        con.close()
+        return {'ok': True, 'skipped': 'duplicate'}
+    client = find_client_by_phone(con, info['phone'])
+    book_url = incoming_call_book_url(con, info['phone'], client)
+    card_url = url_for('client_card', cid=client['id']) if client else ''
+    call_id = store_incoming_call(con, info, client, book_url, card_url)
+    phone_disp = format_phone_ru(info['phone'])
+    if client and client['name']:
+        title = 'Входящий звонок'
+        body = f"{client['name']} · {phone_disp}"
+    else:
+        title = 'Входящий звонок'
+        body = f'{phone_disp} — новый клиент'
+    for uid in get_incoming_call_notify_user_ids(con):
+        send_push_to_user(uid, title, body, book_url)
+    if get_setting('telegram_enabled', '0') == '1':
+        base = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
+        tg = f'📞 <b>{title}</b>\n{body}'
+        if client and base:
+            tg += f'\n<a href="{base}{card_url}">Карточка</a> · <a href="{base}{book_url}">Записать</a>'
+        send_telegram_message(tg)
+    con.close()
+    return {'ok': True, 'id': call_id, 'client_id': client['id'] if client else None}
 
 def phone_allowed_for_appointment(user_id, appointment_id):
     u = current_user()
@@ -5896,6 +6047,22 @@ def settings():
             brand = get_setting('client_sms_brand', 'Black Square')
             ok, err = send_client_sms(phone, f'{brand}: тестовое SMS. Уведомления о записи работают.', force=True)
             flash('Тестовое SMS отправлено' if ok else f'SMS: {err}')
+        elif action == 'novofon_save':
+            set_setting('novofon_enabled', '1' if request.form.get('novofon_enabled') else '0')
+            flash('Настройки Novofon сохранены')
+        elif action == 'novofon_test':
+            phone = request.form.get('novofon_test_phone', '').strip()
+            result = handle_novofon_incoming_call({
+                'contact_info': {'contact_phone_number': phone},
+                'call_info': {'direction': 'in', 'call_session_id': f'test-{int(time.time())}'},
+                'notification_name': 'test_incoming',
+            })
+            if result.get('ok') and not result.get('skipped'):
+                flash('Тестовый звонок отправлен — проверьте баннер в CRM и push-уведомление')
+            elif result.get('skipped'):
+                flash(f"Тест пропущен: {result.get('skipped')}")
+            else:
+                flash(f"Ошибка теста: {result.get('error', 'неизвестно')}")
         elif action == 'telegram_discover':
             telegram_autoconfigure()
             chats = telegram_discover_chats()
@@ -5941,6 +6108,8 @@ def settings():
     client_sms_remind_1h = get_setting('client_sms_remind_1h', '1') == '1'
     client_sms_brand = get_setting('client_sms_brand', 'Black Square')
     client_sms_address = get_setting('client_sms_address', '')
+    novofon_on = get_setting('novofon_enabled', '1') == '1'
+    novofon_webhook_url = (public_base_url() or 'https://blacksquare72.ru') + '/api/novofon/webhook'
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
@@ -5975,6 +6144,8 @@ def settings():
         client_sms_remind_1h=client_sms_remind_1h,
         client_sms_brand=client_sms_brand,
         client_sms_address=client_sms_address,
+        novofon_on=novofon_on,
+        novofon_webhook_url=novofon_webhook_url,
         friend_discount_percent=friend_discount_percent,
         friend_cards=friend_cards,
         clients=clients,
@@ -6168,6 +6339,66 @@ def cron_daily_report():
         set_setting('last_daily_report_date', report_date)
     con.close()
     return jsonify({'ok': True, 'date': report_date, 'created': created})
+
+
+@app.route('/api/novofon/webhook', methods=['POST', 'GET'])
+def novofon_webhook():
+    data = request.get_json(silent=True)
+    if not data and request.method == 'GET':
+        data = dict(request.args)
+    elif not data:
+        raw = request.get_data(as_text=True)
+        if raw:
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = {}
+        else:
+            data = {}
+    result = handle_novofon_incoming_call(data)
+    status = 200 if result.get('ok') else 400
+    return jsonify(result), status
+
+
+@app.route('/api/incoming-call')
+@login_required
+def api_incoming_call():
+    if not has_perm('calendar') and not has_perm('crm'):
+        return jsonify({'active': False})
+    con = db()
+    cutoff = (datetime.now() - timedelta(minutes=3)).strftime('%Y-%m-%d %H:%M:%S')
+    row = con.execute(
+        "SELECT * FROM incoming_calls WHERE dismissed_at IS NULL AND created_at >= ? ORDER BY id DESC LIMIT 1",
+        (cutoff,),
+    ).fetchone()
+    con.close()
+    if not row:
+        return jsonify({'active': False})
+    return jsonify({
+        'active': True,
+        'id': row['id'],
+        'phone': format_phone_ru(row['phone']),
+        'client_name': row['client_name'] or '',
+        'client_id': row['client_id'],
+        'known': bool(row['client_id']),
+        'book_url': row['book_url'],
+        'card_url': row['card_url'] or None,
+    })
+
+
+@app.route('/api/incoming-call/dismiss', methods=['POST'])
+@login_required
+def api_incoming_call_dismiss():
+    data = request.get_json(silent=True) or {}
+    call_id = data.get('id')
+    con = db()
+    if call_id:
+        con.execute("UPDATE incoming_calls SET dismissed_at=? WHERE id=?", (now(), call_id))
+    else:
+        con.execute("UPDATE incoming_calls SET dismissed_at=? WHERE dismissed_at IS NULL", (now(),))
+    con.commit()
+    con.close()
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
