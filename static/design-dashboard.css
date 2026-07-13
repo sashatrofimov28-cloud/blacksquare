@@ -114,9 +114,9 @@
 }
 .dz-pill-stat small{display:block;font-size:9px;color:var(--z-muted);font-weight:600}
 .dz-pill-stat b{display:block;margin-top:4px;font-size:12px;font-weight:800}
-.dz-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.dz-actions{display:flex;gap:8px;margin-bottom:14px}
 .dz-act{
-  display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;
   border-radius:14px;background:var(--z-card);border:1px solid var(--z-border);
   font-size:10px;font-weight:700;color:var(--z-text);text-decoration:none;
   box-shadow:0 1px 2px rgba(0,0,0,.04);
@@ -163,6 +163,32 @@
   color:var(--z-text);font-size:11px;font-weight:700;cursor:pointer;min-height:auto;font-family:inherit;
 }
 .dz-btn-sm.danger{background:#fff5f5;color:#ff3b30;border-color:#ffc9c9}
+
+/* Ops dashboard — hero + day status, no emoji KPI tiles */
+.dz-ops .dz-hero{margin-bottom:10px}
+.dz-ops .dz-pills{margin-bottom:10px}
+.dz-ops .dz-actions{margin-bottom:12px}
+.dz-ops .dz-act-ic svg{display:block}
+.dz-status{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;
+}
+.dz-status-item{
+  padding:12px 8px;border-radius:14px;background:var(--z-card);
+  border:1px solid var(--z-border);text-align:center;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.dz-status-item b{
+  display:block;font-size:22px;font-weight:850;letter-spacing:-.6px;line-height:1;
+}
+.dz-status-item small{
+  display:block;margin-top:5px;font-size:10px;font-weight:700;color:var(--z-muted);
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.dz-status-item.is-work b{color:#007aff}
+.dz-status-item.is-wait b{color:#ff9500}
+.dz-status-item.is-done b{color:var(--z-green)}
+.dz-link-muted{color:var(--z-muted);font-weight:700;font-size:12px;pointer-events:none}
+.dz-ops .dz-actions:empty{display:none}
 @media(min-width:1025px){
   .dz-live{max-width:none;padding-left:24px;padding-right:24px}
 }

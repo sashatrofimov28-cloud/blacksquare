@@ -5,42 +5,81 @@
 {% block main_class %} main-z-light{% endblock %}
 {% block nav_class %} bottom-nav-z{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=50">
+<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=52">
 {% endblock %}
 {% block content %}
-<div class="dz dz-live">
+{% set closed_n = stats.appointments or 0 %}
+{% set avg_check = (stats.revenue / closed_n) if closed_n else 0 %}
+<div class="dz dz-live dz-ops">
   <header class="dz-head">
     <div>
       <h2>Главная</h2>
       <p>{{ format_date_dashboard_ru() }}</p>
     </div>
     <a href="{{ url_for('profile') }}" class="dz-bell" aria-label="Профиль">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
     </a>
   </header>
 
-  <div class="dz-stats">
-    <div class="dz-stat">
-      <div class="dz-stat-ic g">₽</div>
-      <small>Касса</small>
-      <strong>{{ format_money(stats.revenue) }}</strong>
+  <div class="dz-hero">
+    <small>{{ stats.period_label }} · касса</small>
+    <strong>{{ format_money(stats.revenue) }} ₽</strong>
+    <span>
+      {% if closed_n %}{{ closed_n }} закрыто{% else %}Нет закрытых{% endif %}
+      · прибыль {{ format_money(stats.profit) }} ₽
+      {% if trends and trends.revenue is defined and trends.revenue is not none %}
+        · {% if trends.revenue > 0 %}+{% endif %}{{ trends.revenue }}%
+      {% endif %}
+    </span>
+  </div>
+
+  <div class="dz-status" aria-label="Статус дня">
+    <div class="dz-status-item is-work">
+      <b>{{ day_status.in_work }}</b>
+      <small>В работе</small>
     </div>
-    <div class="dz-stat">
-      <div class="dz-stat-ic b">↗</div>
-      <small>Прибыль</small>
-      <strong>{{ format_money(stats.profit) }}</strong>
+    <div class="dz-status-item is-wait">
+      <b>{{ day_status.waiting }}</b>
+      <small>Ждут</small>
     </div>
-    <div class="dz-stat">
-      <div class="dz-stat-ic o">👤</div>
-      <small>ЗП</small>
-      <strong>{{ format_money(stats.salary) }}</strong>
-    </div>
-    <div class="dz-stat">
-      <div class="dz-stat-ic p">▦</div>
-      <small>м²</small>
-      <strong>{{ format_money(stats.material_m2, 1) }}</strong>
+    <div class="dz-status-item is-done">
+      <b>{{ day_status.closed }}</b>
+      <small>Закрыто</small>
     </div>
   </div>
+
+  <div class="dz-pills">
+    <div class="dz-pill-stat"><small>ЗП</small><b>{{ format_money(stats.salary) }}</b></div>
+    <div class="dz-pill-stat"><small>м²</small><b>{{ format_money(stats.material_m2, 1) }}</b></div>
+    <div class="dz-pill-stat"><small>Ср. чек</small><b>{{ format_money(avg_check) }}</b></div>
+  </div>
+
+  {% if has_perm('calendar') or has_perm('crm') %}
+  <div class="dz-actions">
+    {% if has_perm('calendar') %}
+    <a class="dz-act" href="{{ url_for('calendar_view') }}">
+      <span class="dz-act-ic" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+      </span>
+      Календарь
+    </a>
+    <a class="dz-act" href="{{ url_for('calendar_view') }}#calBookingFold">
+      <span class="dz-act-ic" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      Запись
+    </a>
+    {% endif %}
+    {% if has_perm('crm') %}
+    <a class="dz-act" href="{{ url_for('crm') }}">
+      <span class="dz-act-ic" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="3.5"/><path d="M22 21v-2a3.5 3.5 0 00-2.5-3.3M16.5 3.7a3.5 3.5 0 010 6.6"/></svg>
+      </span>
+      Клиенты
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <nav class="dz-seg dz-seg-nav scrollable-x" aria-label="Период">
     <a href="{{ url_for('dashboard', period='today') }}" class="{% if period == 'today' %}on{% endif %}">Сегодня</a>
@@ -65,6 +104,29 @@
   </div>
   {% endif %}
 
+  {% if in_work_list %}
+  <div class="dz-cap">Сейчас в работе</div>
+  <div class="dz-list">
+    {% for r in in_work_list %}
+    {% set meta = appt_status_meta(r.status) %}
+    <a class="dz-row" href="{% if has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% else %}#{% endif %}">
+      <div class="dz-time">
+        <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
+        <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
+      </div>
+      <div class="dz-body">
+        <b>{{ r.client_name }}</b>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+      </div>
+      <div class="dz-side">
+        <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
+        <strong>{{ format_money(r.price or 0) }} ₽</strong>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <div class="dz-sec-head">
     <div class="dz-cap">Ближайшие записи</div>
     {% if has_perm('calendar') %}<a class="dz-link" href="{{ url_for('calendar_view') }}">Все ›</a>{% endif %}
@@ -79,7 +141,7 @@
       </div>
       <div class="dz-body">
         <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
       </div>
       <div class="dz-side">
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
@@ -91,7 +153,12 @@
     {% endfor %}
   </div>
 
-  <div class="dz-cap">Закрыто сегодня</div>
+  <div class="dz-sec-head">
+    <div class="dz-cap">Закрыто сегодня</div>
+    {% if closed_today %}
+    <span class="dz-link dz-link-muted">{{ format_money(closed_today_sum) }} ₽</span>
+    {% endif %}
+  </div>
   <div class="dz-list">
     {% for r in closed_today %}
     {% set meta = appt_status_meta(r.status) %}
@@ -102,7 +169,7 @@
       </div>
       <div class="dz-body">
         <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
       </div>
       <div class="dz-side">
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>

@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v51'
+BUILD_VERSION = 'client-v52'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -3759,8 +3759,36 @@ def dashboard():
         f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
         (day, day),
     ).fetchall()
+    day_row = con.execute(
+        "SELECT "
+        "COALESCE(SUM(CASE WHEN status IN ('В работе','Начат') THEN 1 ELSE 0 END),0) AS in_work, "
+        "COALESCE(SUM(CASE WHEN status NOT IN ('Закрыт','Отменен','В работе','Начат') THEN 1 ELSE 0 END),0) AS waiting, "
+        "COALESCE(SUM(CASE WHEN status='Закрыт' THEN 1 ELSE 0 END),0) AS closed "
+        "FROM appointments WHERE appointment_date=?",
+        (day,),
+    ).fetchone()
+    day_status = {
+        'in_work': int(day_row['in_work'] or 0),
+        'waiting': int(day_row['waiting'] or 0),
+        'closed': int(day_row['closed'] or 0),
+    }
+    closed_today_sum = sum(float(r['price'] or 0) for r in closed_today)
+    in_work_list = [r for r in upcoming if (r['status'] or '') in ('В работе', 'Начат')]
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
-    con.close(); return render_template('dashboard.html', stats=stats, stats_updated=stats_updated, trends=trends, rows=rows, upcoming=upcoming, closed_today=closed_today, requests=requests, period=period)
+    con.close(); return render_template(
+        'dashboard.html',
+        stats=stats,
+        stats_updated=stats_updated,
+        trends=trends,
+        rows=rows,
+        upcoming=upcoming,
+        closed_today=closed_today,
+        closed_today_sum=closed_today_sum,
+        day_status=day_status,
+        in_work_list=in_work_list,
+        requests=requests,
+        period=period,
+    )
 
 @app.route('/booking', methods=['GET','POST'])
 def booking():
