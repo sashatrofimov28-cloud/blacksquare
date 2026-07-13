@@ -1,85 +1,152 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="close-page close-page-y">
-  <header class="close-header close-y-header">
-    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
+<div class="close-page close-page-z">
+  <header class="close-header close-z-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back close-z-icon-btn" aria-label="Назад">‹</a>
     <div class="close-header-main">
       <h1>Закрыть визит</h1>
       <p>{{ appt_date_label }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
     </div>
     {% if ap.status not in ['Закрыт','Отменен'] %}
-    <button type="button" class="close-menu-btn" id="closeMenuOpen" aria-label="Действия">⋯</button>
+    <button type="button" class="close-menu-btn close-z-icon-btn" id="closeMenuOpen" aria-label="Действия">⋯</button>
     {% endif %}
   </header>
 
-  <form method="post" id="closeForm" class="close-form close-y-form">
-    <div class="close-y-total">
-      <span>К оплате</span>
-      <label class="close-y-total-price">
-        <input name="price" type="number" step="0.01" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
-        <i>₽</i>
-      </label>
-      <em id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</em>
+  <form method="post" id="closeForm" class="close-form close-z-form">
+    <div class="close-z-client">
+      <div class="close-z-av">{{ client_initials(ap.client_name) }}</div>
+      <div class="close-z-client-body">
+        <b>{{ ap.client_name }}</b>
+        <span>{{ ap.service_name }}{% if ap.car %} · {{ ap.car }}{% endif %}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+      </div>
     </div>
 
-    <div class="close-y-group">
-      <div class="close-y-cap">Клиент</div>
-      <div class="close-y-row close-y-client">
-        <div class="close-y-av">{{ client_initials(ap.client_name) }}</div>
-        <div>
-          <b>{{ ap.client_name }}</b>
-          <span>{{ ap.service_name }}{% if ap.car or ap.plate_number %} · {{ ap.car or ap.plate_number }}{% endif %}</span>
+    <div class="close-z-group">
+      <div class="close-z-cap">Услуги</div>
+      <div class="close-z-list">
+        <label class="close-z-row close-z-row-price">
+          <span class="close-z-row-label">{{ ap.service_name }}</span>
+          <span class="close-z-row-input-wrap">
+            <input name="price" type="number" step="0.01" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
+            <i>₽</i>
+          </span>
+        </label>
+        {% for e in extras %}
+        <div class="close-z-row close-z-row-static">
+          <span>{{ e.name }}</span>
+          <strong>{{ format_money(e.price) }} ₽</strong>
         </div>
+        {% endfor %}
       </div>
     </div>
 
-    <div class="close-y-group">
-      <div class="close-y-cap">Визит</div>
-      <button type="button" class="close-y-row close-y-tap{% if master_error %} is-error{% endif %}" id="closeYMasterOpen">
-        <span>Мастер</span>
-        <span class="close-y-val" id="closeYMasterLabel">Выбрать</span>
-        <span class="close-y-chev">›</span>
-      </button>
+    <div class="close-z-group">
+      <div class="close-z-cap">Визит</div>
+      <div class="close-z-list">
+        <button type="button" class="close-z-row close-z-tap{% if master_error %} is-error{% endif %}" id="closeZMasterOpen">
+          <span>Мастер</span>
+          <span class="close-z-val" id="closeZMasterLabel">Выбрать</span>
+          <span class="close-z-chev">›</span>
+        </button>
+        <button type="button" class="close-z-row close-z-tap" id="closeZDetailsOpen">
+          <span>Материалы и допы</span>
+          <span class="close-z-muted" id="closeZMatHint">настроить</span>
+          <span class="close-z-chev">›</span>
+        </button>
+        <button type="button" class="close-z-row close-z-tap" id="closeZPayOpen">
+          <span>Оплата и скидки</span>
+          <span class="close-z-muted">бонусы · сертификат</span>
+          <span class="close-z-chev">›</span>
+        </button>
+      </div>
     </div>
 
-    <details class="close-y-fold" id="closeYMatFold">
-      <summary>Материалы <em id="closeYMatHint">добавить</em></summary>
-      <div class="close-y-fold-body">
-        <p class="close-hint">Плёнка: м × см = м² · расходники — шт.</p>
-        <div id="materialRows" class="material-rows close-material-rows"></div>
-        <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
-      </div>
-    </details>
+    <p class="close-z-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</p>
 
-    {% if has_perm('extra_services') %}
-    <details class="close-y-fold">
-      <summary>Доп. услуги{% if extras %} <em>{{ extras|length }}</em>{% endif %}</summary>
-      <div class="close-y-fold-body">
-        {% if extras %}
-        <ul class="close-lines">
-          {% for e in extras %}
-          <li>
-            <span>{{ e.name }}</span>
-            <strong>{{ format_money(e.price) }} ₽</strong>
-            <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
-              <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
-            </form>
-          </li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-        <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form close-inline-stack">
-          <input name="extra_name" placeholder="Что добавили">
-          <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
-          <button type="submit" class="close-mini-submit">Добавить</button>
-        </form>
+    {% if low_stock %}
+    <div class="close-z-warn">
+      <div class="close-z-cap">⚠ Низкий остаток</div>
+      <div class="close-stock-grid">
+        {% for s in low_stock %}
+        <div class="close-stock-item">
+          <span>{{ s.item.name }}</span>
+          <div class="close-stock-bar"><i style="width:{{ s.percent }}%"></i></div>
+          <small>Остаток: {{ format_money(s.balance, 1) }} {{ s.unit }}</small>
+        </div>
+        {% endfor %}
       </div>
-    </details>
+    </div>
     {% endif %}
 
-    <details class="close-y-fold">
-      <summary>Скидки и оплата</summary>
-      <div class="close-y-fold-body">
+    <div id="materialRows" class="close-z-hidden-materials" hidden aria-hidden="true"></div>
+
+    <dialog class="close-modal close-z-modal" id="masterModal">
+      <div class="close-modal-inner close-z-modal-inner">
+        <div class="close-modal-head">
+          <h3>Мастер и зарплата</h3>
+          <button type="button" class="close-modal-close" id="masterModalClose" aria-label="Закрыть">×</button>
+        </div>
+        {% set master_form_id = 'closeForm' %}
+        <div class="close-z-master-body">
+          {% include '_master_picker.html' %}
+          {% include '_salary_by_master.html' %}
+        </div>
+        <button type="button" class="close-submit close-z-btn" id="masterModalDone">Готово</button>
+      </div>
+    </dialog>
+
+    <dialog class="close-modal close-z-modal close-z-details-modal" id="detailsModal">
+      <div class="close-modal-inner close-z-modal-inner">
+        <div class="close-modal-head">
+          <h3>Детали визита</h3>
+          <button type="button" class="close-modal-close" id="detailsModalClose" aria-label="Закрыть">×</button>
+        </div>
+        <div class="close-z-sheet-section">
+          <div class="close-z-cap">Материалы</div>
+          <p class="close-hint">Плёнка: м × см = м² · расходники — шт.</p>
+          <div id="materialRowsVisible" class="material-rows close-material-rows"></div>
+          <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
+        </div>
+        {% if has_perm('extra_services') %}
+        <div class="close-z-sheet-section">
+          <div class="close-z-cap">Доп. услуги</div>
+          {% if extras %}
+          <ul class="close-lines">
+            {% for e in extras %}
+            <li>
+              <span>{{ e.name }}</span>
+              <strong>{{ format_money(e.price) }} ₽</strong>
+              <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
+                <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
+              </form>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form close-inline-stack">
+            <input name="extra_name" placeholder="Что добавили">
+            <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
+            <button type="submit" class="close-mini-submit">Добавить</button>
+          </form>
+        </div>
+        {% endif %}
+        <button type="button" class="close-submit close-z-btn" id="detailsModalDone">Готово</button>
+      </div>
+    </dialog>
+
+    <div class="close-z-pay-backdrop" id="closeZPayBackdrop" hidden></div>
+    <div class="close-z-pay-sheet" id="closeZPaySheet" aria-hidden="true">
+      <button type="button" class="close-z-pay-handle" id="closeZPayClose" aria-label="Свернуть"></button>
+      <div class="close-z-pay-total">
+        <span>К оплате</span>
+        <strong id="closeZPayTotal">{{ format_money(ap.price or 0) }} ₽</strong>
+      </div>
+      <div class="close-z-pay-methods">
+        <button type="button" class="close-z-pay-method" data-pay="cash">Наличные</button>
+        <button type="button" class="close-z-pay-method on" data-pay="card">Карта</button>
+      </div>
+      <input type="hidden" name="payment_note" id="paymentNote" value="Карта">
+      <div class="close-z-sheet-section">
         <label class="close-field-label">Сертификат</label>
         <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
         <div id="certBalance" class="close-hint">Введите номер — баланс появится здесь</div>
@@ -95,54 +162,23 @@
         <label class="close-field-label">Скидка для друзей</label>
         <input name="friend_discount_code" id="friendDiscountCode" placeholder="Код (4 цифры)" maxlength="4" inputmode="numeric">
         <div id="friendDiscountHint" class="close-hint">Код с карты друга · скидка {{ friend_discount_percent|int }}%</div>
-      </div>
-    </details>
-
-    <details class="close-y-fold">
-      <summary>Комментарий</summary>
-      <div class="close-y-fold-body">
+        <label class="close-field-label">Комментарий</label>
         <textarea name="comment" placeholder="Комментарий к визиту" rows="2">{{ ap.comment or '' }}</textarea>
       </div>
-    </details>
-
-    {% if low_stock %}
-    <div class="close-y-warn">
-      <div class="close-y-cap">⚠ Низкий остаток</div>
-      <div class="close-stock-grid">
-        {% for s in low_stock %}
-        <div class="close-stock-item">
-          <span>{{ s.item.name }}</span>
-          <div class="close-stock-bar"><i style="width:{{ s.percent }}%"></i></div>
-          <small>Остаток: {{ format_money(s.balance, 1) }} {{ s.unit }}</small>
-        </div>
-        {% endfor %}
-      </div>
     </div>
-    {% endif %}
-
-    <dialog class="close-modal close-y-master-modal" id="masterModal">
-      <div class="close-modal-inner">
-        <div class="close-modal-head">
-          <h3>Мастер и зарплата</h3>
-          <button type="button" class="close-modal-close" id="masterModalClose" aria-label="Закрыть">×</button>
-        </div>
-        {% set master_form_id = 'closeForm' %}
-        <div class="close-y-master-body">
-          {% include '_master_picker.html' %}
-          {% include '_salary_by_master.html' %}
-        </div>
-        <button type="button" class="close-submit" id="masterModalDone">Готово</button>
-      </div>
-    </dialog>
   </form>
 
-  <div class="close-footer-fixed close-y-footer">
-    <button type="submit" form="closeForm" class="close-submit">Закрыть и сохранить ✓</button>
+  <div class="close-footer-fixed close-z-footer">
+    <div class="close-z-footer-total">
+      <span>К оплате</span>
+      <strong id="closeZFooterTotal">{{ format_money(ap.price or 0) }} ₽</strong>
+    </div>
+    <button type="submit" form="closeForm" class="close-submit close-z-btn-main">Закрыть визит ✓</button>
   </div>
 
   {% if ap.status not in ['Закрыт','Отменен'] %}
-  <dialog class="close-modal" id="closeMenuModal">
-    <div class="close-modal-inner">
+  <dialog class="close-modal close-z-modal" id="closeMenuModal">
+    <div class="close-modal-inner close-z-modal-inner">
       <div class="close-modal-head">
         <h3>Действия с записью</h3>
         <button type="button" class="close-modal-close" id="closeMenuClose" aria-label="Закрыть">×</button>
@@ -159,8 +195,8 @@
     </div>
   </dialog>
 
-  <dialog class="close-modal" id="rescheduleModal">
-    <div class="close-modal-inner">
+  <dialog class="close-modal close-z-modal" id="rescheduleModal">
+    <div class="close-modal-inner close-z-modal-inner">
       <div class="close-modal-head">
         <h3>Перенос записи</h3>
         <button type="button" class="close-modal-close" id="rescheduleClose" aria-label="Закрыть">×</button>
@@ -170,7 +206,7 @@
         <input type="hidden" name="date" value="{{ ap.appointment_date }}">
         <label>Новая дата <input type="date" name="appointment_date" value="{{ ap.appointment_date }}" required></label>
         <label>Новое время <input type="time" name="start_time" value="{{ ap.start_time[:5] }}" required></label>
-        <button type="submit" class="close-submit">Сохранить перенос</button>
+        <button type="submit" class="close-submit close-z-btn">Сохранить перенос</button>
       </form>
     </div>
   </dialog>
@@ -185,6 +221,7 @@ const STOCK_DATA = {
   {% endfor %}
 };
 const IS_MASTER = {{ 'true' if is_master else 'false' }};
+const EXTRA_SUM = {% if extras %}{{ extras|map(attribute='price')|sum }}{% else %}0{% endif %};
 
 function buildMaterialRow() {
   const wrap = document.createElement('div');
@@ -203,11 +240,21 @@ function buildMaterialRow() {
     <button type="button" class="close-line-del remove-mat" aria-label="Удалить">×</button>
   `;
   const sel = wrap.querySelector('.mat-select');
-  sel.addEventListener('change', () => { toggleRowType(wrap); recalcCloseTotals(); });
-  wrap.querySelector('.remove-mat').addEventListener('click', () => { wrap.remove(); recalcCloseTotals(); });
+  sel.addEventListener('change', () => { toggleRowType(wrap); recalcCloseTotals(); syncMaterialRows(); });
+  wrap.querySelector('.remove-mat').addEventListener('click', () => { wrap.remove(); recalcCloseTotals(); syncMaterialRows(); });
   wrap.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcCloseTotals));
   toggleRowType(wrap);
   return wrap;
+}
+
+function syncMaterialRows() {
+  const hidden = document.getElementById('materialRows');
+  const visible = document.getElementById('materialRowsVisible');
+  if (!hidden || !visible) return;
+  hidden.innerHTML = '';
+  visible.querySelectorAll('.material-row').forEach(row => {
+    hidden.appendChild(row.cloneNode(true));
+  });
 }
 
 function toggleRowType(row) {
@@ -220,12 +267,16 @@ function toggleRowType(row) {
   if (q) q.style.display = isFilm ? 'none' : '';
 }
 
+function formatRub(n) {
+  return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+}
+
 function recalcCloseTotals() {
   const price = parseFloat(document.getElementById('closePriceInput')?.value || 0);
   let matCost = 0;
   let matCount = 0;
-  document.querySelectorAll('#materialRows .material-row').forEach(row => {
-    const id = row.querySelector('.mat-select').value;
+  document.querySelectorAll('#materialRowsVisible .material-row, #materialRows .material-row').forEach(row => {
+    const id = row.querySelector('.mat-select')?.value;
     const item = STOCK_DATA[id];
     if (!item) return;
     matCount += 1;
@@ -238,17 +289,21 @@ function recalcCloseTotals() {
       matCost += qty * (item.price || 0);
     }
   });
-  const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  const total = price + (EXTRA_SUM || 0);
   const sub = document.getElementById('closeHeroSub');
-  if (sub) sub.textContent = 'услуга ' + fmt(price) + ' · расходники ' + fmt(matCost);
-  const hint = document.getElementById('closeYMatHint');
-  if (hint) hint.textContent = matCount ? fmt(matCost) : 'добавить';
+  if (sub) sub.textContent = 'услуга ' + formatRub(price) + ' · расходники ' + formatRub(matCost);
+  const hint = document.getElementById('closeZMatHint');
+  if (hint) hint.textContent = matCount ? formatRub(matCost) : 'настроить';
+  const footer = document.getElementById('closeZFooterTotal');
+  const payTotal = document.getElementById('closeZPayTotal');
+  if (footer) footer.textContent = formatRub(total);
+  if (payTotal) payTotal.textContent = formatRub(total);
 }
 
-function syncCloseYMasterLabel() {
-  const label = document.getElementById('closeYMasterLabel');
+function syncCloseZMasterLabel() {
+  const label = document.getElementById('closeZMasterLabel');
   const chips = document.querySelectorAll('#masterChips .master-chip');
-  const btn = document.getElementById('closeYMasterOpen');
+  const btn = document.getElementById('closeZMasterOpen');
   if (!label) return;
   if (!chips.length) {
     label.textContent = 'Выбрать';
@@ -270,38 +325,69 @@ function wireCloseModal(modal, openBtn, closeBtn) {
   return { openModal, closeModal };
 }
 
-function initCloseYMaster() {
+function initCloseZPaySheet() {
+  const sheet = document.getElementById('closeZPaySheet');
+  const backdrop = document.getElementById('closeZPayBackdrop');
+  const openBtn = document.getElementById('closeZPayOpen');
+  const closeBtn = document.getElementById('closeZPayClose');
+  const footerTotal = document.querySelector('.close-z-footer-total');
+  function openSheet() {
+    if (!sheet) return;
+    sheet.classList.add('is-open');
+    sheet.setAttribute('aria-hidden', 'false');
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('close-z-sheet-open');
+  }
+  function closeSheet() {
+    if (!sheet) return;
+    sheet.classList.remove('is-open');
+    sheet.setAttribute('aria-hidden', 'true');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('close-z-sheet-open');
+  }
+  if (openBtn) openBtn.addEventListener('click', openSheet);
+  if (footerTotal) footerTotal.addEventListener('click', openSheet);
+  if (closeBtn) closeBtn.addEventListener('click', closeSheet);
+  if (backdrop) backdrop.addEventListener('click', closeSheet);
+  document.querySelectorAll('.close-z-pay-method').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.close-z-pay-method').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const note = document.getElementById('paymentNote');
+      if (note) note.value = btn.dataset.pay === 'cash' ? 'Наличные' : 'Карта';
+    });
+  });
+}
+
+function initCloseZMaster() {
   const masterModal = document.getElementById('masterModal');
-  const openBtn = document.getElementById('closeYMasterOpen');
+  const openBtn = document.getElementById('closeZMasterOpen');
   const done = document.getElementById('masterModalDone');
   const modalApi = wireCloseModal(masterModal, openBtn, document.getElementById('masterModalClose'));
-  if (done && modalApi) done.addEventListener('click', () => { syncCloseYMasterLabel(); modalApi.closeModal(); });
-  window.addEventListener('load', function () {
-    syncCloseYMasterLabel();
-    const chips = document.getElementById('masterChips');
-    if (chips) new MutationObserver(syncCloseYMasterLabel).observe(chips, { childList: true, subtree: true });
-  });
+  if (done && modalApi) done.addEventListener('click', () => { syncCloseZMasterLabel(); modalApi.closeModal(); });
   {% if master_error %}
   if (modalApi) modalApi.openModal();
   {% endif %}
 }
 
+const detailsModal = document.getElementById('detailsModal');
+const detailsApi = wireCloseModal(detailsModal, document.getElementById('closeZDetailsOpen'), document.getElementById('detailsModalClose'));
+document.getElementById('detailsModalDone')?.addEventListener('click', () => { syncMaterialRows(); detailsApi?.closeModal(); });
+
 document.getElementById('addMaterialBtn').addEventListener('click', () => {
-  document.getElementById('materialRows').appendChild(buildMaterialRow());
-  const fold = document.getElementById('closeYMatFold');
-  if (fold) fold.open = true;
+  document.getElementById('materialRowsVisible').appendChild(buildMaterialRow());
+  recalcCloseTotals();
 });
-document.getElementById('materialRows').appendChild(buildMaterialRow());
+document.getElementById('materialRowsVisible').appendChild(buildMaterialRow());
+syncMaterialRows();
 
 document.getElementById('closeForm').addEventListener('submit', function (e) {
+  syncMaterialRows();
   const hidden = document.getElementById('masterHiddenInputs');
   const hasMaster = hidden && hidden.querySelector('input[name="employee_ids"]');
   if (!hasMaster) {
     e.preventDefault();
-    const picker = document.getElementById('masterPicker');
-    if (picker) picker.classList.add('field-error');
-    const hint = picker?.querySelector('.master-required-hint');
-    if (hint) hint.hidden = false;
+    document.getElementById('masterPicker')?.classList.add('field-error');
     document.getElementById('masterModal')?.showModal();
     return;
   }
@@ -328,13 +414,10 @@ const menuModal = wireCloseModal(
 );
 const rescheduleModal = document.getElementById('rescheduleModal');
 wireCloseModal(rescheduleModal, null, document.getElementById('rescheduleClose'));
-const openReschedule = document.getElementById('openRescheduleModal');
-if (openReschedule && rescheduleModal) {
-  openReschedule.addEventListener('click', function () {
-    if (menuModal) menuModal.closeModal();
-    if (rescheduleModal.showModal) rescheduleModal.showModal();
-  });
-}
+document.getElementById('openRescheduleModal')?.addEventListener('click', function () {
+  menuModal?.closeModal();
+  rescheduleModal?.showModal();
+});
 
 const certInput = document.getElementById('certNumber');
 const certBalance = document.getElementById('certBalance');
@@ -369,7 +452,7 @@ if (friendInput && friendHint) {
     const price = parseFloat(priceInput?.value || 0);
     const off = price > 0 ? Math.round(price * d.percent / 100) : 0;
     friendHint.textContent = 'Карта №' + d.card_number + ' · ' + d.name + ' · −' + off + ' ₽';
-    friendHint.style.color = '#00d97e';
+    friendHint.style.color = '#00b368';
   });
 }
 
@@ -378,7 +461,13 @@ window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
 window.BS_CLOSE_SKIP_MASTER_REQUIRED = true;
 if (priceInput) priceInput.addEventListener('input', recalcCloseTotals);
+window.addEventListener('load', function () {
+  syncCloseZMasterLabel();
+  const chips = document.getElementById('masterChips');
+  if (chips) new MutationObserver(syncCloseZMasterLabel).observe(chips, { childList: true, subtree: true });
+});
 recalcCloseTotals();
-initCloseYMaster();
+initCloseZMaster();
+initCloseZPaySheet();
 </script>
 {% endblock %}
