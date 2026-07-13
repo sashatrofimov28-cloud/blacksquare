@@ -1247,14 +1247,19 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .close-page-z{
   --z-bg:#f2f2f7;--z-card:#fff;--z-text:#1c1c1e;--z-muted:#8e8e93;
   --z-border:#e5e5ea;--z-green:#00b368;--z-green-soft:#e8faf1;
-  max-width:520px;margin:0 auto;
-  padding:max(10px, env(safe-area-inset-top,0px)) 16px calc(168px + env(safe-area-inset-bottom,0px));
+  width:100%;max-width:none;margin:0;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 16px calc(168px + env(safe-area-inset-bottom,0px));
   background:var(--z-bg);color:var(--z-text);min-height:100%;box-sizing:border-box;
 }
 .theme-dark .main:has(.close-page-z){background:var(--z-bg)!important}
 .theme-dark .main:has(.dz-live){background:var(--z-bg)!important}
-/* Z light shell — full-page gray bg, no dark bleed */
-.main-z-light{background:#f2f2f7!important;color:#1c1c1e!important;padding:0!important}
+/* Z light shell — full-page gray bg edge-to-edge */
+body.theme-dark.body-z-light,
+body.theme-dark.body-z-light .app-shell,
+body.theme-dark.body-z-light .main-wrap{
+  background:#f2f2f7!important;color:#1c1c1e;
+}
+.main-z-light{background:#f2f2f7!important;color:#1c1c1e!important;padding:0!important;min-height:100%}
 .theme-dark .main-wrap:has(.main-z-light){background:#f2f2f7}
 .bottom-nav-z{
   background:rgba(255,255,255,.97)!important;border-top-color:#e5e5ea!important;

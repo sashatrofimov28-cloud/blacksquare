@@ -138,8 +138,9 @@
 
 /* ——— Live dashboard (1:1 with mockup) ——— */
 .dz-live{
-  max-width:520px;margin:0 auto;min-height:100%;box-sizing:border-box;
-  padding:max(12px, env(safe-area-inset-top, 0px)) 16px 12px;
+  max-width:none;width:100%;margin:0;min-height:100%;box-sizing:border-box;
+  padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 12px;
+  background:#f2f2f7;
 }
 .dz-live .dz-head h2{font-size:26px;font-weight:800;letter-spacing:-.8px}
 .dz-bell{color:var(--z-muted);text-decoration:none}
