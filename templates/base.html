@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <title>BlackSquare</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#050505">
+  <meta name="theme-color" content="{% block theme_color %}#050505{% endblock %}">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="{% block status_bar_style %}black-translucent{% endblock %}">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <meta name="bs-build" content="client-v46">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=46">
+  <meta name="bs-build" content="client-v47">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=47">
   <style>
     @media (min-width: 1025px) {
       .app-shell {
@@ -80,7 +80,7 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
       <div class="wordmark">BlackSquare</div>
     </header>
-    <main class="main scrollable has-bottom-nav">
+    <main class="main scrollable has-bottom-nav{% block main_class %}{% endblock %}">
 {% else %}
 <main class="auth-main">
 {% endif %}
@@ -92,7 +92,7 @@
       {% block content %}{% endblock %}
 {% if user %}
     </main>
-    <nav class="bottom-nav" aria-label="Навигация">
+    <nav class="bottom-nav{% block nav_class %}{% endblock %}" aria-label="Навигация">
       <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
       {% for slot in bottom_nav_slots %}
       <a href="{{ slot.href }}" class="bottom-nav-item{% if slot.active %} active{% endif %}"><span class="bottom-nav-icon">{{ slot.icon }}</span><span>{{ slot.label }}</span></a>
@@ -106,7 +106,7 @@
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
   window.BS_PUSH_KEY_VERSION = 3;
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=18"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=19"></script>
 {% else %}
 </main>
 {% endif %}

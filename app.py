@@ -14,7 +14,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v46'
+BUILD_VERSION = 'client-v47'
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -4204,7 +4204,7 @@ def edit_appointment(aid):
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries)
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']))
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required

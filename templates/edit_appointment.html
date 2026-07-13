@@ -1,50 +1,63 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}default{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
 {% block content %}
 {% if is_closed %}
-<div class="close-page close-page-b">
-  <header class="close-header">
-    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
-    <div>
+<div class="close-page close-page-z">
+  <header class="close-header close-z-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back close-z-icon-btn" aria-label="Назад">‹</a>
+    <div class="close-header-main">
       <h1>Редактировать заказ</h1>
-      <p>{{ ap.client_name }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
+      <p>{{ appt_date_label }} · {{ ap.start_time[:5] }} · №{{ ap.id }}</p>
     </div>
   </header>
 
-  <form method="post" id="closeForm" class="close-form">
-    <div class="close-hero-total card-surface">
-      <span class="close-hero-label">Сумма заказа</span>
-      <strong class="close-hero-amount" id="closeHeroTotal">{{ format_money(ap.price or 0) }} ₽</strong>
-      <span class="close-hero-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</span>
-    </div>
-
-    <div class="close-client card-surface">
-      <div class="close-client-avatar">{{ client_initials(ap.client_name) }}</div>
-      <div class="close-client-body">
-        <b>{{ ap.service_name }}</b>
-        <span>{{ ap.phone }}</span>
-        <span>{{ ap.car or '—' }}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+  <form method="post" id="closeForm" class="close-form close-z-form">
+    <div class="close-z-client">
+      <div class="close-z-av">{{ client_initials(ap.client_name) }}</div>
+      <div class="close-z-client-body">
+        <b>{{ ap.client_name }}</b>
+        <span>{{ ap.service_name }}{% if ap.car %} · {{ ap.car }}{% endif %}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
       </div>
-      <label class="close-price-wrap" title="Сумма заказа">
-        <input name="price" type="number" step="0.01" class="close-price-inline" id="closePriceInput" value="{{ ap.price }}" required>
-        <span>₽</span>
-      </label>
     </div>
 
-    <details class="close-fold" open>
-      <summary>Мастера и зарплата</summary>
-      <div class="close-fold-body">
+    <div class="close-z-group">
+      <div class="close-z-cap">Услуга</div>
+      <div class="close-z-list">
+        <label class="close-z-row close-z-row-price">
+          <span class="close-z-row-label">{{ ap.service_name }}</span>
+          <span class="close-z-row-input-wrap">
+            <input name="price" type="number" step="0.01" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
+            <i>₽</i>
+          </span>
+        </label>
+        {% for e in extras %}
+        <div class="close-z-row close-z-row-static">
+          <span>{{ e.name }}</span>
+          <strong>{{ format_money(e.price) }} ₽</strong>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="close-z-sub" id="closeHeroSub">услуга {{ format_money(ap.price or 0) }} ₽ · расходники 0 ₽</p>
+    </div>
+
+    <div class="close-z-group">
+      <div class="close-z-cap">Мастера и зарплата</div>
+      <div class="close-z-list close-z-list-pad">
         {% set master_form_id = 'closeForm' %}
         <div class="close-master-picker-wrap">
           {% include '_master_picker.html' %}
         </div>
         {% include '_salary_by_master.html' %}
       </div>
-    </details>
+    </div>
 
-    <details class="close-fold" open>
-      <summary>Материалы</summary>
-      <div class="close-fold-body">
-        <p class="close-hint" style="margin-top:0">Укажите материалы заново — старые списания вернутся на склад.{% if is_master %} Склад открывать не нужно.{% endif %}</p>
+    <div class="close-z-group">
+      <div class="close-z-cap">Материалы</div>
+      <div class="close-z-list close-z-list-pad">
+        <p class="close-hint" style="margin:0 0 10px">Укажите материалы заново — старые списания вернутся на склад.{% if is_master %} Склад открывать не нужно.{% endif %}</p>
         {% if used_materials %}
         <div class="edit-was-used">
           <span class="close-field-label">Было списано</span>
@@ -58,32 +71,19 @@
         <div id="materialRows" class="material-rows close-material-rows"></div>
         <button type="button" class="close-link-btn" id="addMaterialBtn">+ Добавить материал</button>
       </div>
-    </details>
+    </div>
 
-    {% if has_perm('extra_services') and extras %}
-    <details class="close-fold" open>
-      <summary>Доп. услуги <em>{{ extras|length }}</em></summary>
-      <div class="close-fold-body">
-        <ul class="close-lines">
-          {% for e in extras %}
-          <li><span>{{ e.name }}</span><strong>{{ format_money(e.price) }} ₽</strong></li>
-          {% endfor %}
-        </ul>
-      </div>
-    </details>
-    {% endif %}
-
-    <details class="close-fold">
-      <summary>Комментарий</summary>
-      <div class="close-fold-body">
+    <div class="close-z-group">
+      <div class="close-z-cap">Комментарий</div>
+      <div class="close-z-list close-z-list-pad">
         <textarea name="comment" placeholder="Комментарий к заказу" rows="2">{{ ap.comment or '' }}</textarea>
       </div>
-    </details>
-
-    <div class="close-sticky">
-      <button type="submit" class="close-submit">Сохранить изменения ✓</button>
     </div>
   </form>
+
+  <div class="close-footer-fixed close-z-footer">
+    <button type="submit" form="closeForm" class="close-submit close-z-btn-main">Сохранить изменения ✓</button>
+  </div>
 </div>
 
 <script>
@@ -145,9 +145,7 @@ function recalcEditTotals() {
     }
   });
   const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
-  const hero = document.getElementById('closeHeroTotal');
   const sub = document.getElementById('closeHeroSub');
-  if (hero) hero.textContent = fmt(price);
   if (sub) sub.textContent = 'услуга ' + fmt(price) + ' · расходники ' + fmt(matCost);
 }
 
@@ -182,29 +180,29 @@ recalcEditTotals();
 </script>
 
 {% else %}
-<div class="close-page close-page-b">
-  <header class="close-header">
-    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back" aria-label="Назад">‹</a>
-    <div>
+<div class="close-page close-page-z">
+  <header class="close-header close-z-header">
+    <a href="{{ url_for('calendar_view', date=ap.appointment_date) }}" class="close-back close-z-icon-btn" aria-label="Назад">‹</a>
+    <div class="close-header-main">
       <h1>Изменить запись</h1>
       <p>{{ ap.client_name }} · {{ ap.start_time[:5] }}</p>
     </div>
   </header>
 
-  <form method="post" class="close-form" id="editApptForm">
-    <details class="close-fold" open>
-      <summary>Клиент</summary>
-      <div class="close-fold-body">
+  <form method="post" class="close-form close-z-form" id="editApptForm">
+    <div class="close-z-group">
+      <div class="close-z-cap">Клиент</div>
+      <div class="close-z-list close-z-list-pad">
         <input name="client_name" value="{{ ap.client_name }}" placeholder="Имя" required>
         <input name="phone" value="{{ ap.phone }}" placeholder="Телефон" required>
         <input name="car" value="{{ ap.car or '' }}" placeholder="Авто">
         <input name="plate_number" value="{{ ap.plate_number or '' }}" placeholder="Госномер">
       </div>
-    </details>
+    </div>
 
-    <details class="close-fold" open>
-      <summary>Услуги и мастера</summary>
-      <div class="close-fold-body">
+    <div class="close-z-group">
+      <div class="close-z-cap">Услуги и мастера</div>
+      <div class="close-z-list close-z-list-pad">
         <div class="master-picker" id="servicePicker" data-form-id="editApptForm">
           <label class="master-picker-label">Услуги *</label>
           <span class="field-hint service-required-hint" hidden>Выберите хотя бы одну услугу</span>
@@ -226,30 +224,30 @@ recalcEditTotals();
           <div id="masterHiddenInputs"></div>
         </div>
       </div>
-    </details>
+    </div>
 
-    <details class="close-fold" open>
-      <summary>Дата и цена</summary>
-      <div class="close-fold-body">
+    <div class="close-z-group">
+      <div class="close-z-cap">Дата и цена</div>
+      <div class="close-z-list close-z-list-pad">
         <div class="close-inline-form close-inline-stack">
           <input type="date" name="appointment_date" value="{{ ap.appointment_date }}">
           <input type="time" name="start_time" value="{{ ap.start_time }}" required>
           <input name="price" type="number" step="0.01" value="{{ ap.price }}" placeholder="Цена ₽">
         </div>
       </div>
-    </details>
+    </div>
 
-    <details class="close-fold">
-      <summary>Комментарий</summary>
-      <div class="close-fold-body">
+    <div class="close-z-group">
+      <div class="close-z-cap">Комментарий</div>
+      <div class="close-z-list close-z-list-pad">
         <textarea name="comment" placeholder="Комментарий" rows="2">{{ ap.comment or '' }}</textarea>
       </div>
-    </details>
-
-    <div class="close-sticky">
-      <button type="submit" class="close-submit">Сохранить ✓</button>
     </div>
   </form>
+
+  <div class="close-footer-fixed close-z-footer">
+    <button type="submit" form="editApptForm" class="close-submit close-z-btn-main">Сохранить ✓</button>
+  </div>
 </div>
 <script>
 window.BS_MASTERS = {{ masters_json|safe }};
