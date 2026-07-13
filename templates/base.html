@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="{% block status_bar_style %}black-translucent{% endblock %}">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
-  <meta name="bs-build" content="client-v53">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=53">
+  <meta name="bs-build" content="client-v54">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=54">
   {% block extra_css %}{% endblock %}
   <style>
     @media (min-width: 1025px) {
@@ -107,8 +107,8 @@
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
   window.BS_PUSH_KEY_VERSION = 3;
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=19"></script>
-<script src="{{ url_for('static', filename='car-autocomplete.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=20"></script>
+<script src="{{ url_for('static', filename='car-autocomplete.js') }}?v=2"></script>
 {% else %}
 </main>
 {% endif %}

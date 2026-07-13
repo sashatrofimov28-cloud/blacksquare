@@ -614,11 +614,78 @@
       initServicePicker();
       pollIncomingCall();
       setInterval(pollIncomingCall, 2500);
+      initPullToRefresh();
       const tabs = document.getElementById('mobileTabs');
       if (tabs) {
         const active = tabs.querySelector('a.active');
         if (active) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
       }
     });
+  }
+
+  function initPullToRefresh() {
+    if (!isMobile()) return;
+    const scroller = document.querySelector('main.main.scrollable');
+    if (!scroller || scroller.dataset.ptrInit === '1') return;
+    scroller.dataset.ptrInit = '1';
+    const ptr = document.createElement('div');
+    ptr.className = 'bs-ptr';
+    ptr.innerHTML = '<div class="bs-ptr-pill">Обновить</div>';
+    scroller.prepend(ptr);
+    const pill = ptr.querySelector('.bs-ptr-pill');
+    let startY = 0;
+    let pulling = false;
+    let armed = false;
+    const THRESHOLD = 72;
+
+    function reset() {
+      pulling = false;
+      armed = false;
+      ptr.classList.remove('is-visible', 'is-ready');
+      ptr.style.transform = '';
+      if (pill) pill.textContent = 'Обновить';
+    }
+
+    scroller.addEventListener('touchstart', function (e) {
+      if (scroller.scrollTop > 2) return;
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+      armed = false;
+    }, { passive: true });
+
+    scroller.addEventListener('touchmove', function (e) {
+      if (!pulling) return;
+      if (scroller.scrollTop > 2) { reset(); return; }
+      const dy = e.touches[0].clientY - startY;
+      if (dy < 8) {
+        ptr.classList.remove('is-visible', 'is-ready');
+        return;
+      }
+      ptr.classList.add('is-visible');
+      const pull = Math.min(dy, 110);
+      ptr.style.transform = 'translateY(' + (pull * 0.35) + 'px)';
+      if (dy >= THRESHOLD) {
+        armed = true;
+        ptr.classList.add('is-ready');
+        if (pill) pill.textContent = 'Отпустите';
+      } else {
+        armed = false;
+        ptr.classList.remove('is-ready');
+        if (pill) pill.textContent = 'Потяните';
+      }
+    }, { passive: true });
+
+    scroller.addEventListener('touchend', function () {
+      if (!pulling) return;
+      if (armed) {
+        if (pill) pill.textContent = 'Обновляю…';
+        setTimeout(function () { location.reload(); }, 120);
+        return;
+      }
+      reset();
+    });
+
+    scroller.addEventListener('touchcancel', reset);
   }
 })();

@@ -21,6 +21,8 @@
       <div class="close-z-client-body">
         <b>{{ ap.client_name }}</b>
         <span>{{ ap.service_name }}{% if ap.car %} · {{ ap.car }}{% endif %}{% if ap.plate_number %} · {{ ap.plate_number }}{% endif %}</span>
+        {% set origin = booking_origin_label(ap) %}
+        {% if origin %}<em class="booking-origin">{{ origin }}</em>{% endif %}
       </div>
     </div>
 

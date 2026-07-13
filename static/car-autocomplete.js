@@ -5,7 +5,7 @@
   function loadCatalog() {
     if (catalog) return Promise.resolve(catalog);
     if (catalogPromise) return catalogPromise;
-    catalogPromise = fetch('/static/data/car-catalog.json?v=1')
+    catalogPromise = fetch('/static/data/car-catalog.json?v=2')
       .then(function (r) { return r.json(); })
       .then(function (d) { catalog = d; return d; })
       .catch(function () { catalog = { brands: [] }; return catalog; });
@@ -16,6 +16,21 @@
     return (s || '').toLowerCase().replace(/ё/g, 'е').trim();
   }
 
+  function modelName(model) {
+    return typeof model === 'object' && model ? (model.name || '') : String(model || '');
+  }
+
+  function modelAliases(model) {
+    return (typeof model === 'object' && model && model.aliases) ? model.aliases : [];
+  }
+
+  function brandMeta(b) {
+    return {
+      color: b.color || '#555',
+      initials: (b.name || '?').split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase()
+    };
+  }
+
   function filterCatalog(q, limit) {
     var nq = norm(q);
     if (!nq) return [];
@@ -23,23 +38,43 @@
     var seen = {};
     (catalog.brands || []).forEach(function (b) {
       var brand = b.name;
-      var nb = norm(brand);
+      var meta = brandMeta(b);
       var names = [brand].concat(b.aliases || []);
       var brandHit = names.some(function (n) {
         var nn = norm(n);
         return nn.indexOf(nq) === 0 || nn.indexOf(nq) > -1;
       });
       if (brandHit && !seen[brand]) {
-        out.push({ label: brand, value: brand, kind: 'brand' });
+        out.push({ label: brand, value: brand, kind: 'brand', color: meta.color, initials: meta.initials, hint: '' });
         seen[brand] = 1;
       }
       (b.models || []).forEach(function (model) {
-        var full = brand + ' ' + model;
+        var mname = modelName(model);
+        if (!mname) return;
+        var aliases = modelAliases(model);
+        var full = brand + ' ' + mname;
         var nf = norm(full);
-        var nm = norm(model);
-        if (nf.indexOf(nq) === 0 || nm.indexOf(nq) === 0 || nf.indexOf(nq) > -1) {
+        var nm = norm(mname);
+        var aliasHit = aliases.some(function (a) {
+          var na = norm(a);
+          return na === nq || na.indexOf(nq) === 0 || nq.indexOf(na) === 0 || na.indexOf(nq) > -1;
+        });
+        if (nf.indexOf(nq) === 0 || nm.indexOf(nq) === 0 || nf.indexOf(nq) > -1 || aliasHit) {
           if (!seen[full]) {
-            out.push({ label: full, value: full, kind: 'model' });
+            var matched = aliases.find(function (a) {
+              var na = norm(a);
+              return na === nq || na.indexOf(nq) === 0;
+            });
+            var hint = matched || (aliases[0] || '');
+            var label = full + (hint && nf.indexOf(norm(hint)) < 0 ? ' · ' + hint : '');
+            out.push({
+              label: label,
+              value: full,
+              kind: 'model',
+              hint: hint,
+              color: meta.color,
+              initials: meta.initials
+            });
             seen[full] = 1;
           }
         }
@@ -62,7 +97,14 @@
       var v = item.value || item.label;
       if (!v || seen[v]) return;
       seen[v] = 1;
-      out.push({ label: item.label || v, value: v, kind: item.kind || 'history' });
+      out.push({
+        label: item.label || v,
+        value: v,
+        kind: item.kind || 'history',
+        hint: item.hint || '',
+        color: item.color || '#666',
+        initials: item.initials || '🚗'
+      });
     });
     return out.slice(0, limit);
   }
@@ -95,6 +137,19 @@
     }
   }
 
+  function thumbEl(item) {
+    var t = document.createElement('span');
+    t.className = 'car-ac-thumb';
+    t.style.background = item.color || '#555';
+    t.textContent = item.initials || '·';
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 48 28');
+    svg.setAttribute('class', 'car-ac-sil');
+    svg.innerHTML = '<path fill="rgba(255,255,255,.92)" d="M8 20h32l-2-7c-1-3-3-5-6-5H16c-3 0-5 2-6 5l-2 7zm6-3a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm20 0a2.5 2.5 0 110 5 2.5 2.5 0 010-5z"/>';
+    t.appendChild(svg);
+    return t;
+  }
+
   function renderList(wrap, items, activeIdx) {
     var list = wrap.querySelector('.car-ac-list');
     list.innerHTML = '';
@@ -107,7 +162,22 @@
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'car-ac-item' + (idx === activeIdx ? ' is-active' : '');
-      btn.textContent = item.label;
+      btn.appendChild(thumbEl(item));
+      var text = document.createElement('span');
+      text.className = 'car-ac-text';
+      var main = document.createElement('b');
+      main.textContent = item.value || item.label;
+      text.appendChild(main);
+      if (item.hint && String(item.label).indexOf(item.hint) >= 0) {
+        var sub = document.createElement('small');
+        sub.textContent = item.hint;
+        text.appendChild(sub);
+      } else if (item.kind === 'history') {
+        var sub2 = document.createElement('small');
+        sub2.textContent = 'из ваших записей';
+        text.appendChild(sub2);
+      }
+      btn.appendChild(text);
       btn.dataset.value = item.value;
       btn.addEventListener('mousedown', function (e) {
         e.preventDefault();

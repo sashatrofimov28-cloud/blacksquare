@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Онлайн-запись — варианты дизайна</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-booking.css') }}?v=1">
+</head>
+<body class="bk-gallery">
+  <header class="bk-gallery-hero">
+    <a class="bk-gallery-back" href="/design">← Все макеты</a>
+    <h1>Онлайн-запись — варианты</h1>
+    <p>Четыре визуальных направления публичной записи. Ничего не внедряем без выбора — к утру можно сравнить и сказать, какой нравится.</p>
+  </header>
+
+  <div class="bk-variant-grid">
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>A — По шагам</b>
+        <span>Один экран = один вопрос: услуги → мастер → время → контакты. Минимум шума, низкий процент «запутался и ушёл».</span>
+        <span class="bk-variant-tag">Stepper</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">A · Шаги</div>
+        <div class="phone-scroll">
+          <div class="bk">
+            <div class="bk-top">
+              <div>
+                <div class="bk-brand">BlackSquare</div>
+                <h2>Услуги</h2>
+                <p>Шаг 1 из 4</p>
+              </div>
+            </div>
+            <div class="bk-steps"><i class="on"></i><i></i><i></i><i></i></div>
+            <div class="bk-card">
+              <h3>Тонировка</h3>
+              <div class="bk-chip-row">
+                <span class="bk-chip on">Передние боковые</span>
+                <span class="bk-chip">Задние боковые</span>
+                <span class="bk-chip">Полная</span>
+              </div>
+            </div>
+            <div class="bk-card">
+              <h3>Плёнка</h3>
+              <div class="bk-chip-row">
+                <span class="bk-chip">Атермалка</span>
+                <span class="bk-chip on">5%</span>
+                <span class="bk-chip">15%</span>
+              </div>
+            </div>
+            <p class="bk-quiet">Можно выбрать несколько. Дальше — мастер и свободные окна.</p>
+            <button type="button" class="bk-cta">Дальше · мастер</button>
+          </div>
+        </div>
+      </div>
+      <div class="bk-notes"><ul>
+        <li>Самый понятный сценарий для телефона</li>
+        <li>Длинный каталог услуг не пугает</li>
+        <li>Минус: на 1 запись больше тапов</li>
+      </ul></div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>B — Всё на одном экране</b>
+        <span>Как сейчас по смыслу, но в светлом Z: компактные блоки, авто с подсказками, большая кнопка внизу. Быстро для тех, кто уже писал.</span>
+        <span class="bk-variant-tag">One-page Z</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Один экран</div>
+        <div class="phone-scroll">
+          <div class="bk">
+            <div class="bk-top">
+              <div>
+                <div class="bk-brand">BlackSquare</div>
+                <h2>Онлайн-запись</h2>
+                <p>Тюмень · Энергетиков 53</p>
+              </div>
+            </div>
+            <input class="bk-input" placeholder="Имя" value="Виктория">
+            <input class="bk-input" placeholder="Телефон" value="+7 (999) 123-45-67">
+            <input class="bk-input" placeholder="Авто — начните вводить марку" value="BMW 5 Series">
+            <div class="bk-card">
+              <h3>Услуги</h3>
+              <div class="bk-chip-row">
+                <span class="bk-chip on">Передние · 2 500 ₽</span>
+                <span class="bk-chip">Задние · 3 200 ₽</span>
+              </div>
+            </div>
+            <div class="bk-card">
+              <h3>Мастер и время</h3>
+              <div class="bk-master on"><span class="bk-av">АЛ</span><div><b>Александр</b><div class="bk-quiet" style="margin:0">сегодня свободно</div></div></div>
+              <div class="bk-slot-grid">
+                <span class="bk-slot">12:00</span>
+                <span class="bk-slot on">14:00</span>
+                <span class="bk-slot">16:30</span>
+              </div>
+            </div>
+            <button type="button" class="bk-cta">Записаться</button>
+          </div>
+        </div>
+      </div>
+      <div class="bk-notes"><ul>
+        <li>Ближе всего к текущей логике</li>
+        <li>Легко внедрить поверх /booking</li>
+        <li>На маленьком экране всё ещё плотно</li>
+      </ul></div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>C — Сначала мастер</b>
+        <span>«К кому» важнее «что»: крупные карточки мастеров, потом услуги и слоты. Подходит, если клиенты ездят к своему человеку.</span>
+        <span class="bk-variant-tag">Master-first</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">C · Мастер</div>
+        <div class="phone-scroll">
+          <div class="bk">
+            <div class="bk-top">
+              <div>
+                <div class="bk-brand">BlackSquare</div>
+                <h2>Кто работает?</h2>
+                <p>Выберите мастера</p>
+              </div>
+            </div>
+            <div class="bk-master on"><span class="bk-av">АЛ</span><div><b>Александр</b><div class="bk-quiet" style="margin:0">След. окно 14:00</div></div></div>
+            <div class="bk-master"><span class="bk-av">ДМ</span><div><b>Дмитрий</b><div class="bk-quiet" style="margin:0">След. окно 15:30</div></div></div>
+            <div class="bk-master"><span class="bk-av">ИГ</span><div><b>Игорь</b><div class="bk-quiet" style="margin:0">Занят до 18:00</div></div></div>
+            <p class="bk-quiet">После выбора покажем услуги, которые он делает, и свободные окна.</p>
+            <button type="button" class="bk-cta">К услугам Александра</button>
+          </div>
+        </div>
+      </div>
+      <div class="bk-notes"><ul>
+        <li>Сильная персонализация</li>
+        <li>Хорошо, если у мастеров своя база клиентов</li>
+        <li>Новичок без «своего» может тупить на первом шаге</li>
+      </ul></div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>D — Авто-атмосфера</b>
+        <span>Тёмный премиум: герой с силуэтом авто, акцент на машину и плёнку. Больше «вау», меньше утилитарности.</span>
+        <span class="bk-variant-tag">Automotive dark</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">D · Dark</div>
+        <div class="phone-scroll">
+          <div class="bk bk-dark">
+            <div class="bk-hero-img">
+              <span>Онлайн-запись</span>
+              <strong>BlackSquare</strong>
+            </div>
+            <input class="bk-input" placeholder="Марка и модель авто">
+            <input class="bk-input" placeholder="Телефон">
+            <div class="bk-card">
+              <h3>Что делаем</h3>
+              <div class="bk-chip-row">
+                <span class="bk-chip on">Тонировка</span>
+                <span class="bk-chip">Бронь</span>
+                <span class="bk-chip">Антидождь</span>
+              </div>
+            </div>
+            <div class="bk-card">
+              <h3>Ближайшее</h3>
+              <div class="bk-slot-grid">
+                <span class="bk-slot on">Сегодня 14:00</span>
+                <span class="bk-slot">Завтра 11:00</span>
+                <span class="bk-slot">Пт 16:00</span>
+              </div>
+            </div>
+            <button type="button" class="bk-cta">Оставить заявку</button>
+          </div>
+        </div>
+      </div>
+      <div class="bk-notes"><ul>
+        <li>Сильный бренд и «окна / авто»</li>
+        <li>Хорош для рекламы из Telegram/Instagram</li>
+        <li>Сложнее читать формы при ярком солнце</li>
+      </ul></div>
+    </article>
+
+  </div>
+
+  <div style="max-width:720px;margin:0 auto;padding:0 16px 40px;text-align:center;color:#777;font-size:13px;line-height:1.5">
+    <p>Макет: <code>/design/booking</code> · без входа. Напишите букву (A/B/C/D) — внедрим в боевой <code>/booking</code>.</p>
+  </div>
+</body>
+</html>

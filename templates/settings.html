@@ -1,246 +1,255 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top">
-  <h1>Настройки</h1>
-  <p>Обновление статистики и сохранность базы данных</p>
-</header>
+<div class="settings-page">
+  <header class="top">
+    <h1>Настройки</h1>
+    <p>Студия, уведомления, лояльность и система</p>
+  </header>
 
-<div class="panel profile-card">
-  <h2>Реквизиты продавца для актов</h2>
-  <p style="color:#666;font-size:14px">Автоподстановка в «Акт сдачи-приемки» и другие документы.</p>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="legal_seller">
-    <input name="legal_seller_name" class="span4" value="{{ legal_seller_name }}" placeholder="Компания или ИП">
-    <input name="legal_seller_inn" value="{{ legal_seller_inn }}" placeholder="ИНН">
-    <input name="legal_seller_kpp" value="{{ legal_seller_kpp }}" placeholder="КПП (если есть)">
-    <textarea name="legal_seller_address" class="span4" rows="2" placeholder="Юридический адрес">{{ legal_seller_address }}</textarea>
-    <button>Сохранить реквизиты</button>
-  </form>
-</div>
+  <nav class="settings-nav scrollable-x" aria-label="Разделы настроек">
+    <a href="#set-studio">Студия</a>
+    <a href="#set-alerts">Уведомления</a>
+    <a href="#set-loyalty">Лояльность</a>
+    <a href="#set-docs">Документы</a>
+    <a href="#set-system">Система</a>
+  </nav>
 
-<div class="panel profile-card">
-  <h2>База данных</h2>
-  <p style="color:#666;font-size:14px">Записи сохраняются в облачное хранилище (S3) и на диск сервера. При каждом обновлении создаётся копия — данные не должны пропадать. Если пропали — нажмите «Восстановить из копии».</p>
-  <div class="cards simple" style="margin-top:12px">
-    <div class="card"><span>Записей в CRM</span><strong>{{ db_info.appointments }}</strong></div>
-    <div class="card"><span>Клиентов</span><strong>{{ db_info.clients }}</strong></div>
-  </div>
-  <p style="margin-top:12px"><code>{{ db_path }}</code></p>
-  <form method="post" style="margin-top:12px">
-    <input type="hidden" name="action" value="backup">
-    <button class="ghost">Создать резервную копию сейчас</button>
-  </form>
-  <form method="post" style="margin-top:12px">
-    <input type="hidden" name="action" value="restore">
-    <button class="ghost">Восстановить из последней копии</button>
-  </form>
-  {% if backups %}
-  <p class="hint" style="margin-top:12px">Последние копии: {% for b in backups %}{{ b.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
-  {% endif %}
-</div>
+  <section class="settings-section" id="set-studio">
+    <h2 class="settings-section-title">Студия</h2>
 
-<div class="panel profile-card">
-  <h2>Telegram-уведомления</h2>
-  <p style="color:#666;font-size:14px">Надёжная альтернатива push: все записи и закрытия приходят в общий рабочий чат.</p>
-  <ol style="color:#666;font-size:14px;margin:12px 0;padding-left:20px">
-    <li>Создайте бота через <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> и скопируйте токен.</li>
-    <li>Добавьте бота в рабочий чат и напишите любое сообщение (чтобы бот увидел чат).</li>
-    <li>Укажите токен в переменной <code>TELEGRAM_BOT_TOKEN</code> на сервере Timeweb.</li>
-    <li>Нажмите «Найти чаты», выберите ID и включите уведомления.</li>
-  </ol>
-  {% if telegram_token_ok %}
-  <p class="hint" style="color:#2e7d32">Токен бота на сервере настроен</p>
-  {% else %}
-  <p class="hint" style="color:#c62828">Токен бота не найден — добавьте TELEGRAM_BOT_TOKEN в настройках приложения Timeweb</p>
-  {% endif %}
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="telegram_save">
-    <label class="check span4"><input type="checkbox" name="telegram_enabled" {% if telegram_on %}checked{% endif %}> Включить уведомления в Telegram</label>
-    <input name="telegram_chat_id" value="{{ telegram_chat }}" placeholder="ID чата (например -1001234567890)">
-    <input name="telegram_wake_name" value="{{ telegram_wake }}" placeholder="Имя бота для голоса (например пантюха)">
-    <button>Сохранить</button>
-  </form>
-  {% if openai_ok %}
-  <p class="hint" style="color:#2e7d32">Голосовые записи: OpenAI настроен{% if openai_masked %} ({{ openai_masked }}){% endif %}</p>
-  {% else %}
-  <p class="hint" style="color:#c62828">Для голосовых укажите ключ OpenAI ниже или добавьте OPENAI_API_KEY в Timeweb</p>
-  {% endif %}
-  <form method="post" class="form-grid" style="margin-top:8px">
-    <input type="hidden" name="action" value="openai_save">
-    <input name="openai_api_key" type="password" placeholder="Ключ OpenAI (sk-...)" autocomplete="off" class="span4">
-    <button class="ghost">Сохранить ключ OpenAI</button>
-  </form>
-  <form method="post" style="margin-top:12px;display:inline-block">
-    <input type="hidden" name="action" value="telegram_discover">
-    <button class="ghost">Найти чаты</button>
-  </form>
-  <form method="post" style="margin-top:12px;display:inline-block;margin-left:8px">
-    <input type="hidden" name="action" value="telegram_test">
-    <button class="ghost">Отправить тест</button>
-  </form>
-  <p class="hint" style="margin-top:16px"><b>Текст:</b> <code>/z приора на 14:00 передняя полусфера 4000</code><br>
-    <b>Голос:</b> «Пантюха, приора на 14:00 передняя полусфера 4000»<br>
-    Или голосовое ответом на сообщение бота. В @BotFather отключите Group Privacy, чтобы бот слышал голос без ответа.
-  </p>
-</div>
-
-<div class="panel profile-card">
-  <h2>Novofon — входящие звонки</h2>
-  <p style="color:#666;font-size:14px">При звонке на телефонию CRM покажет баннер «Записать» с автоподстановкой клиента, если номер уже есть в базе.</p>
-  <p class="hint" style="margin-top:8px"><b>URL webhook в Novofon:</b><br><code>{{ novofon_webhook_url }}</code></p>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="novofon_save">
-    <label class="check span4"><input type="checkbox" name="novofon_enabled" {% if novofon_on %}checked{% endif %}> Принимать звонки из Novofon</label>
-    <button>Сохранить</button>
-  </form>
-  <form method="post" class="form-grid" style="margin-top:16px">
-    <input type="hidden" name="action" value="novofon_test">
-    <input name="novofon_test_phone" placeholder="Телефон для теста +7..." required>
-    <button class="ghost">Симулировать входящий звонок</button>
-  </form>
-  <p class="hint" style="margin-top:12px">В Novofon: Интеграции → HTTP-уведомление, метод POST, тело JSON как вы сохранили. Включите уведомление после деплоя.</p>
-</div>
-
-<div class="panel profile-card">
-  <h2>SMS клиентам</h2>
-  <p style="color:#666;font-size:14px">Подтверждение записи и напоминания за 24 часа и за 1 час до визита. Работает через <a href="https://sms.ru" target="_blank" rel="noopener">sms.ru</a>.</p>
-  <ol style="color:#666;font-size:14px;margin:12px 0;padding-left:20px">
-    <li>Зарегистрируйтесь на sms.ru и скопируйте <b>api_id</b> из личного кабинета.</li>
-    <li>Укажите api_id ниже или переменную <code>SMSRU_API_ID</code> на сервере.</li>
-    <li>Включите нужные типы сообщений и отправьте тест на свой номер.</li>
-  </ol>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="client_sms_save">
-    <label class="check span4"><input type="checkbox" name="client_sms_enabled" {% if client_sms_on %}checked{% endif %}> Включить SMS клиентам</label>
-    <input name="client_sms_api_id" class="span4" value="{{ client_sms_api }}" placeholder="API ID sms.ru" autocomplete="off">
-    <input name="client_sms_brand" value="{{ client_sms_brand }}" placeholder="Название в SMS (Black Square)">
-    <input name="client_sms_address" class="span4" value="{{ client_sms_address }}" placeholder="Адрес студии в SMS">
-    <label class="check"><input type="checkbox" name="client_sms_confirm" {% if client_sms_confirm %}checked{% endif %}> Подтверждение при записи</label>
-    <label class="check"><input type="checkbox" name="client_sms_remind_24h" {% if client_sms_remind_24h %}checked{% endif %}> Напоминание за 24 часа</label>
-    <label class="check"><input type="checkbox" name="client_sms_remind_1h" {% if client_sms_remind_1h %}checked{% endif %}> Напоминание за 1 час</label>
-    <button>Сохранить SMS</button>
-  </form>
-  <form method="post" class="form-grid" style="margin-top:16px">
-    <input type="hidden" name="action" value="client_sms_test">
-    <input name="client_sms_test_phone" placeholder="Телефон для теста +7..." required>
-    <button class="ghost">Отправить тестовое SMS</button>
-  </form>
-  <p class="hint" style="margin-top:12px">В SMS с подтверждением — ссылка, где клиент может нажать «Подтверждаю запись».</p>
-</div>
-
-<div class="panel profile-card">
-  <h2>Карты «Для друзей»</h2>
-  <p style="color:#666;font-size:14px">Постоянная скидка вместо бонусов. У карты номер <b>10001, 10002…</b> (начинается с 1). При открытии ссылки другу выдаётся короткий код скидки (4 цифры, начинается с 1) — сотрудник вводит его при закрытии заказа. Код меняется при каждом открытии ссылки.</p>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="friend_save">
-    <input name="friend_discount_percent" type="number" step="0.1" min="0" value="{{ friend_discount_percent }}" placeholder="Скидка по умолчанию, %">
-    <button>Сохранить %</button>
-  </form>
-  <form method="post" class="form-grid" style="margin-top:16px">
-    <input type="hidden" name="action" value="friend_add">
-    <input name="friend_name" placeholder="Имя друга" required>
-    <select name="friend_client_id">
-      <option value="">Без привязки к CRM</option>
-      {% for c in clients %}
-      <option value="{{ c.id }}">{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
-      {% endfor %}
-    </select>
-    <input name="friend_card_percent" type="number" step="0.1" placeholder="Скидка % (пусто = {{ friend_discount_percent }})">
-    <input name="friend_comment" placeholder="Комментарий">
-    <button>Выдать карту</button>
-  </form>
-  {% if friend_cards %}
-  <table style="margin-top:16px">
-    <tr><th>№ карты</th><th>Имя</th><th>CRM</th><th>Скидка</th><th>QR / ссылка</th><th></th></tr>
-    {% for fc in friend_cards %}
-    <tr>
-      <td><b>{{ fc.card_number }}</b></td>
-      <td>{{ fc.name }}</td>
-      <td>{{ fc.client_name or '—' }}</td>
-      <td>{{ fc.discount_percent or friend_discount_percent }}%</td>
-      <td>
-        <img src="{{ url_for('friend_card_qr', fid=fc.id) }}" alt="QR" class="bonus-qr" style="width:80px;height:80px">
-        <a class="ghost mini-btn" href="{{ fc.card_url }}" target="_blank" rel="noopener">Открыть</a>
-      </td>
-      <td>
-        <form method="post" style="display:inline">
-          <input type="hidden" name="action" value="friend_toggle">
-          <input type="hidden" name="friend_id" value="{{ fc.id }}">
-          <button class="ghost mini-btn">{% if fc.active %}Выкл{% else %}Вкл{% endif %}</button>
+    <details class="settings-fold" open>
+      <summary>Часы работы</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Календарь, онлайн-запись и график мастеров по умолчанию.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="studio_hours">
+          <label>Открытие <input type="time" name="studio_open_time" value="{{ studio_open }}" required></label>
+          <label>Закрытие <input type="time" name="studio_close_time" value="{{ studio_close }}" required></label>
+          <button class="span2">Сохранить</button>
         </form>
-        <form method="post" style="display:inline" onsubmit="return confirm('Удалить карту?')">
-          <input type="hidden" name="action" value="friend_delete">
-          <input type="hidden" name="friend_id" value="{{ fc.id }}">
-          <button class="danger mini-btn">×</button>
+      </div>
+    </details>
+
+    <details class="settings-fold">
+      <summary>Статистика на главной</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Касса обновляется при закрытии записи. Здесь — режим пересчёта, если понадобится.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="stats">
+          <select name="stats_refresh" class="span2">
+            <option value="live" {% if stats_refresh=='live' %}selected{% endif %}>Сразу при закрытии</option>
+            <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Каждый день</option>
+            <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
+            <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>
+          </select>
+          <button>Сохранить</button>
         </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}
-  <p class="hint" style="margin-top:12px">Пока нет карт для друзей.</p>
-  {% endif %}
-</div>
+        {% if stats_updated %}<p class="settings-hint">Последнее обновление: {{ stats_updated }}</p>{% endif %}
+        <form method="post" style="margin-top:8px">
+          <input type="hidden" name="action" value="refresh_stats">
+          <button class="ghost" type="submit">Обновить сейчас</button>
+        </form>
+      </div>
+    </details>
 
-<div class="panel profile-card">
-  <h2>Бонусная программа</h2>
-  <p style="color:#666;font-size:14px">Каждый клиент получает персональный код и QR-карту. Бонусы начисляются при закрытии визита. Управление — в карточке клиента в CRM.</p>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="bonus_save">
-    <label class="check span4"><input type="checkbox" name="bonus_enabled" {% if bonus_on %}checked{% endif %}> Включить бонусную программу</label>
-    <input name="bonus_percent" type="number" step="0.1" min="0" value="{{ bonus_percent }}" placeholder="Процент от суммы визита">
-    <input name="bonus_from_visit" type="number" step="1" min="1" value="{{ bonus_from_visit }}" placeholder="С какого визита начислять">
-    <button>Сохранить</button>
-  </form>
-  <p class="hint" style="margin-top:12px">
-    По умолчанию {{ bonus_percent }}% со {{ bonus_from_visit }}-го визита. Клиент сканирует QR — открывается карта с балансом.
-    <b>iPhone:</b> «Поделиться» → «На экран Домой». <b>Android:</b> «Добавить на главный экран».
-  </p>
-</div>
+    <details class="settings-fold">
+      <summary>Реквизиты продавца</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Для актов сдачи-приёмки и документов.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="legal_seller">
+          <input name="legal_seller_name" class="span4" value="{{ legal_seller_name }}" placeholder="Компания или ИП">
+          <input name="legal_seller_inn" value="{{ legal_seller_inn }}" placeholder="ИНН">
+          <input name="legal_seller_kpp" value="{{ legal_seller_kpp }}" placeholder="КПП">
+          <textarea name="legal_seller_address" class="span4" rows="2" placeholder="Юридический адрес">{{ legal_seller_address }}</textarea>
+          <button>Сохранить реквизиты</button>
+        </form>
+      </div>
+    </details>
+  </section>
 
-<div class="panel profile-card">
-  <h2>Шаблон сертификата PDF</h2>
-  <p style="color:#666;font-size:14px">Загрузите PDF один раз — при создании сертификата система проставит номер и сумму.</p>
-  {% if cert_has_template %}
-  <p class="hint" style="color:#2ecc71;margin-bottom:12px">Шаблон загружен ✓</p>
-  {% else %}
-  <p class="hint" style="color:#e74c3c;margin-bottom:12px">Шаблон не загружен — будет простой встроенный макет</p>
-  {% endif %}
-  <form method="post" enctype="multipart/form-data" class="form-grid">
-    <input type="hidden" name="action" value="cert_template">
-    <input type="file" name="template_pdf" accept="application/pdf,.pdf" required class="span3">
-    <button class="ghost">Загрузить шаблон PDF</button>
-  </form>
-</div>
+  <section class="settings-section" id="set-alerts">
+    <h2 class="settings-section-title">Уведомления</h2>
 
-<div class="panel profile-card">
-  <h2>Часы работы студии</h2>
-  <p style="color:#666;font-size:14px">Используются в календаре (сетка дня), онлайн-записи и как значение по умолчанию для графика мастеров.</p>
-  <form method="post" class="form-grid" style="margin-top:12px">
-    <input type="hidden" name="action" value="studio_hours">
-    <label>Открытие <input type="time" name="studio_open_time" value="{{ studio_open }}" required></label>
-    <label>Закрытие <input type="time" name="studio_close_time" value="{{ studio_close }}" required></label>
-    <button>Сохранить</button>
-  </form>
-</div>
+    <details class="settings-fold" open>
+      <summary>Telegram</summary>
+      <div class="settings-fold-body">
+        {% if telegram_token_ok %}
+        <p class="settings-hint ok">Токен бота на сервере настроен</p>
+        {% else %}
+        <p class="settings-hint bad">Добавьте TELEGRAM_BOT_TOKEN в Timeweb</p>
+        {% endif %}
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="telegram_save">
+          <label class="check span4"><input type="checkbox" name="telegram_enabled" {% if telegram_on %}checked{% endif %}> Включить уведомления</label>
+          <input name="telegram_chat_id" class="span2" value="{{ telegram_chat }}" placeholder="ID чата">
+          <input name="telegram_wake_name" value="{{ telegram_wake }}" placeholder="Имя для голоса">
+          <button>Сохранить Telegram</button>
+        </form>
+        <div class="settings-actions">
+          <form method="post"><input type="hidden" name="action" value="telegram_discover"><button class="ghost" type="submit">Найти чаты</button></form>
+          <form method="post"><input type="hidden" name="action" value="telegram_test"><button class="ghost" type="submit">Тест</button></form>
+        </div>
+        <details class="settings-help">
+          <summary>Как подключить и голосовые /z</summary>
+          <ol>
+            <li>Бот через @BotFather → токен в Timeweb.</li>
+            <li>Добавьте бота в чат → «Найти чаты» → сохраните ID.</li>
+            <li>Текст: <code>/z приора на 14:00 передняя полусфера 4000</code></li>
+            <li>Голос: «Пантюха, …» — нужен ключ OpenAI ниже.</li>
+          </ol>
+        </details>
+        <form method="post" class="form-grid" style="margin-top:10px">
+          <input type="hidden" name="action" value="openai_save">
+          <input name="openai_api_key" type="password" placeholder="Ключ OpenAI (sk-...)" autocomplete="off" class="span3">
+          <button class="ghost">Сохранить ключ</button>
+        </form>
+        {% if openai_ok %}
+        <p class="settings-hint ok">OpenAI настроен{% if openai_masked %} ({{ openai_masked }}){% endif %}</p>
+        {% endif %}
+      </div>
+    </details>
 
-<div class="panel profile-card">
-  <h2>Статистика на главной</h2>
-  <p style="color:#666;font-size:14px">Общая касса на главной обновляется сразу при закрытии записи.</p>
-  <form method="post" class="form-grid">
-    <input type="hidden" name="action" value="stats">
-    <select name="stats_refresh">
-      <option value="live" {% if stats_refresh=='live' %}selected{% endif %}>Сразу при закрытии записи</option>
-      <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Обновлять каждый день</option>
-      <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
-      <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>
-    </select>
-    <button>Сохранить</button>
-  </form>
-  {% if stats_updated %}<p class="hint">Последнее обновление: {{ stats_updated }}</p>{% endif %}
-  <form method="post" style="margin-top:12px">
-    <input type="hidden" name="action" value="refresh_stats">
-    <button class="ghost">Обновить сейчас</button>
-  </form>
+    <details class="settings-fold">
+      <summary>SMS клиентам</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Подтверждение и напоминания через sms.ru.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="client_sms_save">
+          <label class="check span4"><input type="checkbox" name="client_sms_enabled" {% if client_sms_on %}checked{% endif %}> Включить SMS</label>
+          <input name="client_sms_api_id" class="span4" value="{{ client_sms_api }}" placeholder="API ID sms.ru" autocomplete="off">
+          <input name="client_sms_brand" value="{{ client_sms_brand }}" placeholder="Название в SMS">
+          <input name="client_sms_address" class="span4" value="{{ client_sms_address }}" placeholder="Адрес студии">
+          <label class="check"><input type="checkbox" name="client_sms_confirm" {% if client_sms_confirm %}checked{% endif %}> Подтверждение</label>
+          <label class="check"><input type="checkbox" name="client_sms_remind_24h" {% if client_sms_remind_24h %}checked{% endif %}> За 24 часа</label>
+          <label class="check"><input type="checkbox" name="client_sms_remind_1h" {% if client_sms_remind_1h %}checked{% endif %}> За 1 час</label>
+          <button>Сохранить SMS</button>
+        </form>
+        <form method="post" class="form-grid" style="margin-top:10px">
+          <input type="hidden" name="action" value="client_sms_test">
+          <input name="client_sms_test_phone" placeholder="Телефон для теста" required>
+          <button class="ghost">Тест SMS</button>
+        </form>
+      </div>
+    </details>
+
+    <details class="settings-fold">
+      <summary>Novofon — входящие</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Webhook: <code class="settings-code">{{ novofon_webhook_url }}</code></p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="novofon_save">
+          <label class="check span4"><input type="checkbox" name="novofon_enabled" {% if novofon_on %}checked{% endif %}> Принимать звонки</label>
+          <button>Сохранить</button>
+        </form>
+        <form method="post" class="form-grid" style="margin-top:10px">
+          <input type="hidden" name="action" value="novofon_test">
+          <input name="novofon_test_phone" placeholder="Телефон +7..." required>
+          <button class="ghost">Симулировать звонок</button>
+        </form>
+      </div>
+    </details>
+  </section>
+
+  <section class="settings-section" id="set-loyalty">
+    <h2 class="settings-section-title">Лояльность</h2>
+
+    <details class="settings-fold" open>
+      <summary>Бонусная программа</summary>
+      <div class="settings-fold-body">
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="bonus_save">
+          <label class="check span4"><input type="checkbox" name="bonus_enabled" {% if bonus_on %}checked{% endif %}> Включить бонусы</label>
+          <input name="bonus_percent" type="number" step="0.1" min="0" value="{{ bonus_percent }}" placeholder="% от суммы">
+          <input name="bonus_from_visit" type="number" step="1" min="1" value="{{ bonus_from_visit }}" placeholder="С какого визита">
+          <button>Сохранить</button>
+        </form>
+        <p class="settings-hint">Карты и баланс — в карточке клиента CRM.</p>
+      </div>
+    </details>
+
+    <details class="settings-fold">
+      <summary>Карты «Для друзей»</summary>
+      <div class="settings-fold-body">
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="friend_save">
+          <input name="friend_discount_percent" type="number" step="0.1" min="0" value="{{ friend_discount_percent }}" placeholder="Скидка %, по умолчанию">
+          <button>Сохранить %</button>
+        </form>
+        <form method="post" class="form-grid" style="margin-top:10px">
+          <input type="hidden" name="action" value="friend_add">
+          <input name="friend_name" placeholder="Имя друга" required>
+          <select name="friend_client_id">
+            <option value="">Без привязки к CRM</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}">{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
+            {% endfor %}
+          </select>
+          <input name="friend_card_percent" type="number" step="0.1" placeholder="% (пусто = default)">
+          <input name="friend_comment" placeholder="Комментарий">
+          <button>Выдать карту</button>
+        </form>
+        {% if friend_cards %}
+        <div class="settings-friend-list">
+          {% for fc in friend_cards %}
+          <div class="settings-friend-row">
+            <div>
+              <b>{{ fc.card_number }}</b> · {{ fc.name }}
+              <span>{{ fc.discount_percent or friend_discount_percent }}%{% if fc.client_name %} · {{ fc.client_name }}{% endif %}</span>
+            </div>
+            <div class="settings-friend-acts">
+              <a class="ghost mini-btn" href="{{ fc.card_url }}" target="_blank" rel="noopener">Ссылка</a>
+              <form method="post"><input type="hidden" name="action" value="friend_toggle"><input type="hidden" name="friend_id" value="{{ fc.id }}"><button class="ghost mini-btn" type="submit">{% if fc.active %}Выкл{% else %}Вкл{% endif %}</button></form>
+              <form method="post" onsubmit="return confirm('Удалить карту?')"><input type="hidden" name="action" value="friend_delete"><input type="hidden" name="friend_id" value="{{ fc.id }}"><button class="danger mini-btn" type="submit">×</button></form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="settings-hint">Пока нет карт.</p>
+        {% endif %}
+      </div>
+    </details>
+  </section>
+
+  <section class="settings-section" id="set-docs">
+    <h2 class="settings-section-title">Документы</h2>
+    <details class="settings-fold" open>
+      <summary>Шаблон сертификата PDF</summary>
+      <div class="settings-fold-body">
+        {% if cert_has_template %}
+        <p class="settings-hint ok">Шаблон загружен ✓</p>
+        {% else %}
+        <p class="settings-hint bad">Шаблон не загружен — будет встроенный макет</p>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data" class="form-grid">
+          <input type="hidden" name="action" value="cert_template">
+          <input type="file" name="template_pdf" accept="application/pdf,.pdf" required class="span3">
+          <button class="ghost">Загрузить PDF</button>
+        </form>
+      </div>
+    </details>
+  </section>
+
+  <section class="settings-section" id="set-system">
+    <h2 class="settings-section-title">Система</h2>
+    <details class="settings-fold" open>
+      <summary>База данных</summary>
+      <div class="settings-fold-body">
+        <div class="cards simple settings-db-cards">
+          <div class="card"><span>Записей</span><strong>{{ db_info.appointments }}</strong></div>
+          <div class="card"><span>Клиентов</span><strong>{{ db_info.clients }}</strong></div>
+        </div>
+        <p class="settings-hint"><code>{{ db_path }}</code></p>
+        <div class="settings-actions">
+          <form method="post"><input type="hidden" name="action" value="backup"><button class="ghost" type="submit">Копия сейчас</button></form>
+          <form method="post"><input type="hidden" name="action" value="restore"><button class="ghost" type="submit">Восстановить</button></form>
+        </div>
+        {% if backups %}
+        <p class="settings-hint">Копии: {% for b in backups %}{{ b.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        {% endif %}
+      </div>
+    </details>
+  </section>
 </div>
 {% endblock %}

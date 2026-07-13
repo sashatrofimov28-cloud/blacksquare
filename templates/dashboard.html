@@ -5,7 +5,7 @@
 {% block main_class %} main-z-light{% endblock %}
 {% block nav_class %} bottom-nav-z{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=52">
+<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=54">
 {% endblock %}
 {% block content %}
 {% set closed_n = stats.appointments or 0 %}
@@ -117,6 +117,8 @@
       <div class="dz-body">
         <b>{{ r.client_name }}</b>
         <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+        {% set origin = booking_origin_label(r) %}
+        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
       <div class="dz-side">
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
@@ -142,6 +144,8 @@
       <div class="dz-body">
         <b>{{ r.client_name }}</b>
         <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+        {% set origin = booking_origin_label(r) %}
+        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
       <div class="dz-side">
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
@@ -170,6 +174,8 @@
       <div class="dz-body">
         <b>{{ r.client_name }}</b>
         <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+        {% set origin = booking_origin_label(r) %}
+        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
       <div class="dz-side">
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>

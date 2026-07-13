@@ -135,6 +135,8 @@
         <div class="cal-appt-expanded">
           <div><b>Телефон:</b> {{ visible_phone(r) }}</div>
           <div><b>Авто:</b> {{ r.car or '—' }} · {{ r.plate_number or '—' }}</div>
+          {% set origin = booking_origin_label(r) %}
+          {% if origin %}<div><b>Кто записал:</b> {{ origin }}</div>{% endif %}
           <div class="appt-actions">{% include '_appointment_actions.html' %}</div>
         </div>
       </details>

@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v53'
+BUILD_VERSION = 'client-v54'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -244,6 +244,55 @@ WEEKDAYS_LONG = ['понедельник', 'вторник', 'среда', 'че
 def format_date_dashboard_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
     return f"{WEEKDAYS_LONG[d.weekday()].capitalize()}, {d.day} {MONTHS_RU_GEN[d.month]}"
+
+def booking_origin_label(ap):
+    """Кто создал запись: сотрудник / Онлайн запись / Telegram."""
+    if not ap:
+        return ''
+    try:
+        src = (ap['booking_source'] or '').strip().lower()
+    except (KeyError, IndexError, TypeError):
+        src = ''
+    try:
+        name = (ap['created_by_name'] or '').strip()
+    except (KeyError, IndexError, TypeError):
+        name = ''
+    if src == 'online':
+        return 'Онлайн запись'
+    if src == 'telegram':
+        return name or 'Telegram'
+    if name:
+        return f'Записал: {name}'
+    if src == 'manual':
+        return 'Запись в CRM'
+    return ''
+
+def booking_origin_short(ap):
+    label = booking_origin_label(ap)
+    if label.startswith('Записал: '):
+        return label.replace('Записал: ', '', 1)
+    return label
+
+def stamp_appointment_origin(con, aid, source, user=None, telegram_author=''):
+    """Проставляет источник записи после INSERT."""
+    source = (source or 'manual').strip().lower()
+    uid = None
+    name = ''
+    if source == 'online':
+        name = 'Онлайн запись'
+    elif source == 'telegram':
+        name = f'Telegram{(" · @" + telegram_author.lstrip("@")) if telegram_author else ""}'
+    elif user is not None:
+        try:
+            uid = user['id']
+            name = user['full_name'] or ''
+        except (KeyError, TypeError, IndexError):
+            uid = None
+            name = ''
+    con.execute(
+        "UPDATE appointments SET booking_source=?, created_by_user_id=?, created_by_name=? WHERE id=?",
+        (source, uid, name or None, aid),
+    )
 
 def format_date_short_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
@@ -1342,6 +1391,12 @@ def migrate_db(c):
         c.execute("ALTER TABLE appointments ADD COLUMN confirmation_token TEXT")
     if 'client_confirmed_at' not in appt_cols:
         c.execute("ALTER TABLE appointments ADD COLUMN client_confirmed_at TEXT")
+    if 'booking_source' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN booking_source TEXT")
+    if 'created_by_user_id' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN created_by_user_id INTEGER")
+    if 'created_by_name' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN created_by_name TEXT")
     c.execute(
         "CREATE TABLE IF NOT EXISTS appointment_notifications("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, kind TEXT, phone TEXT, "
@@ -3200,6 +3255,7 @@ def create_telegram_z_appointment(con, parsed, author='', source='text'):
     )
     aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
     set_appointment_services(con, aid, bundle['ids'])
+    stamp_appointment_origin(con, aid, 'telegram', telegram_author=author or '')
     con.commit()
     trigger_auto_backup()
     return {
@@ -3606,6 +3662,8 @@ def inject():
         'appt_status_meta': appt_status_meta,
         'appt_countdown_label': appt_countdown_label,
         'appt_closed_label': appt_closed_label,
+        'booking_origin_label': booking_origin_label,
+        'booking_origin_short': booking_origin_short,
         'months_ru': MONTHS_RU,
         'crm_status_tone': crm_status_tone,
         'client_initials': client_initials,
@@ -3631,6 +3689,10 @@ def design_hub():
 @app.route('/design/dashboard')
 def design_dashboard():
     return render_template('design_dashboard.html')
+
+@app.route('/design/booking')
+def design_booking_variants():
+    return render_template('design_booking.html')
 
 @app.route('/design/close')
 def design_close_variants():
@@ -3851,6 +3913,7 @@ def booking():
         aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
         set_appointment_employees(con, aid, [int(uid)])
         set_appointment_services(con, aid, service_ids)
+        stamp_appointment_origin(con, aid, 'online')
         con.commit()
         defer_notify_new_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
         defer_client_appointment_notify(aid, 'confirm')
@@ -3939,6 +4002,25 @@ def load_car_catalog():
 def _car_norm(s):
     return (s or '').lower().replace('ё', 'е').strip()
 
+def _car_model_name(model):
+    if isinstance(model, dict):
+        return model.get('name') or ''
+    return str(model or '')
+
+def _car_model_aliases(model):
+    if isinstance(model, dict):
+        return list(model.get('aliases') or [])
+    return []
+
+def _car_brand_thumb(brand):
+    color = (brand.get('color') or '#555').lstrip('#')
+    slug = brand.get('slug') or brand.get('name', 'car')
+    return {
+        'color': f'#{color}' if not str(brand.get('color', '')).startswith('#') else brand.get('color'),
+        'slug': slug,
+        'initials': ''.join(w[0] for w in brand['name'].split()[:2]).upper()[:2],
+    }
+
 def suggest_cars_from_catalog(query, limit=12):
     q = _car_norm(query)
     if not q:
@@ -3946,24 +4028,48 @@ def suggest_cars_from_catalog(query, limit=12):
     results, seen = [], set()
     for brand in load_car_catalog().get('brands', []):
         name = brand['name']
+        thumb = _car_brand_thumb(brand)
         names = [name] + list(brand.get('aliases') or [])
-        brand_hit = any(
-            _car_norm(n).startswith(q) or q in _car_norm(n)
-            for n in names
-        )
-        if brand_hit:
-            if name not in seen:
-                results.append({'label': name, 'value': name, 'kind': 'brand'})
-                seen.add(name)
+        brand_hit = any(_car_norm(n).startswith(q) or q in _car_norm(n) for n in names)
+        if brand_hit and name not in seen:
+            results.append({
+                'label': name, 'value': name, 'kind': 'brand',
+                'hint': '', 'color': thumb['color'], 'initials': thumb['initials'],
+            })
+            seen.add(name)
         for model in brand.get('models', []):
-            full = f'{name} {model}'
-            fl, ml = _car_norm(full), _car_norm(model)
-            if fl.startswith(q) or ml.startswith(q) or q in fl:
-                if full not in seen:
-                    results.append({'label': full, 'value': full, 'kind': 'model'})
-                    seen.add(full)
-                if len(results) >= limit:
-                    return results
+            mname = _car_model_name(model)
+            if not mname:
+                continue
+            aliases = _car_model_aliases(model)
+            full = f'{name} {mname}'
+            codes = [a for a in aliases if re.match(r'^[A-Za-z]?\d', a) or (len(a) <= 4 and a.upper() == a)]
+            hint_codes = [a for a in aliases if _car_norm(a) == q or _car_norm(a).startswith(q)]
+            hit = (
+                _car_norm(full).startswith(q) or _car_norm(mname).startswith(q) or q in _car_norm(full)
+                or any(_car_norm(a) == q or _car_norm(a).startswith(q) or q in _car_norm(a) for a in aliases)
+            )
+            if not hit:
+                continue
+            if full in seen:
+                continue
+            hint = ''
+            if hint_codes:
+                hint = hint_codes[0].upper() if len(hint_codes[0]) <= 5 else hint_codes[0]
+            elif codes:
+                hint = codes[0]
+            label = f'{full}' + (f' · {hint}' if hint and hint.lower() not in full.lower() else '')
+            results.append({
+                'label': label,
+                'value': full,
+                'kind': 'model',
+                'hint': hint,
+                'color': thumb['color'],
+                'initials': thumb['initials'],
+            })
+            seen.add(full)
+            if len(results) >= limit:
+                return results
     return results[:limit]
 
 def suggest_cars_from_db(con, query, limit=5):
@@ -4052,6 +4158,7 @@ def calendar_view():
                 aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
                 set_appointment_employees(con, aid, employee_ids)
                 set_appointment_services(con, aid, service_ids)
+                stamp_appointment_origin(con, aid, 'manual', user=u)
                 con.commit()
                 defer_notify_new_appointment(employee_ids, d, start, name, bundle['name'], car or plate, source='Ручная запись')
                 defer_client_appointment_notify(aid, 'confirm')
@@ -6147,6 +6254,13 @@ def settings():
                 con.commit()
             con.close()
             flash('Карта удалена')
+        elif action == 'telegram_save':
+            set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
+            set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
+            wake = request.form.get('telegram_wake_name', '').strip()
+            if wake:
+                set_setting('telegram_wake_name', wake.lower())
+            flash('Настройки Telegram сохранены')
         elif action == 'openai_save':
             key = request.form.get('openai_api_key', '').strip()
             if key:
@@ -6154,12 +6268,6 @@ def settings():
                 flash('Ключ OpenAI сохранён — голосовые записи в Telegram включены')
             else:
                 flash('Введите ключ OpenAI (начинается с sk-)')
-            set_setting('telegram_enabled', '1' if request.form.get('telegram_enabled') else '0')
-            set_setting('telegram_chat_id', request.form.get('telegram_chat_id', '').strip())
-            wake = request.form.get('telegram_wake_name', '').strip()
-            if wake:
-                set_setting('telegram_wake_name', wake.lower())
-            flash('Настройки Telegram сохранены')
         elif action == 'telegram_test':
             ok, err = send_telegram_message('<b>Тест</b>\nУведомления BlackSquare CRM работают.', force=True)
             flash('Тестовое сообщение отправлено в чат' if ok else f'Telegram: {err}')
