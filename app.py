@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v57'
+BUILD_VERSION = 'client-v58'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -850,8 +850,17 @@ def appt_closed_label(closed_at, start_time=''):
         return f'Визит {normalize_hm(start_time)[:5]}'
     return 'Сегодня'
 
-def closed_today_sql():
-    return "(status='Закрыт' AND ((closed_at IS NOT NULL AND date(closed_at)=?) OR (closed_at IS NULL AND appointment_date=?)))"
+def closed_today_sql(alias='a'):
+    """Фильтр закрытых за календарный день (по closed_at, иначе по дате визита)."""
+    c = f'{alias}.closed_at' if alias else 'closed_at'
+    d = f'{alias}.appointment_date' if alias else 'appointment_date'
+    s = f'{alias}.status' if alias else 'status'
+    return (
+        f"({s}='Закрыт' AND ("
+        f"({c} IS NOT NULL AND TRIM({c})!='' AND date({c})=?) OR "
+        f"(({c} IS NULL OR TRIM({c})='') AND {d}=?)"
+        f"))"
+    )
 
 def db():
     Path(DB).parent.mkdir(parents=True, exist_ok=True)
@@ -1529,12 +1538,7 @@ def compute_period_stats(con, period='today'):
     # Для дня касса считается по факту закрытия (МСК), иначе «после 00:00»
     # остаётся вчерашняя сумма, а «Закрыто сегодня» уже другое.
     if period in ('today', 'yesterday'):
-        closed_range = (
-            "status='Закрыт' AND ("
-            "(closed_at IS NOT NULL AND date(closed_at)=?) OR "
-            "(closed_at IS NULL AND appointment_date=?)"
-            ")"
-        )
+        closed_range = closed_today_sql(alias='')
         range_args = (start, start)
     else:
         closed_range = "status='Закрыт' AND appointment_date>=? AND appointment_date<=?"
@@ -1606,6 +1610,13 @@ def refresh_dashboard_stats():
     return stats
 
 def dashboard_stats(period='today'):
+    # Сегодня/вчера всегда живые — иначе после 00:00 касса «залипает»
+    # на вчерашней сумме (баг delta.days < 1 при daily).
+    if period in ('today', 'yesterday'):
+        con = db()
+        stats = compute_period_stats(con, period)
+        con.close()
+        return stats, now()
     interval = get_setting('stats_refresh', 'live')
     if interval == 'live':
         con = db()
@@ -1620,26 +1631,30 @@ def dashboard_stats(period='today'):
     now_dt = app_now()
     need_refresh = True
     if cached.get('at'):
-        last = datetime.strptime(cached['at'], '%Y-%m-%d %H:%M')
-        delta = now_dt - last
-        if interval == 'weekly' and delta.days < 7:
-            need_refresh = False
-        elif interval == 'monthly' and (now_dt.year, now_dt.month) == (last.year, last.month):
-            need_refresh = False
-        elif interval == 'daily' and delta.days < 1:
-            need_refresh = False
+        try:
+            last = datetime.strptime(cached['at'], '%Y-%m-%d %H:%M')
+        except ValueError:
+            last = None
+        if last is not None:
+            if interval == 'weekly' and (now_dt - last).days < 7:
+                need_refresh = False
+            elif interval == 'monthly' and (now_dt.year, now_dt.month) == (last.year, last.month):
+                need_refresh = False
+            elif interval == 'daily' and last.date() == now_dt.date():
+                need_refresh = False
+    cached_stats = cached.get('stats') or {}
+    if cached_stats.get('period') != period:
+        need_refresh = True
+    # Кэш «сегодня» с другой календарной датой — пересчитать
+    if period == 'today' and cached_stats.get('date_from') and cached_stats.get('date_from') != today():
+        need_refresh = True
     if need_refresh:
         con = db()
         stats = compute_period_stats(con, period)
         con.close()
         set_setting('stats_cached', json.dumps({'at': now(), 'stats': stats}, ensure_ascii=False))
         return stats, now()
-    stats = cached.get('stats', {})
-    if stats.get('period') != period:
-        con = db()
-        stats = compute_period_stats(con, period)
-        con.close()
-    return stats, cached.get('at', '')
+    return cached_stats, cached.get('at', '')
 
 def service_price_label(price):
     p = float(price or 0)
@@ -3818,7 +3833,7 @@ def dashboard():
         upcoming = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'], u['id'])).fetchall()
         closed_today = con.execute(
             f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
-            f"WHERE {mf} AND {closed_today_sql()} "
+            f"WHERE {mf} AND {closed_today_sql('a')} "
             f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
             (u['id'], u['id'], day, day),
         ).fetchall()
@@ -3846,22 +3861,25 @@ def dashboard():
     day = today()
     closed_today = con.execute(
         f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
-        f"WHERE {closed_today_sql()} "
+        f"WHERE {closed_today_sql('a')} "
         f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
         (day, day),
     ).fetchall()
     day_row = con.execute(
         "SELECT "
         "COALESCE(SUM(CASE WHEN status IN ('В работе','Начат') THEN 1 ELSE 0 END),0) AS in_work, "
-        "COALESCE(SUM(CASE WHEN status NOT IN ('Закрыт','Отменен','В работе','Начат') THEN 1 ELSE 0 END),0) AS waiting, "
-        "COALESCE(SUM(CASE WHEN status='Закрыт' THEN 1 ELSE 0 END),0) AS closed "
+        "COALESCE(SUM(CASE WHEN status NOT IN ('Закрыт','Отменен','В работе','Начат') THEN 1 ELSE 0 END),0) AS waiting "
         "FROM appointments WHERE appointment_date=?",
         (day,),
     ).fetchone()
+    closed_count = con.execute(
+        f"SELECT COUNT(*) c FROM appointments a WHERE {closed_today_sql('a')}",
+        (day, day),
+    ).fetchone()['c']
     day_status = {
         'in_work': int(day_row['in_work'] or 0),
         'waiting': int(day_row['waiting'] or 0),
-        'closed': int(day_row['closed'] or 0),
+        'closed': int(closed_count or 0),
     }
     closed_today_sum = sum(float(r['price'] or 0) for r in closed_today)
     in_work_list = [r for r in upcoming if (r['status'] or '') in ('В работе', 'Начат')]
@@ -4512,6 +4530,7 @@ def close_appointment(aid):
         redirect_date = ap['appointment_date']
         con.commit()
         con.close()
+        refresh_dashboard_stats()
         defer_after_appointment_closed(aid, price)
         extra = []
         if friend_discount_applied:
