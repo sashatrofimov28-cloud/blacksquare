@@ -19,16 +19,14 @@
 
     <section class="bk-live-card">
       <h2>Авто</h2>
-      <div class="bk-car-row">
-        <button type="button" class="bk-car-av" id="carAvatar" hidden aria-label="Показать авто">
-          <img id="carAvatarImg" alt="Авто" width="72" height="48">
-        </button>
-        <div class="bk-car-fields">
-          <input name="car" id="carInput" class="js-car-ac" placeholder="Марка и модель — начните вводить" autocomplete="off">
-          <input name="plate_number" placeholder="Госномер" autocomplete="off">
-        </div>
-      </div>
-      <p class="bk-live-hint" id="carHint">Например F10 или Camry — подскажем модель. Нажмите фото, чтобы увидеть авто.</p>
+      <input name="car" id="carInput" class="js-car-ac" placeholder="Марка и модель" autocomplete="off">
+      <input name="plate_number" placeholder="Госномер" autocomplete="off">
+      <button type="button" class="bk-car-preview" id="carPreview" hidden aria-label="Фото авто">
+        <img id="carPreviewImg" alt="" width="88" height="56">
+        <span class="bk-car-preview-body">
+          <b id="carPreviewName"></b>
+        </span>
+      </button>
     </section>
 
     <section class="bk-live-card">
@@ -127,8 +125,9 @@
   const masterList = document.getElementById('masterList');
   const slotGrid = document.getElementById('slotGrid');
   const carInput = document.getElementById('carInput');
-  const carAvatar = document.getElementById('carAvatar');
-  const carAvatarImg = document.getElementById('carAvatarImg');
+  const carPreview = document.getElementById('carPreview');
+  const carPreviewImg = document.getElementById('carPreviewImg');
+  const carPreviewName = document.getElementById('carPreviewName');
   const carSheet = document.getElementById('carSheet');
   const carSheetImg = document.getElementById('carSheetImg');
   const carSheetTitle = document.getElementById('carSheetTitle');
@@ -209,14 +208,16 @@
   function setCarAvatar(detail) {
     selectedCar = detail || { value: '', hint: '', photo: '', photoLarge: '' };
     if (!selectedCar.value || !selectedCar.photo) {
-      carAvatar.hidden = true;
-      carAvatarImg.removeAttribute('src');
+      carPreview.hidden = true;
+      carPreviewImg.removeAttribute('src');
+      carPreviewName.textContent = '';
       return;
     }
-    carAvatarImg.onload = function () { carAvatar.hidden = false; };
-    carAvatarImg.onerror = function () { carAvatar.hidden = true; };
-    carAvatarImg.src = selectedCar.photo;
-    carAvatarImg.alt = selectedCar.value;
+    carPreviewName.textContent = selectedCar.value;
+    carPreviewImg.onload = function () { carPreview.hidden = false; };
+    carPreviewImg.onerror = function () { carPreview.hidden = true; };
+    carPreviewImg.src = selectedCar.photo;
+    carPreviewImg.alt = selectedCar.value;
   }
 
   carInput.addEventListener('bs:car-selected', function (e) {
@@ -240,13 +241,13 @@
     updateFooter();
   });
 
-  carAvatar.addEventListener('click', function () {
-    if (!selectedCar.value || !selectedCar.photoLarge && !selectedCar.photo) return;
+  carPreview.addEventListener('click', function () {
+    if (!selectedCar.value || !(selectedCar.photoLarge || selectedCar.photo)) return;
     carSheetImg.src = selectedCar.photoLarge || selectedCar.photo;
     carSheetTitle.textContent = selectedCar.value;
     carSheetSub.textContent = selectedCar.hint
-      ? ('Код кузова ' + selectedCar.hint + ' · так выглядит модель')
-      : 'Так выглядит выбранная модель';
+      ? ('Код ' + selectedCar.hint)
+      : 'Выбранная модель';
     if (typeof carSheet.showModal === 'function') carSheet.showModal();
     else carSheet.setAttribute('open', '');
   });
