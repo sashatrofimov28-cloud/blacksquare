@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Онлайн-запись · вариант B подробно</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-booking.css') }}?v=2">
+</head>
+<body class="bk-gallery">
+  <header class="bk-gallery-hero">
+    <a class="bk-gallery-back" href="/design/booking">← Все варианты A–D</a>
+    <h1>Вариант B — подробно</h1>
+    <p>Один экран в светлом стиле Z. Ниже — как выглядит сверху вниз: контакты и авто, услуги, мастер и слоты, закреплённая кнопка, экран успеха. Боевой <code>/booking</code> не меняем, пока не скажете.</p>
+  </header>
+
+  <div class="bk-b-intro">
+    <div>
+      <b>Идея</b>
+      <p>Клиент видит всю запись сразу, без «шаг 1 из 4». Порядок как у вас сейчас: кто → авто → услуги → мастер → дата/время → отправить. Визуально — серый фон, белые группы, зелёный акцент, как на главной и закрытии визита.</p>
+    </div>
+    <div>
+      <b>Что лучше текущего</b>
+      <ul>
+        <li>Авто с подсказками (F10 → BMW 5 Series)</li>
+        <li>Услуги чипами, не длинным списком галочек</li>
+        <li>Мастера карточками, слоты сеткой</li>
+        <li>Внизу итог: услуга · время · цена</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bk-variant-grid bk-b-grid">
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>1 · Шапка и контакты</b>
+        <span>Бренд сразу, адрес студии, поля имени и телефона. Авто — с выпадающей подсказкой.</span>
+        <span class="bk-variant-tag">Контакты</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Верх</div>
+        <div class="phone-scroll">
+          <div class="bk bk-b">
+            <div class="bk-top">
+              <div>
+                <div class="bk-brand">BlackSquare</div>
+                <h2>Онлайн-запись</h2>
+                <p>Тюмень · ул. Энергетиков, 53</p>
+              </div>
+            </div>
+            <div class="bk-card bk-card-pad">
+              <h3>Вы</h3>
+              <input class="bk-input" value="Виктория" readonly>
+              <input class="bk-input" value="+7 (999) 123-45-67" readonly>
+            </div>
+            <div class="bk-card bk-card-pad" style="position:relative;z-index:2">
+              <h3>Авто</h3>
+              <input class="bk-input" value="f10" readonly style="margin-bottom:0">
+              <div class="bk-ac">
+                <button type="button" class="bk-ac-item">
+                  <span class="bk-ac-thumb" style="background:#1c69d4"></span>
+                  <span><b>BMW 5 Series</b><small>F10</small></span>
+                </button>
+                <button type="button" class="bk-ac-item">
+                  <span class="bk-ac-thumb" style="background:#1c69d4"></span>
+                  <span><b>BMW 5 Series Touring</b><small>F11</small></span>
+                </button>
+              </div>
+              <input class="bk-input" placeholder="Госномер" style="margin-top:8px" value="А123ВС72" readonly>
+            </div>
+            <p class="bk-quiet">Дальше по скроллу — услуги и время.</p>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>2 · Услуги группами</b>
+        <span>Категории как сейчас в CRM, но чипами: тап — выбрал. Несколько услуг сразу.</span>
+        <span class="bk-variant-tag">Услуги</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Услуги</div>
+        <div class="phone-scroll">
+          <div class="bk bk-b">
+            <div class="bk-card">
+              <div class="bk-card-head">
+                <h3>Тонировка</h3>
+                <span>выбрано 1</span>
+              </div>
+              <div class="bk-svc">
+                <label class="bk-svc-row on">
+                  <span><b>Передние боковые</b><small>45 мин</small></span>
+                  <strong>2 500 ₽</strong>
+                </label>
+                <label class="bk-svc-row">
+                  <span><b>Задние боковые</b><small>60 мин</small></span>
+                  <strong>3 200 ₽</strong>
+                </label>
+                <label class="bk-svc-row">
+                  <span><b>Полная</b><small>120 мин</small></span>
+                  <strong>от 8 000 ₽</strong>
+                </label>
+              </div>
+            </div>
+            <div class="bk-card">
+              <div class="bk-card-head"><h3>Дополнительно</h3></div>
+              <div class="bk-chip-row">
+                <span class="bk-chip">Атермалка лобового</span>
+                <span class="bk-chip on">Антидождь</span>
+              </div>
+            </div>
+            <div class="bk-sum-line">
+              <span>Итого услуг</span>
+              <b>2 500 ₽ · ~45 мин</b>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>3 · Мастер, дата, окна</b>
+        <span>После услуг подгружаются доступные мастера. Дата — сегмент «сегодня / завтра / дата». Слоты сеткой.</span>
+        <span class="bk-variant-tag">Время</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Время</div>
+        <div class="phone-scroll">
+          <div class="bk bk-b">
+            <div class="bk-card">
+              <h3>Мастер</h3>
+              <div class="bk-master on">
+                <span class="bk-av" style="background:#e8faf1;color:#00b368">АЛ</span>
+                <div>
+                  <b>Александр</b>
+                  <div class="bk-quiet" style="margin:0">делает выбранные услуги</div>
+                </div>
+                <span class="bk-check">✓</span>
+              </div>
+              <div class="bk-master">
+                <span class="bk-av">ДМ</span>
+                <div>
+                  <b>Дмитрий</b>
+                  <div class="bk-quiet" style="margin:0">сегодня свободно с 16:00</div>
+                </div>
+              </div>
+            </div>
+            <div class="bk-card">
+              <h3>Когда</h3>
+              <div class="bk-seg">
+                <span class="on">Сегодня</span>
+                <span>Завтра</span>
+                <span>Дата</span>
+              </div>
+              <p class="bk-quiet" style="margin-top:10px">Свободные окна · 14 июля</p>
+              <div class="bk-slot-grid">
+                <span class="bk-slot">12:00</span>
+                <span class="bk-slot on">14:00</span>
+                <span class="bk-slot">15:30</span>
+                <span class="bk-slot">16:00</span>
+                <span class="bk-slot dim">17:00</span>
+                <span class="bk-slot">18:30</span>
+              </div>
+            </div>
+            <input class="bk-input" placeholder="Комментарий (необязательно)">
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="bk-variant-card">
+      <div class="bk-variant-label">
+        <b>4 · Кнопка и успех</b>
+        <span>Внизу закреплена полоска с итогом. После записи — спокойный экран «вы записаны», без тёмной CRM-оболочки.</span>
+        <span class="bk-variant-tag">Финиш</span>
+      </div>
+      <div class="phone">
+        <div class="phone-notch">B · Готово</div>
+        <div class="phone-scroll">
+          <div class="bk bk-b">
+            <div class="bk-sticky-preview">
+              <div>
+                <small>К записи</small>
+                <b>14:00 · Александр</b>
+                <span>Передние боковые · BMW 5</span>
+              </div>
+              <strong>2 500 ₽</strong>
+            </div>
+            <button type="button" class="bk-cta">Записаться</button>
+            <div class="bk-divider">после отправки ↓</div>
+            <div class="bk-success">
+              <div class="bk-success-ic">✓</div>
+              <h2>Вы записаны</h2>
+              <p>Ждём вас 14 июля в 14:00</p>
+              <div class="bk-card" style="text-align:left;margin-top:14px">
+                <div class="bk-ok-row"><span>Услуга</span><b>Передние боковые</b></div>
+                <div class="bk-ok-row"><span>Мастер</span><b>Александр</b></div>
+                <div class="bk-ok-row"><span>Авто</span><b>BMW 5 Series</b></div>
+                <div class="bk-ok-row"><span>Сумма</span><b>2 500 ₽</b></div>
+              </div>
+              <p class="bk-quiet" style="margin-top:12px">Пришлём SMS с подтверждением, если включено в настройках.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <div class="bk-b-footer">
+    <p>Если B ок — напишите «делай B», внедрим в <code>/booking</code>. Пока боевая запись без изменений.</p>
+    <p><a href="/design/booking">← Сравнить A / C / D</a> · <a href="/booking">Открыть текущую запись</a></p>
+  </div>
+</body>
+</html>

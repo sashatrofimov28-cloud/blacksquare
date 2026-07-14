@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v54'
+BUILD_VERSION = 'client-v55'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -3693,6 +3693,10 @@ def design_dashboard():
 @app.route('/design/booking')
 def design_booking_variants():
     return render_template('design_booking.html')
+
+@app.route('/design/booking-b')
+def design_booking_b():
+    return render_template('design_booking_b.html')
 
 @app.route('/design/close')
 def design_close_variants():
