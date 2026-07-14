@@ -12,6 +12,17 @@
     return catalogPromise;
   }
 
+  function withPhoto(item) {
+    var photo = '';
+    if (window.BS_carPhotoUrl && item.kind !== 'brand') {
+      photo = window.BS_carPhotoUrl(item.value, item.hint || '', 160);
+    } else if (window.BS_carPhotoUrl && item.kind === 'brand') {
+      photo = window.BS_carPhotoUrl(item.value, '', 160);
+    }
+    item.photo = photo;
+    return item;
+  }
+
   function norm(s) {
     return (s || '').toLowerCase().replace(/ё/g, 'е').trim();
   }
@@ -45,7 +56,7 @@
         return nn.indexOf(nq) === 0 || nn.indexOf(nq) > -1;
       });
       if (brandHit && !seen[brand]) {
-        out.push({ label: brand, value: brand, kind: 'brand', color: meta.color, initials: meta.initials, hint: '' });
+        out.push(withPhoto({ label: brand, value: brand, kind: 'brand', color: meta.color, initials: meta.initials, hint: '' }));
         seen[brand] = 1;
       }
       (b.models || []).forEach(function (model) {
@@ -67,14 +78,14 @@
             });
             var hint = matched || (aliases[0] || '');
             var label = full + (hint && nf.indexOf(norm(hint)) < 0 ? ' · ' + hint : '');
-            out.push({
+            out.push(withPhoto({
               label: label,
               value: full,
               kind: 'model',
               hint: hint,
               color: meta.color,
               initials: meta.initials
-            });
+            }));
             seen[full] = 1;
           }
         }
@@ -97,14 +108,14 @@
       var v = item.value || item.label;
       if (!v || seen[v]) return;
       seen[v] = 1;
-      out.push({
+      out.push(withPhoto({
         label: item.label || v,
         value: v,
         kind: item.kind || 'history',
         hint: item.hint || '',
         color: item.color || '#666',
         initials: item.initials || '🚗'
-      });
+      }));
     });
     return out.slice(0, limit);
   }
@@ -140,6 +151,20 @@
   function thumbEl(item) {
     var t = document.createElement('span');
     t.className = 'car-ac-thumb';
+    if (item.photo) {
+      t.classList.add('has-photo');
+      var img = document.createElement('img');
+      img.src = item.photo;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.onerror = function () {
+        t.classList.remove('has-photo');
+        img.remove();
+        t.style.background = item.color || '#555';
+      };
+      t.appendChild(img);
+      return t;
+    }
     t.style.background = item.color || '#555';
     t.textContent = item.initials || '·';
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -181,18 +206,33 @@
       btn.dataset.value = item.value;
       btn.addEventListener('mousedown', function (e) {
         e.preventDefault();
-        selectItem(wrap, item.value);
+        selectItem(wrap, item);
       });
       list.appendChild(btn);
     });
     openList(wrap);
   }
 
-  function selectItem(wrap, value) {
+  function selectItem(wrap, itemOrValue) {
+    var item = typeof itemOrValue === 'string'
+      ? { value: itemOrValue, label: itemOrValue, hint: '', photo: window.BS_carPhotoUrl ? window.BS_carPhotoUrl(itemOrValue, '', 400) : '' }
+      : itemOrValue;
     var input = wrap.querySelector('input');
-    input.value = value;
+    input.value = item.value;
+    input.dataset.carHint = item.hint || '';
+    input.dataset.carPhoto = item.photo || (window.BS_carPhotoUrl ? window.BS_carPhotoUrl(item.value, item.hint || '', 400) : '');
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new CustomEvent('bs:car-selected', {
+      bubbles: true,
+      detail: {
+        value: item.value,
+        label: item.label || item.value,
+        hint: item.hint || '',
+        photo: input.dataset.carPhoto,
+        photoLarge: window.BS_carPhotoUrlLarge ? window.BS_carPhotoUrlLarge(item.value, item.hint || '') : input.dataset.carPhoto
+      }
+    }));
     closeList(wrap);
   }
 
@@ -244,7 +284,7 @@
         renderList(wrap, items, activeIdx);
       } else if (e.key === 'Enter' && activeIdx >= 0) {
         e.preventDefault();
-        selectItem(wrap, items[activeIdx].value);
+        selectItem(wrap, items[activeIdx]);
       } else if (e.key === 'Escape') {
         closeList(wrap);
       }

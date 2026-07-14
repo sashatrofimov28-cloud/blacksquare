@@ -1,152 +1,412 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light booking-public{% endblock %}
 {% block content %}
-<div class="public-wrap">
-  <div class="public-card">
-    <div class="wordmark center">BlackSquare</div>
+<div class="bk-live">
+  <header class="bk-live-head">
+    <div class="bk-brand">BlackSquare</div>
     <h1>Онлайн-запись</h1>
-    <p>Выберите одну или несколько услуг, мастера и свободное окно.</p>
-    <form method="post" id="booking-form">
+    <p>{{ studio_address or 'Тюмень' }}</p>
+  </header>
+
+  <form method="post" id="booking-form" class="bk-live-form" autocomplete="on">
+    <section class="bk-live-card">
+      <h2>Вы</h2>
       <input name="client_name" placeholder="Ваше имя" required>
-      <input name="phone" placeholder="Телефон" required>
-      <input name="car" class="js-car-ac" placeholder="Автомобиль">
-      <input name="plate_number" placeholder="Госномер авто">
+      <input name="phone" placeholder="Телефон" required inputmode="tel" autocomplete="tel">
+    </section>
+
+    <section class="bk-live-card">
+      <h2>Авто</h2>
+      <div class="bk-car-row">
+        <button type="button" class="bk-car-av" id="carAvatar" hidden aria-label="Показать авто">
+          <img id="carAvatarImg" alt="Авто" width="72" height="48">
+        </button>
+        <div class="bk-car-fields">
+          <input name="car" id="carInput" class="js-car-ac" placeholder="Марка и модель — начните вводить" autocomplete="off">
+          <input name="plate_number" placeholder="Госномер" autocomplete="off">
+        </div>
+      </div>
+      <p class="bk-live-hint" id="carHint">Например F10 или Camry — подскажем модель. Нажмите фото, чтобы увидеть авто.</p>
+    </section>
+
+    <section class="bk-live-card">
+      <div class="bk-live-card-head">
+        <h2>Услуги</h2>
+        <span id="svcCount"></span>
+      </div>
       <div class="booking-services" id="serviceChecks">
-        <p class="booking-services-label">Услуги *</p>
         {% for group in service_groups %}
-        <div class="booking-service-group">
-          <p class="booking-service-group-title">{{ group.category.name }}</p>
+        <div class="bk-svc-group">
+          <p class="bk-svc-cap">{{ group.category.name }}</p>
           {% for s in group.services %}
-          <label class="check booking-service-check">
-            <input type="checkbox" name="service_ids" value="{{ s.id }}">
-            {{ s.name }} — {{ service_price_label(s.base_price) }}, {{ s.duration_min }} мин
+          <label class="bk-svc-row">
+            <input type="checkbox" name="service_ids" value="{{ s.id }}" data-price="{{ s.base_price or 0 }}" data-duration="{{ s.duration_min or 0 }}" data-name="{{ s.name }}">
+            <span class="bk-svc-main">
+              <b>{{ s.name }}</b>
+              <small>{{ s.duration_min }} мин</small>
+            </span>
+            <strong>{{ service_price_label(s.base_price) }}</strong>
           </label>
           {% endfor %}
         </div>
         {% endfor %}
       </div>
-      <select name="employee_id" id="employee" required disabled>
+      <div class="bk-sum-line" id="svcSum" hidden>
+        <span>Итого услуг</span>
+        <b id="svcSumText">—</b>
+      </div>
+    </section>
+
+    <section class="bk-live-card">
+      <h2>Мастер</h2>
+      <select name="employee_id" id="employee" required hidden disabled aria-hidden="true">
         <option value="">Сначала выберите услугу</option>
       </select>
+      <div id="masterList" class="bk-master-list">
+        <p class="bk-live-hint">Сначала выберите услуги</p>
+      </div>
+    </section>
+
+    <section class="bk-live-card">
+      <h2>Когда</h2>
+      <div class="bk-day-seg" id="daySeg">
+        <button type="button" class="on" data-day="today">Сегодня</button>
+        <button type="button" data-day="tomorrow">Завтра</button>
+        <button type="button" data-day="date">Дата</button>
+      </div>
       <input type="date" name="appointment_date" id="date" value="{{ default_date }}" min="{{ default_date }}" required>
-      <select name="start_time" id="slot" required disabled>
+      <p class="bk-live-hint" id="slotHint">Свободные окна</p>
+      <select name="start_time" id="slot" required hidden disabled aria-hidden="true">
         <option value="">Свободные окна появятся тут</option>
       </select>
-      <textarea name="comment" placeholder="Комментарий"></textarea>
-      <button type="submit" id="submit-btn" disabled>Записаться</button>
-    </form>
-  </div>
+      <div id="slotGrid" class="bk-slot-grid"></div>
+    </section>
+
+    <section class="bk-live-card">
+      <h2>Комментарий</h2>
+      <textarea name="comment" placeholder="Пожелания к записи (необязательно)" rows="2"></textarea>
+    </section>
+
+    <div class="bk-live-spacer"></div>
+
+    <div class="bk-live-footer">
+      <div class="bk-live-foot-sum">
+        <small id="footLabel">К записи</small>
+        <b id="footMain">Выберите услуги и время</b>
+        <span id="footSub"></span>
+      </div>
+      <div class="bk-live-foot-act">
+        <strong id="footPrice"></strong>
+        <button type="submit" id="submit-btn" disabled>Записаться</button>
+      </div>
+    </div>
+  </form>
 </div>
+
+<dialog class="bk-car-sheet" id="carSheet">
+  <form method="dialog" class="bk-car-sheet-inner">
+    <button type="submit" class="bk-car-sheet-close" aria-label="Закрыть">×</button>
+    <img id="carSheetImg" alt="Авто" width="640" height="400">
+    <h3 id="carSheetTitle">Авто</h3>
+    <p id="carSheetSub">Так выглядит выбранная модель</p>
+  </form>
+</dialog>
+
+<script src="{{ url_for('static', filename='car-photos.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='car-autocomplete.js') }}?v=3"></script>
 <script>
-const form = document.getElementById('booking-form');
-const submitBtn = document.getElementById('submit-btn');
-const serviceChecks = document.getElementById('serviceChecks');
-const employee = document.getElementById('employee');
-const date = document.getElementById('date');
-const slot = document.getElementById('slot');
+(function () {
+  const form = document.getElementById('booking-form');
+  const submitBtn = document.getElementById('submit-btn');
+  const serviceChecks = document.getElementById('serviceChecks');
+  const employee = document.getElementById('employee');
+  const date = document.getElementById('date');
+  const slot = document.getElementById('slot');
+  const masterList = document.getElementById('masterList');
+  const slotGrid = document.getElementById('slotGrid');
+  const carInput = document.getElementById('carInput');
+  const carAvatar = document.getElementById('carAvatar');
+  const carAvatarImg = document.getElementById('carAvatarImg');
+  const carSheet = document.getElementById('carSheet');
+  const carSheetImg = document.getElementById('carSheetImg');
+  const carSheetTitle = document.getElementById('carSheetTitle');
+  const carSheetSub = document.getElementById('carSheetSub');
+  const daySeg = document.getElementById('daySeg');
+  const todayStr = {{ default_date|tojson }};
 
-function selectedServiceIds() {
-  return [...serviceChecks.querySelectorAll('input[name="service_ids"]:checked')].map(el => el.value);
-}
+  let selectedCar = { value: '', hint: '', photo: '', photoLarge: '' };
 
-function serviceQuery() {
-  return selectedServiceIds().map(id => 'service_ids=' + encodeURIComponent(id)).join('&');
-}
-
-function setLoading(select, text) {
-  select.innerHTML = '';
-  const o = document.createElement('option');
-  o.value = '';
-  o.textContent = text;
-  o.disabled = true;
-  o.selected = true;
-  select.appendChild(o);
-  select.disabled = true;
-  updateSubmit();
-}
-
-function updateSubmit() {
-  const ready = selectedServiceIds().length && employee.value && date.value && slot.value
-    && !employee.disabled && !slot.disabled;
-  submitBtn.disabled = !ready;
-}
-
-async function masters() {
-  const ids = selectedServiceIds();
-  employee.disabled = true;
-  slot.disabled = true;
-  slot.innerHTML = '<option value="">Выберите услуги, мастера и дату</option>';
-  if (!ids.length) {
-    employee.innerHTML = '<option value="">Сначала выберите услугу</option>';
-    updateSubmit();
-    return;
+  function selectedServiceIds() {
+    return [...serviceChecks.querySelectorAll('input[name="service_ids"]:checked')].map(el => el.value);
   }
-  setLoading(employee, 'Загрузка мастеров...');
-  try {
-    const r = await fetch('/api/masters?' + serviceQuery());
-    const d = await r.json();
-    employee.innerHTML = '<option value="">Мастер</option>';
-    d.forEach(x => {
-      const o = document.createElement('option');
-      o.value = x.id;
-      o.textContent = x.name;
-      employee.appendChild(o);
+
+  function serviceQuery() {
+    return selectedServiceIds().map(id => 'service_ids=' + encodeURIComponent(id)).join('&');
+  }
+
+  function selectedServicesMeta() {
+    return [...serviceChecks.querySelectorAll('input[name="service_ids"]:checked')].map(el => ({
+      name: el.dataset.name,
+      price: parseFloat(el.dataset.price || 0),
+      duration: parseInt(el.dataset.duration || 0, 10)
+    }));
+  }
+
+  function money(n) {
+    return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+
+  function updateServicesUi() {
+    serviceChecks.querySelectorAll('.bk-svc-row').forEach(row => {
+      const cb = row.querySelector('input[type="checkbox"]');
+      row.classList.toggle('on', !!(cb && cb.checked));
     });
-    employee.disabled = false;
-  } catch (e) {
-    employee.innerHTML = '<option value="">Не удалось загрузить мастеров</option>';
+    const metas = selectedServicesMeta();
+    const countEl = document.getElementById('svcCount');
+    const sumEl = document.getElementById('svcSum');
+    const sumText = document.getElementById('svcSumText');
+    if (!metas.length) {
+      countEl.textContent = '';
+      sumEl.hidden = true;
+      return { price: 0, duration: 0, names: [] };
+    }
+    const price = metas.reduce((a, m) => a + m.price, 0);
+    const duration = metas.reduce((a, m) => a + m.duration, 0);
+    countEl.textContent = 'выбрано ' + metas.length;
+    sumEl.hidden = false;
+    sumText.textContent = (price ? money(price) + ' ₽' : 'цена по согласованию') + ' · ~' + duration + ' мин';
+    return { price, duration, names: metas.map(m => m.name) };
   }
-  slots();
-}
 
-async function slots() {
-  const ids = selectedServiceIds();
-  const e = employee.value, d = date.value;
-  slot.disabled = true;
-  if (!ids.length || !e || !d) {
-    slot.innerHTML = '<option value="">Выберите услуги, мастера и дату</option>';
-    updateSubmit();
-    return;
+  function updateFooter() {
+    const svc = updateServicesUi();
+    const empOpt = employee.options[employee.selectedIndex];
+    const empName = employee.value && empOpt ? empOpt.textContent : '';
+    const time = slot.value || '';
+    const footMain = document.getElementById('footMain');
+    const footSub = document.getElementById('footSub');
+    const footPrice = document.getElementById('footPrice');
+    if (!svc.names.length) {
+      footMain.textContent = 'Выберите услуги и время';
+      footSub.textContent = '';
+      footPrice.textContent = '';
+    } else if (!time) {
+      footMain.textContent = svc.names[0] + (svc.names.length > 1 ? ' +' + (svc.names.length - 1) : '');
+      footSub.textContent = 'Выберите мастера и окно';
+      footPrice.textContent = svc.price ? money(svc.price) + ' ₽' : '';
+    } else {
+      footMain.textContent = time.slice(0, 5) + (empName ? ' · ' + empName : '');
+      footSub.textContent = svc.names[0] + (selectedCar.value ? ' · ' + selectedCar.value : '');
+      footPrice.textContent = svc.price ? money(svc.price) + ' ₽' : '';
+    }
+    const ready = selectedServiceIds().length && employee.value && date.value && slot.value
+      && !employee.disabled && !slot.disabled;
+    submitBtn.disabled = !ready;
   }
-  setLoading(slot, 'Загрузка окон...');
-  try {
-    const r = await fetch(`/api/slots?${serviceQuery()}&employee_id=${encodeURIComponent(e)}&date=${encodeURIComponent(d)}`);
-    const data = await r.json();
-    slot.innerHTML = '';
-    if (!data.length) {
-      slot.innerHTML = '<option value="">Свободных окон нет</option>';
-      slot.disabled = true;
-      updateSubmit();
+
+  function setCarAvatar(detail) {
+    selectedCar = detail || { value: '', hint: '', photo: '', photoLarge: '' };
+    if (!selectedCar.value || !selectedCar.photo) {
+      carAvatar.hidden = true;
+      carAvatarImg.removeAttribute('src');
       return;
     }
-    slot.innerHTML = '<option value="">Выберите время</option>';
-    data.forEach(x => {
-      const o = document.createElement('option');
-      o.value = x.start;
-      o.textContent = x.start + '–' + x.end;
-      slot.appendChild(o);
-    });
-    slot.disabled = false;
-  } catch (e) {
-    slot.innerHTML = '<option value="">Не удалось загрузить окна</option>';
+    carAvatarImg.onload = function () { carAvatar.hidden = false; };
+    carAvatarImg.onerror = function () { carAvatar.hidden = true; };
+    carAvatarImg.src = selectedCar.photo;
+    carAvatarImg.alt = selectedCar.value;
   }
-  updateSubmit();
-}
 
-serviceChecks.addEventListener('change', masters);
-employee.onchange = slots;
-date.onchange = slots;
-slot.onchange = updateSubmit;
-form.addEventListener('submit', e => {
-  if (!selectedServiceIds().length) {
-    e.preventDefault();
-    alert('Выберите хотя бы одну услугу.');
-    return;
+  carInput.addEventListener('bs:car-selected', function (e) {
+    setCarAvatar(e.detail);
+    updateFooter();
+  });
+
+  carInput.addEventListener('change', function () {
+    const v = carInput.value.trim();
+    if (!v) {
+      setCarAvatar(null);
+      updateFooter();
+      return;
+    }
+    if (v !== selectedCar.value) {
+      const hint = carInput.dataset.carHint || '';
+      const photo = window.BS_carPhotoUrl ? window.BS_carPhotoUrl(v, hint, 400) : '';
+      const photoLarge = window.BS_carPhotoUrlLarge ? window.BS_carPhotoUrlLarge(v, hint) : photo;
+      setCarAvatar({ value: v, hint: hint, photo: photo, photoLarge: photoLarge });
+    }
+    updateFooter();
+  });
+
+  carAvatar.addEventListener('click', function () {
+    if (!selectedCar.value || !selectedCar.photoLarge && !selectedCar.photo) return;
+    carSheetImg.src = selectedCar.photoLarge || selectedCar.photo;
+    carSheetTitle.textContent = selectedCar.value;
+    carSheetSub.textContent = selectedCar.hint
+      ? ('Код кузова ' + selectedCar.hint + ' · так выглядит модель')
+      : 'Так выглядит выбранная модель';
+    if (typeof carSheet.showModal === 'function') carSheet.showModal();
+    else carSheet.setAttribute('open', '');
+  });
+
+  function tomorrowStr() {
+    const d = new Date(todayStr + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
   }
-  if (submitBtn.disabled || !slot.value) {
-    e.preventDefault();
-    alert('Дождитесь загрузки и выберите свободное время.');
+
+  daySeg.addEventListener('click', function (e) {
+    const btn = e.target.closest('button[data-day]');
+    if (!btn) return;
+    daySeg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+    if (btn.dataset.day === 'today') date.value = todayStr;
+    else if (btn.dataset.day === 'tomorrow') date.value = tomorrowStr();
+    else date.focus();
+    slots();
+  });
+
+  date.addEventListener('change', function () {
+    daySeg.querySelectorAll('button').forEach(b => {
+      if (b.dataset.day === 'today') b.classList.toggle('on', date.value === todayStr);
+      else if (b.dataset.day === 'tomorrow') b.classList.toggle('on', date.value === tomorrowStr());
+      else b.classList.toggle('on', date.value !== todayStr && date.value !== tomorrowStr());
+    });
+  });
+
+  function renderMasters(list) {
+    masterList.innerHTML = '';
+    if (!list.length) {
+      masterList.innerHTML = '<p class="bk-live-hint">Нет мастеров на эти услуги</p>';
+      return;
+    }
+    list.forEach(m => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bk-master-pick' + (String(employee.value) === String(m.id) ? ' on' : '');
+      const initials = (m.name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+      btn.innerHTML = '<span class="bk-av">' + initials + '</span><span class="bk-master-meta"><b>' + m.name + '</b><small>доступен для записи</small></span>';
+      btn.addEventListener('click', function () {
+        employee.value = m.id;
+        employee.disabled = false;
+        masterList.querySelectorAll('.bk-master-pick').forEach(el => el.classList.remove('on'));
+        btn.classList.add('on');
+        slots();
+      });
+      masterList.appendChild(btn);
+    });
   }
-});
-updateSubmit();
+
+  function renderSlots(list) {
+    slotGrid.innerHTML = '';
+    if (!list.length) {
+      slotGrid.innerHTML = '<p class="bk-live-hint">Свободных окон нет</p>';
+      return;
+    }
+    list.forEach(x => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bk-slot-pick' + (slot.value === x.start ? ' on' : '');
+      btn.textContent = x.start.slice(0, 5);
+      btn.addEventListener('click', function () {
+        slot.value = x.start;
+        slot.disabled = false;
+        slotGrid.querySelectorAll('.bk-slot-pick').forEach(el => el.classList.remove('on'));
+        btn.classList.add('on');
+        updateFooter();
+      });
+      slotGrid.appendChild(btn);
+    });
+  }
+
+  async function masters() {
+    const ids = selectedServiceIds();
+    employee.disabled = true;
+    employee.innerHTML = '<option value="">Мастер</option>';
+    slot.disabled = true;
+    slot.innerHTML = '<option value="">—</option>';
+    slotGrid.innerHTML = '';
+    if (!ids.length) {
+      masterList.innerHTML = '<p class="bk-live-hint">Сначала выберите услуги</p>';
+      updateFooter();
+      return;
+    }
+    masterList.innerHTML = '<p class="bk-live-hint">Загрузка мастеров…</p>';
+    try {
+      const r = await fetch('/api/masters?' + serviceQuery());
+      const d = await r.json();
+      employee.innerHTML = '<option value="">Мастер</option>';
+      d.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.id;
+        o.textContent = x.name;
+        employee.appendChild(o);
+      });
+      employee.disabled = false;
+      renderMasters(d);
+      if (d.length === 1) {
+        employee.value = d[0].id;
+        masterList.querySelector('.bk-master-pick')?.classList.add('on');
+      }
+    } catch (e) {
+      masterList.innerHTML = '<p class="bk-live-hint">Не удалось загрузить мастеров</p>';
+    }
+    slots();
+  }
+
+  async function slots() {
+    const ids = selectedServiceIds();
+    const e = employee.value, d = date.value;
+    slot.disabled = true;
+    slot.innerHTML = '<option value="">—</option>';
+    slotGrid.innerHTML = '';
+    document.getElementById('slotHint').textContent = d ? ('Свободные окна · ' + d) : 'Свободные окна';
+    if (!ids.length || !e || !d) {
+      if (ids.length && !e) slotGrid.innerHTML = '<p class="bk-live-hint">Выберите мастера</p>';
+      updateFooter();
+      return;
+    }
+    slotGrid.innerHTML = '<p class="bk-live-hint">Загрузка окон…</p>';
+    try {
+      const r = await fetch(`/api/slots?${serviceQuery()}&employee_id=${encodeURIComponent(e)}&date=${encodeURIComponent(d)}`);
+      const data = await r.json();
+      slot.innerHTML = '<option value="">Выберите время</option>';
+      if (!data.length) {
+        slotGrid.innerHTML = '<p class="bk-live-hint">Свободных окон нет</p>';
+        updateFooter();
+        return;
+      }
+      data.forEach(x => {
+        const o = document.createElement('option');
+        o.value = x.start;
+        o.textContent = x.start + '–' + x.end;
+        slot.appendChild(o);
+      });
+      slot.disabled = false;
+      renderSlots(data);
+    } catch (err) {
+      slotGrid.innerHTML = '<p class="bk-live-hint">Не удалось загрузить окна</p>';
+    }
+    updateFooter();
+  }
+
+  serviceChecks.addEventListener('change', masters);
+  date.onchange = slots;
+
+  form.addEventListener('submit', e => {
+    if (!selectedServiceIds().length) {
+      e.preventDefault();
+      alert('Выберите хотя бы одну услугу.');
+      return;
+    }
+    if (submitBtn.disabled || !slot.value) {
+      e.preventDefault();
+      alert('Дождитесь загрузки и выберите свободное время.');
+    }
+  });
+
+  updateFooter();
+})();
 </script>
 {% endblock %}

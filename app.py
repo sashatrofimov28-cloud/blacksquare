@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v55'
+BUILD_VERSION = 'client-v56'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -3929,7 +3929,14 @@ def booking():
     categories = list_service_categories(con)
     service_groups = group_services_by_category(services, categories)
     con.close()
-    return render_template('booking.html', services=services, service_groups=service_groups, default_date=today())
+    studio_address = get_setting('client_sms_address', '').strip() or 'Тюмень'
+    return render_template(
+        'booking.html',
+        services=services,
+        service_groups=service_groups,
+        default_date=today(),
+        studio_address=studio_address,
+    )
 
 @app.route('/visit/<token>', methods=['GET', 'POST'])
 def visit_confirm(token):

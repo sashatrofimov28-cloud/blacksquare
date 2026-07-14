@@ -1,18 +1,25 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light booking-public{% endblock %}
 {% block content %}
-<div class="public-wrap">
-  <div class="public-card">
-    <div class="wordmark center">BlackSquare</div>
-    <h1>Вы записаны</h1>
-  {% if services|length > 1 %}
-    <p><b>{{ service_name }}</b></p>
-    <ul>{% for s in services %}<li>{{ s.name }}</li>{% endfor %}</ul>
-  {% else %}
-    <p>{{ services[0].name if services else service_name }}</p>
-  {% endif %}
-    <p>Мастер: {{ emp.full_name }}</p>
-    <p><b>{{ d }}</b> {{ start }}–{{ end }}</p>
-    <p class="hint" style="margin-top:12px">Если указали телефон — пришлём SMS с подтверждением и напоминания за день и за час до визита.</p>
+<div class="bk-live bk-live-success">
+  <div class="bk-success-ic">✓</div>
+  <h1>Вы записаны</h1>
+  <p class="bk-live-hint" style="text-align:center;font-size:15px">
+    Ждём вас {{ d }} в {{ start[:5] if start else start }}
+  </p>
+  <div class="bk-live-card" style="margin-top:16px">
+    {% if services|length > 1 %}
+    <div class="bk-ok-row"><span>Услуги</span><b>{{ service_name }}</b></div>
+    {% else %}
+    <div class="bk-ok-row"><span>Услуга</span><b>{{ services[0].name if services else service_name }}</b></div>
+    {% endif %}
+    <div class="bk-ok-row"><span>Мастер</span><b>{{ emp.full_name }}</b></div>
+    <div class="bk-ok-row"><span>Время</span><b>{{ start[:5] if start else start }}–{{ end[:5] if end else end }}</b></div>
   </div>
+  <p class="bk-live-hint" style="margin-top:16px;text-align:center">
+    Если указали телефон — пришлём SMS с подтверждением и напоминаниями.
+  </p>
 </div>
 {% endblock %}
