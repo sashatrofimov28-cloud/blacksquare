@@ -1620,6 +1620,52 @@ body.close-z-sheet-open{overflow:hidden}
   .emp-detail-sticky{bottom:16px}
 }
 
+
+/* compact weekly schedule v64 */
+.emp-week-block{padding-bottom:10px}
+.emp-week-head h2{margin:0 0 4px}
+.emp-week-actions{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.emp-week-act{
+  border:1px solid var(--border,#2a2a2a);background:var(--surface,#1a1a1a);color:#ddd;
+  border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;min-height:36px!important
+}
+.emp-week-table{display:grid;gap:6px}
+.emp-week-cols,.emp-week-row{
+  display:grid;grid-template-columns:36px 1fr 1fr 44px;gap:6px;align-items:center
+}
+.emp-week-cols{padding:0 2px 2px;font-size:10px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;letter-spacing:.04em}
+.emp-week-row{
+  padding:6px;border-radius:12px;border:1px solid var(--border,#2a2a2a);background:var(--surface-2,#222)
+}
+.emp-week-row.is-off{opacity:.55}
+.emp-week-day{font-size:13px;font-weight:800;text-align:center}
+.emp-week-row input[type=time]{
+  width:100%;box-sizing:border-box;min-height:42px;padding:8px 6px;border-radius:10px;
+  border:1px solid var(--border,#2a2a2a);background:var(--surface,#1a1a1a);color:#fff;
+  font-size:15px;font-weight:700;text-align:center
+}
+.emp-week-row input[type=time]:disabled{opacity:.35}
+.emp-week-off{display:grid;place-items:center;margin:0;padding:0;position:relative}
+.emp-week-off input{position:absolute;opacity:0;width:0;height:0}
+.emp-week-off i{
+  width:40px;height:24px;border-radius:999px;background:var(--surface,#1a1a1a);
+  border:1px solid var(--border,#2a2a2a);position:relative;display:block;transition:.15s
+}
+.emp-week-off i::after{
+  content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  background:#777;transition:.15s
+}
+.emp-week-off input:checked+i{background:rgba(178,75,243,.25);border-color:rgba(178,75,243,.55)}
+.emp-week-off input:checked+i::after{left:18px;background:#b24bf3}
+.emp-date-fold>summary{
+  cursor:pointer;list-style:none;font-size:14px;font-weight:800;padding:2px 0
+}
+.emp-date-fold>summary::-webkit-details-marker{display:none}
+.emp-date-fold[open]>summary{margin-bottom:10px}
+.emp-date-row{margin:0 0 10px}
+.emp-date-save{margin-top:4px}
+.emp-week-cards,.emp-day-card,.emp-day-top,.emp-day-presets,.emp-day-times{ /* legacy unused in compact */ }
+
 /* ——— Analytics mockup ——— */
 .an-period.active{background:var(--accent-purple,#b24bf3);color:#fff;border-color:var(--accent-purple,#b24bf3)}
 .an-insights{margin-bottom:14px}

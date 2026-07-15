@@ -112,60 +112,57 @@
   <section class="emp-detail-panel" id="empSchedule" data-panel="schedule" hidden>
     <form method="post" action="{{ url_for('employee_detail', uid=r.id) }}" class="emp-schedule-form" id="empWeekForm">
       <input type="hidden" name="form_type" value="weekly">
-      <div class="emp-block card-surface">
-        <h2>Недельный график</h2>
-        <p class="emp-hint">В выходные онлайн-запись не покажет слоты. Нажмите день, чтобы быстро выставить время.</p>
-        <div class="emp-week-cards">
+      <div class="emp-block card-surface emp-week-block">
+        <div class="emp-week-head">
+          <h2>График на неделю</h2>
+          <p class="emp-hint">Вся неделя на одном экране. В выходной слоты онлайн не показываются.</p>
+        </div>
+
+        <div class="emp-week-actions">
+          <button type="button" class="emp-week-act" id="empFillStudio" data-start="{{ studio_open_time() }}" data-end="{{ studio_close_time() }}">Как в студии</button>
+          <button type="button" class="emp-week-act" id="empFillWeekdays">Пн–Пт</button>
+          <button type="button" class="emp-week-act" id="empWeekendOff">Сб–Вс выходной</button>
+        </div>
+
+        <div class="emp-week-table" id="empWeekTable">
+          <div class="emp-week-cols" aria-hidden="true">
+            <span>День</span><span>С</span><span>До</span><span>Вых</span>
+          </div>
           {% for wd in range(7) %}
           {% set w = weekly.get(wd) %}
           {% set is_off = w and w.is_day_off %}
-          <article class="emp-day-card{% if is_off %} is-off{% endif %}" data-day="{{ wd }}">
-            <div class="emp-day-top">
-              <b>{{ weekdays_long[wd]|capitalize }}</b>
-              <label class="emp-day-off">
-                <input type="checkbox" name="off_{{ wd }}" class="emp-off-input" {% if is_off %}checked{% endif %}>
-                <span>Выходной</span>
-              </label>
-            </div>
-            <div class="emp-day-times">
-              <label>
-                <span>С</span>
-                <input type="time" name="start_{{ wd }}" class="emp-time-input" value="{{ w.start_time if w else studio_open_time() }}" {% if is_off %}disabled{% endif %}>
-              </label>
-              <label>
-                <span>До</span>
-                <input type="time" name="end_{{ wd }}" class="emp-time-input" value="{{ w.end_time if w else studio_close_time() }}" {% if is_off %}disabled{% endif %}>
-              </label>
-            </div>
-            <div class="emp-day-presets">
-              <button type="button" class="emp-preset" data-start="{{ studio_open_time() }}" data-end="{{ studio_close_time() }}">Студия</button>
-              <button type="button" class="emp-preset" data-start="10:00" data-end="15:00">До 15:00</button>
-              <button type="button" class="emp-preset" data-start="15:00" data-end="{{ studio_close_time() }}">С 15:00</button>
-            </div>
-          </article>
+          <div class="emp-week-row{% if is_off %} is-off{% endif %}" data-day="{{ wd }}">
+            <b class="emp-week-day">{{ weekdays[wd] }}</b>
+            <input type="time" name="start_{{ wd }}" class="emp-time-input" value="{{ w.start_time if w else studio_open_time() }}" {% if is_off %}disabled{% endif %} aria-label="Начало {{ weekdays[wd] }}">
+            <input type="time" name="end_{{ wd }}" class="emp-time-input" value="{{ w.end_time if w else studio_close_time() }}" {% if is_off %}disabled{% endif %} aria-label="Конец {{ weekdays[wd] }}">
+            <label class="emp-week-off" title="Выходной">
+              <input type="checkbox" name="off_{{ wd }}" class="emp-off-input" {% if is_off %}checked{% endif %}>
+              <i></i>
+            </label>
+          </div>
           {% endfor %}
         </div>
       </div>
 
-      <div class="emp-block card-surface">
-        <h2>На дату</h2>
-        <p class="emp-hint">Разовый выходной или особое время — перекрывает неделю.</p>
+      <details class="emp-block card-surface emp-date-fold">
+        <summary>Разовый день (дата)</summary>
+        <p class="emp-hint">Перекроет неделю только на выбранную дату.</p>
         <label class="emp-field"><span>Дата</span><input type="date" name="work_date" form="empDateForm"></label>
-        <div class="emp-day-times">
-          <label><span>С</span><input type="time" name="start_time" form="empDateForm" value="{{ studio_open_time() }}"></label>
-          <label><span>До</span><input type="time" name="end_time" form="empDateForm" value="{{ studio_close_time() }}"></label>
+        <div class="emp-week-row emp-date-row">
+          <b class="emp-week-day">Время</b>
+          <input type="time" name="start_time" form="empDateForm" value="{{ studio_open_time() }}">
+          <input type="time" name="end_time" form="empDateForm" value="{{ studio_close_time() }}">
+          <label class="emp-week-off" title="Выходной">
+            <input type="checkbox" name="is_day_off" form="empDateForm">
+            <i></i>
+          </label>
         </div>
-        <label class="emp-switch" style="margin-top:10px">
-          <span>Выходной в этот день</span>
-          <input type="checkbox" name="is_day_off" form="empDateForm">
-          <i></i>
-        </label>
         <label class="emp-field"><span>Комментарий</span><input name="comment" form="empDateForm" placeholder="Необязательно"></label>
-      </div>
+        <button type="submit" form="empDateForm" class="emp-save-btn ghost emp-date-save">Сохранить дату</button>
+      </details>
 
-      <div class="emp-detail-sticky emp-detail-sticky-two">
-        <button type="submit" class="emp-save-btn">Сохранить неделю</button>
-        <button type="submit" form="empDateForm" class="emp-save-btn ghost">Сохранить дату</button>
+      <div class="emp-detail-sticky">
+        <button type="submit" class="emp-save-btn">Сохранить график</button>
       </div>
     </form>
     <form method="post" action="{{ url_for('employee_detail', uid=r.id) }}" id="empDateForm" hidden>
@@ -199,25 +196,57 @@
   if ((location.hash || '').toLowerCase() === '#empschedule') show('schedule');
   else show('settings');
 
-  document.querySelectorAll('.emp-day-card').forEach(card => {
-    const off = card.querySelector('.emp-off-input');
-    const times = card.querySelectorAll('.emp-time-input');
-    function sync() {
-      const isOff = !!off?.checked;
-      card.classList.toggle('is-off', isOff);
-      times.forEach(el => { el.disabled = isOff; });
-    }
-    off?.addEventListener('change', sync);
-    card.querySelectorAll('.emp-preset').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (off) off.checked = false;
-        const [start, end] = times;
-        if (start) start.value = btn.dataset.start || start.value;
-        if (end) end.value = btn.dataset.end || end.value;
-        sync();
-      });
+  const studioStart = {{ studio_open_time()|tojson }};
+  const studioEnd = {{ studio_close_time()|tojson }};
+  const rows = [...document.querySelectorAll('.emp-week-row[data-day]')];
+
+  function syncRow(row) {
+    const off = row.querySelector('.emp-off-input');
+    const times = row.querySelectorAll('.emp-time-input');
+    const isOff = !!off?.checked;
+    row.classList.toggle('is-off', isOff);
+    times.forEach(el => { el.disabled = isOff; });
+  }
+
+  rows.forEach(row => {
+    row.querySelector('.emp-off-input')?.addEventListener('change', () => syncRow(row));
+    syncRow(row);
+  });
+
+  function applyTimes(start, end, onlyWeekdays) {
+    rows.forEach(row => {
+      const day = Number(row.dataset.day);
+      if (onlyWeekdays && day >= 5) return;
+      const off = row.querySelector('.emp-off-input');
+      if (off) off.checked = false;
+      const times = row.querySelectorAll('.emp-time-input');
+      if (times[0]) times[0].value = start;
+      if (times[1]) times[1].value = end;
+      syncRow(row);
     });
-    sync();
+  }
+
+  document.getElementById('empFillStudio')?.addEventListener('click', () => {
+    applyTimes(studioStart, studioEnd, false);
+  });
+  document.getElementById('empFillWeekdays')?.addEventListener('click', () => {
+    applyTimes(studioStart, studioEnd, true);
+    rows.forEach(row => {
+      const day = Number(row.dataset.day);
+      if (day < 5) return;
+      const off = row.querySelector('.emp-off-input');
+      if (off) off.checked = true;
+      syncRow(row);
+    });
+  });
+  document.getElementById('empWeekendOff')?.addEventListener('click', () => {
+    rows.forEach(row => {
+      const day = Number(row.dataset.day);
+      if (day < 5) return;
+      const off = row.querySelector('.emp-off-input');
+      if (off) off.checked = true;
+      syncRow(row);
+    });
   });
 })();
 </script>
