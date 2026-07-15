@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Макет — способы оплаты</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=59">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=59">
+  <style>
+    body.pay-gallery{margin:0;background:#0b0c10;color:#f5f5f7;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    .pay-hero{max-width:1100px;margin:0 auto;padding:28px 18px 10px}
+    .pay-hero a{color:#8ae0a8;text-decoration:none;font-size:14px}
+    .pay-hero h1{margin:10px 0 6px;font-size:28px}
+    .pay-hero p{margin:0;color:#a1a1aa;line-height:1.45;max-width:720px}
+    .pay-grid{max-width:1100px;margin:0 auto;padding:12px 18px 48px;display:grid;gap:22px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+    .pay-card{background:#14151c;border:1px solid #252733;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+    .pay-card h2{margin:0;font-size:16px}
+    .pay-card .desc{margin:0;color:#a1a1aa;font-size:13px;line-height:1.4}
+    .phone{
+      width:100%;max-width:340px;margin:0 auto;background:#f2f2f7;color:#111;
+      border-radius:34px;overflow:hidden;border:8px solid #1c1d26;box-shadow:0 20px 50px rgba(0,0,0,.35);
+      min-height:640px;display:flex;flex-direction:column;position:relative;
+    }
+    .phone-notch{text-align:center;font-size:11px;font-weight:600;color:#666;padding:10px 12px 6px;background:#f2f2f7}
+    .phone-scroll{flex:1;overflow:auto;padding:8px 14px 88px;display:flex;flex-direction:column;gap:10px}
+    .mk-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+    .mk-head b{font-size:17px}
+    .mk-back,.mk-dots{width:32px;height:32px;border-radius:50%;background:#fff;display:grid;place-items:center;color:#111;font-size:18px}
+    .mk-hero{background:#fff;border-radius:18px;padding:18px 16px;text-align:center}
+    .mk-av{width:56px;height:56px;border-radius:50%;background:#e8e8ed;display:grid;place-items:center;margin:0 auto 8px;font-weight:700}
+    .mk-hero .name{font-weight:700;font-size:18px}
+    .mk-hero .svc{display:block;color:#8e8e93;font-size:13px;margin-top:2px}
+    .mk-hero .sum{display:block;margin-top:12px;font-size:34px;font-weight:800;color:#1f8f4e;letter-spacing:-.02em}
+    .mk-hero .sum small{display:block;font-size:11px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+    .pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .pay-chip{
+      border:1.5px solid #d8d8de;background:#fff;border-radius:14px;padding:12px 10px;
+      font-weight:650;font-size:14px;color:#111;cursor:pointer;
+    }
+    .pay-chip.on{border-color:#1f8f4e;background:#e9f7ef;color:#1f8f4e}
+    .pay-split{background:#fff;border-radius:16px;padding:12px;display:none;gap:8px;flex-direction:column}
+    .pay-split.show{display:flex}
+    .pay-split label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#8e8e93}
+    .pay-split input{
+      border:1px solid #d8d8de;border-radius:12px;padding:10px 12px;font-size:16px;font-weight:650;color:#111;background:#fafafa
+    }
+    .pay-ok{font-size:13px;font-weight:650;color:#1f8f4e;padding:2px 2px 0}
+    .pay-bad{font-size:13px;font-weight:650;color:#c0392b;padding:2px 2px 0}
+    .pay-rows{background:#fff;border-radius:16px;overflow:hidden}
+    .pay-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #eee;font-size:14px}
+    .pay-row:last-child{border-bottom:0}
+    .pay-row span{color:#8e8e93}
+    .pay-row b{font-weight:650}
+    .mk-foot{
+      position:absolute;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+      background:linear-gradient(180deg,rgba(242,242,247,0),#f2f2f7 30%);
+    }
+    .mk-btn{
+      width:100%;border:0;border-radius:16px;background:#1f8f4e;color:#fff;font-weight:700;
+      font-size:16px;padding:14px;cursor:pointer;
+    }
+    .mk-btn:disabled{opacity:.45}
+    .dz-live-mini{padding:4px 0 0}
+    .dz-live-mini .dz-hero{margin-bottom:10px}
+    .pay-break{
+      display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:-2px 0 10px
+    }
+    .pay-break div{
+      background:#fff;border-radius:14px;padding:10px 8px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.04)
+    }
+    .pay-break small{display:block;font-size:11px;color:#8e8e93;margin-bottom:2px}
+    .pay-break b{font-size:14px;font-weight:750}
+    .closed-item{
+      background:#fff;border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;margin-top:8px
+    }
+    .closed-item .meta{display:flex;flex-direction:column;gap:2px}
+    .closed-item .meta b{font-size:14px}
+    .closed-item .meta span{font-size:12px;color:#8e8e93}
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+      padding:4px 8px;border-radius:999px;background:#e9f7ef;color:#1f8f4e
+    }
+    .badge.cash{background:#fff4df;color:#b06a00}
+    .badge.transfer{background:#e8f0ff;color:#2f5fcc}
+    .badge.mixed{background:#f3e8ff;color:#7a3db8}
+    .amount{font-weight:750;font-size:15px;text-align:right}
+    .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#e9f7ef;color:#1f8f4e;margin-left:6px}
+  </style>
+</head>
+<body class="pay-gallery">
+  <header class="pay-hero">
+    <a href="/dashboard">← Назад в CRM</a>
+    <h1>Способы оплаты — макет</h1>
+    <p>Как будет выглядеть закрытие визита и касса на главной. На втором экране можно переключать способы и собирать смешанную оплату.</p>
+  </header>
+
+  <div class="pay-grid">
+
+    <article class="pay-card">
+      <h2>1. Закрытие · обычная оплата <span class="tag">карта</span></h2>
+      <p class="desc">Четыре способа. По умолчанию — карта. «К оплате» уже минус серт/бонусы.</p>
+      <div class="phone">
+        <div class="phone-notch">Закрытие визита</div>
+        <div class="phone-scroll">
+          <div class="mk-head"><span class="mk-back">‹</span><b>Оплата</b><span class="mk-dots">⋯</span></div>
+          <div class="mk-hero">
+            <div class="mk-av">ВИ</div>
+            <div class="name">Виктория</div>
+            <span class="svc">Передние боковые · BMW 5</span>
+            <div class="sum"><small>К оплате</small>8 000 ₽</div>
+          </div>
+          <div class="pay-methods" id="methodsA">
+            <button type="button" class="pay-chip" data-m="cash">Наличные</button>
+            <button type="button" class="pay-chip on" data-m="card">Карта</button>
+            <button type="button" class="pay-chip" data-m="transfer">Перевод</button>
+            <button type="button" class="pay-chip" data-m="mixed">Смешанная</button>
+          </div>
+          <div class="pay-rows">
+            <div class="pay-row"><span>Услуга</span><b>8 500 ₽</b></div>
+            <div class="pay-row"><span>Бонусы</span><b>−500 ₽</b></div>
+            <div class="pay-row"><span>Сертификат</span><b>0 ₽</b></div>
+          </div>
+        </div>
+        <div class="mk-foot"><button class="mk-btn" type="button">Закрыть визит ✓</button></div>
+      </div>
+    </article>
+
+    <article class="pay-card">
+      <h2>2. Закрытие · смешанная <span class="tag">интерактив</span></h2>
+      <p class="desc">Выберите «Смешанная» — появятся поля. Сумма должна сойтись с 8 000 ₽.</p>
+      <div class="phone">
+        <div class="phone-notch">Смешанная оплата</div>
+        <div class="phone-scroll">
+          <div class="mk-head"><span class="mk-back">‹</span><b>Оплата</b><span class="mk-dots">⋯</span></div>
+          <div class="mk-hero">
+            <div class="mk-av">АК</div>
+            <div class="name">Алексей</div>
+            <span class="svc">Задняя полусфера</span>
+            <div class="sum"><small>К оплате</small>8 000 ₽</div>
+          </div>
+          <div class="pay-methods" id="methodsB">
+            <button type="button" class="pay-chip" data-m="cash">Наличные</button>
+            <button type="button" class="pay-chip" data-m="card">Карта</button>
+            <button type="button" class="pay-chip" data-m="transfer">Перевод</button>
+            <button type="button" class="pay-chip on" data-m="mixed">Смешанная</button>
+          </div>
+          <div class="pay-split show" id="splitB">
+            <label>Карта
+              <input type="number" id="paidCard" value="5000" min="0" step="100">
+            </label>
+            <label>Наличные
+              <input type="number" id="paidCash" value="3000" min="0" step="100">
+            </label>
+            <label>Перевод
+              <input type="number" id="paidTransfer" value="0" min="0" step="100">
+            </label>
+            <div class="pay-ok" id="splitHint">Сходится · 8 000 ₽</div>
+          </div>
+          <div class="pay-rows">
+            <div class="pay-row"><span>Комментарий</span><b>По желанию</b></div>
+          </div>
+        </div>
+        <div class="mk-foot"><button class="mk-btn" type="button" id="closeBtnB">Закрыть визит ✓</button></div>
+      </div>
+    </article>
+
+    <article class="pay-card">
+      <h2>3. Главная · разбивка кассы</h2>
+      <p class="desc">Под общей суммой — три канала. В списке закрытых — бейдж способа оплаты.</p>
+      <div class="phone">
+        <div class="phone-notch">Главная</div>
+        <div class="phone-scroll dz-live-mini dz dz-ops">
+          <header class="dz-head" style="padding:4px 0 8px">
+            <div>
+              <h2 style="margin:0;font-size:20px;color:#111">Главная</h2>
+              <p style="margin:2px 0 0;color:#8e8e93;font-size:13px">среда, 15 июля</p>
+            </div>
+          </header>
+          <div class="dz-hero">
+            <small>Сегодня · касса</small>
+            <strong>70 000 ₽</strong>
+            <span>6 закрыто · прибыль 41 200 ₽</span>
+          </div>
+          <div class="pay-break">
+            <div><small>Карта</small><b>45 000</b></div>
+            <div><small>Нал</small><b>18 000</b></div>
+            <div><small>Перевод</small><b>7 000</b></div>
+          </div>
+          <div class="dz-status" aria-label="Статус дня">
+            <div class="dz-status-item is-work"><b>1</b><small>В работе</small></div>
+            <div class="dz-status-item is-wait"><b>2</b><small>Ждут</small></div>
+            <div class="dz-status-item is-done"><b>6</b><small>Закрыто</small></div>
+          </div>
+          <div style="margin-top:8px;font-size:13px;font-weight:700;color:#111">Закрыто сегодня</div>
+          <div class="closed-item">
+            <div class="meta"><b>Виктория</b><span>Передние боковые</span></div>
+            <div>
+              <div class="amount">8 000 ₽</div>
+              <span class="badge">Карта</span>
+            </div>
+          </div>
+          <div class="closed-item">
+            <div class="meta"><b>Алексей</b><span>Задняя полусфера</span></div>
+            <div>
+              <div class="amount">8 000 ₽</div>
+              <span class="badge mixed">Смеш.</span>
+            </div>
+          </div>
+          <div class="closed-item">
+            <div class="meta"><b>Игорь</b><span>Атермалка</span></div>
+            <div>
+              <div class="amount">12 000 ₽</div>
+              <span class="badge cash">Нал</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+
+  <script>
+    function wireMethods(rootId, onChange) {
+      const root = document.getElementById(rootId);
+      root.querySelectorAll('.pay-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          root.querySelectorAll('.pay-chip').forEach(b => b.classList.remove('on'));
+          btn.classList.add('on');
+          if (onChange) onChange(btn.dataset.m);
+        });
+      });
+    }
+    wireMethods('methodsA');
+
+    const TOTAL = 8000;
+    const split = document.getElementById('splitB');
+    const hint = document.getElementById('splitHint');
+    const btn = document.getElementById('closeBtnB');
+    const inputs = ['paidCard','paidCash','paidTransfer'].map(id => document.getElementById(id));
+
+    function recalc() {
+      const sum = inputs.reduce((a, el) => a + (parseFloat(el.value) || 0), 0);
+      if (Math.abs(sum - TOTAL) < 0.01) {
+        hint.className = 'pay-ok';
+        hint.textContent = 'Сходится · 8 000 ₽';
+        btn.disabled = false;
+      } else {
+        hint.className = 'pay-bad';
+        hint.textContent = 'Не сходится: сейчас ' + sum.toLocaleString('ru-RU') + ' ₽ из 8 000';
+        btn.disabled = true;
+      }
+    }
+    inputs.forEach(el => el.addEventListener('input', recalc));
+
+    wireMethods('methodsB', (m) => {
+      if (m === 'mixed') {
+        split.classList.add('show');
+        recalc();
+      } else {
+        split.classList.remove('show');
+        hint.className = 'pay-ok';
+        hint.textContent = 'Оплата: ' + ({cash:'Наличные',card:'Карта',transfer:'Перевод'}[m] || m);
+        btn.disabled = false;
+      }
+    });
+    recalc();
+  </script>
+</body>
+</html>
