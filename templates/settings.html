@@ -79,6 +79,9 @@
         {% else %}
         <p class="settings-hint bad">Добавьте TELEGRAM_BOT_TOKEN в Timeweb</p>
         {% endif %}
+        {% if telegram_last_error %}
+        <p class="settings-hint bad">Последняя ошибка: {{ telegram_last_error }}</p>
+        {% endif %}
         <form method="post" class="form-grid">
           <input type="hidden" name="action" value="telegram_save">
           <label class="check span4"><input type="checkbox" name="telegram_enabled" {% if telegram_on %}checked{% endif %}> Включить уведомления</label>

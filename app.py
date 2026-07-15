@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v58'
+BUILD_VERSION = 'client-v59'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1430,8 +1430,18 @@ def migrate_db(c):
     c.execute("CREATE INDEX IF NOT EXISTS idx_incoming_calls_created ON incoming_calls(created_at)")
     env_chat = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
     if env_chat:
-        c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (env_chat,))
-        c.execute("INSERT INTO app_settings(key,value) VALUES('telegram_enabled','1') ON CONFLICT(key) DO UPDATE SET value='1'")
+        row = c.execute("SELECT value FROM app_settings WHERE key='telegram_chat_id'").fetchone()
+        current_chat = (row['value'] if row else '').strip()
+        if not current_chat:
+            c.execute(
+                "INSERT INTO app_settings(key,value) VALUES('telegram_chat_id',?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (env_chat,),
+            )
+            c.execute(
+                "INSERT INTO app_settings(key,value) VALUES('telegram_enabled','1') "
+                "ON CONFLICT(key) DO UPDATE SET value='1'",
+            )
     for d in c.execute("SELECT id FROM users WHERE role='director'").fetchall():
         c.execute(
             "INSERT OR IGNORE INTO director_notification_prefs(user_id,notify_new,notify_closed,notify_daily) VALUES(?,?,?,?)",
@@ -2548,7 +2558,10 @@ def telegram_bot_token():
     return os.environ.get('TELEGRAM_BOT_TOKEN', '').strip() or get_setting('telegram_bot_token', '').strip()
 
 def telegram_chat_id():
-    return os.environ.get('TELEGRAM_CHAT_ID', '').strip() or get_setting('telegram_chat_id', '').strip()
+    stored = get_setting('telegram_chat_id', '').strip()
+    if stored:
+        return stored
+    return os.environ.get('TELEGRAM_CHAT_ID', '').strip()
 
 def telegram_enabled():
     env = os.environ.get('TELEGRAM_ENABLED', '').strip().lower()
@@ -2604,30 +2617,55 @@ def _post_telegram_message(token, chat_id, text):
     with urllib.request.urlopen(req, timeout=5) as resp:
         return json.loads(resp.read().decode())
 
+def telegram_record_error(err):
+    if not err:
+        return
+    msg = f'{now()}: {err}'
+    set_setting('telegram_last_error', msg[:500])
+    print(f'Telegram: {err}', flush=True)
+
+
+def telegram_status():
+    return {
+        'enabled': telegram_enabled(),
+        'has_token': bool(telegram_bot_token()),
+        'has_chat': bool(telegram_chat_id()),
+        'last_error': get_setting('telegram_last_error', ''),
+    }
+
+
 def send_telegram_message(text, force=False):
     if not force and not telegram_enabled():
         return False, 'Telegram выключен'
     token = telegram_bot_token()
     chat_id = telegram_chat_id()
     if not token:
+        telegram_record_error('нет TELEGRAM_BOT_TOKEN')
         return False, 'Укажите TELEGRAM_BOT_TOKEN в настройках сервера'
     if not chat_id:
+        telegram_record_error('не указан ID чата')
         return False, 'Укажите ID чата в настройках'
     try:
         data = _post_telegram_message(token, chat_id, text)
         if data.get('ok'):
+            set_setting('telegram_last_error', '')
             return True, None
         params = data.get('parameters') or {}
         new_id = params.get('migrate_to_chat_id')
         if new_id:
             set_setting('telegram_chat_id', str(new_id))
             set_setting('telegram_enabled', '1')
-            data = _post_telegram_message(token, new_id, text)
+            data = _post_telegram_message(token, str(new_id), text)
             if data.get('ok'):
+                set_setting('telegram_last_error', '')
                 return True, None
-        return False, str(data.get('description', 'Ошибка Telegram'))
+        err = str(data.get('description', 'Ошибка Telegram'))
+        telegram_record_error(err)
+        return False, err
     except Exception as e:
-        return False, str(e)[:200]
+        err = str(e)[:200]
+        telegram_record_error(err)
+        return False, err
 
 # ——— SMS клиентам (sms.ru): подтверждение и напоминания ———
 
@@ -3365,7 +3403,9 @@ def notify_telegram_new_appointment(ap_date, start_time, client_name, service_na
         f'📋 {service_name}\n'
         f'👨‍🔧 {masters_str}'
     )
-    send_telegram_message(text)
+    ok, err = send_telegram_message(text)
+    if not ok and err:
+        telegram_record_error(f'новая запись: {err}')
 
 def appointment_master_names(con, ap):
     ids = get_appointment_employee_ids(con, ap['id'], ap['employee_id'])
@@ -3421,8 +3461,16 @@ def defer_notify_new_appointment(employee_ids, ap_date, start_time, client_name,
     ids = list(employee_ids) if isinstance(employee_ids, (list, tuple)) else [employee_ids]
 
     def _run():
-        with app.app_context():
-            notify_employee_appointment(ids, ap_date, start_time, client_name, service_name, car, source)
+        try:
+            with app.app_context():
+                notify_employee_appointment(ids, ap_date, start_time, client_name, service_name, car, source)
+        except Exception as e:
+            print(f'notify-new-appt failed: {e}', flush=True)
+            try:
+                with app.app_context():
+                    telegram_record_error(f'notify thread: {e}')
+            except Exception:
+                pass
 
     threading.Thread(target=_run, daemon=True, name='notify-new-appt').start()
 
@@ -3740,7 +3788,16 @@ def design_variants():
 @app.route('/healthz')
 @app.route('/health')
 def healthz():
-    return jsonify(status='ok', build=BUILD_VERSION)
+    try:
+        ensure_db()
+    except Exception:
+        pass
+    tg = {}
+    try:
+        tg = telegram_status()
+    except Exception as e:
+        tg = {'error': str(e)[:120]}
+    return jsonify(status='ok', build=BUILD_VERSION, telegram=tg)
 
 _db_initialized = False
 
@@ -6361,6 +6418,7 @@ def settings():
     telegram_chat = get_setting('telegram_chat_id', '')
     telegram_token_ok = bool(telegram_bot_token())
     telegram_wake = get_setting('telegram_wake_name', 'пантюха')
+    telegram_last_error = get_setting('telegram_last_error', '')
     openai_ok = bool(openai_api_key())
     openai_key = openai_api_key()
     openai_masked = ('sk-…' + openai_key[-4:]) if len(openai_key) > 8 else ''
@@ -6398,6 +6456,7 @@ def settings():
         telegram_chat=telegram_chat,
         telegram_token_ok=telegram_token_ok,
         telegram_wake=telegram_wake,
+        telegram_last_error=telegram_last_error,
         openai_ok=openai_ok,
         openai_masked=openai_masked,
         bonus_on=bonus_on,
