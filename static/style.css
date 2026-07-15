@@ -1418,6 +1418,12 @@ body.theme-dark.body-z-light .main-wrap{
   box-shadow:none!important;min-height:auto!important;
 }
 .close-z-pay-method.on{background:var(--z-green-soft);border-color:var(--z-green);color:var(--z-green)}
+.close-z-pay-split{
+  display:flex;flex-direction:column;gap:6px;margin:0 0 12px;padding:12px;
+  background:#f9f9fb;border:1px solid var(--z-border);border-radius:14px;
+}
+.close-z-pay-split .close-hint.ok{color:var(--z-green);font-weight:650}
+.close-z-pay-split .close-hint.bad{color:#ff3b30;font-weight:650}
 .close-z-sheet-section{margin-bottom:8px}
 .close-z-sheet-section .close-field-label{font-size:12px;font-weight:700;color:var(--z-muted);margin:10px 0 6px}
 .close-page-z input,.close-page-z select,.close-page-z textarea{

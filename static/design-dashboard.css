@@ -166,6 +166,24 @@
 
 /* Ops dashboard — hero + day status, no emoji KPI tiles */
 .dz-ops .dz-hero{margin-bottom:10px}
+
+.dz-pay-break{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 10px;
+}
+.dz-pay-break div{
+  background:var(--z-card,#fff);border-radius:14px;padding:10px 8px;text-align:center;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.dz-pay-break small{display:block;font-size:11px;color:var(--z-muted,#8e8e93);margin-bottom:2px;font-weight:600}
+.dz-pay-break b{font-size:14px;font-weight:800;color:var(--z-text,#111)}
+.dz-pay-badge{
+  display:inline-flex;align-items:center;font-size:10px;font-weight:700;
+  padding:3px 8px;border-radius:999px;background:#e9f7ef;color:#1f8f4e;
+}
+.dz-pay-badge.pay-cash{background:#fff4df;color:#b06a00}
+.dz-pay-badge.pay-card{background:#e9f7ef;color:#1f8f4e}
+.dz-pay-badge.pay-transfer{background:#e8f0ff;color:#2f5fcc}
+.dz-pay-badge.pay-mixed{background:#f3e8ff;color:#7a3db8}
 .dz-ops .dz-pills{margin-bottom:10px}
 .dz-ops .dz-actions{margin-bottom:12px}
 .dz-ops .dz-act-ic svg{display:block}

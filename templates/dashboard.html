@@ -5,7 +5,7 @@
 {% block main_class %} main-z-light{% endblock %}
 {% block nav_class %} bottom-nav-z{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=54">
+<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=62">
 {% endblock %}
 {% block content %}
 {% set closed_n = stats.appointments or 0 %}
@@ -32,6 +32,17 @@
       {% endif %}
     </span>
   </div>
+
+  {% set pay_cash = stats.paid_cash or 0 %}
+  {% set pay_card = stats.paid_card or 0 %}
+  {% set pay_transfer = stats.paid_transfer or 0 %}
+  {% if pay_cash or pay_card or pay_transfer %}
+  <div class="dz-pay-break" aria-label="Разбивка оплаты">
+    <div><small>Карта</small><b>{{ format_money(pay_card) }}</b></div>
+    <div><small>Нал</small><b>{{ format_money(pay_cash) }}</b></div>
+    <div><small>Перевод</small><b>{{ format_money(pay_transfer) }}</b></div>
+  </div>
+  {% endif %}
 
   <div class="dz-status" aria-label="Статус дня">
     <div class="dz-status-item is-work">
@@ -178,7 +189,12 @@
         {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
       <div class="dz-side">
+        {% set pay_label = payment_method_label(r.payment_method) %}
+        {% if pay_label %}
+        <span class="dz-pay-badge {{ payment_method_badge_class(r.payment_method) }}">{{ pay_label }}</span>
+        {% else %}
         <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
+        {% endif %}
         <strong>{{ format_money(r.price or 0) }} ₽</strong>
       </div>
     </a>

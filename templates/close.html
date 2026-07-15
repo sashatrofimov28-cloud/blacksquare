@@ -151,8 +151,19 @@
       <div class="close-z-pay-methods">
         <button type="button" class="close-z-pay-method" data-pay="cash">Наличные</button>
         <button type="button" class="close-z-pay-method on" data-pay="card">Карта</button>
+        <button type="button" class="close-z-pay-method" data-pay="transfer">Перевод</button>
+        <button type="button" class="close-z-pay-method" data-pay="mixed">Смешанная</button>
       </div>
-      <input type="hidden" name="payment_note" id="paymentNote" value="Карта">
+      <input type="hidden" name="payment_method" id="paymentMethod" value="card">
+      <div class="close-z-pay-split" id="closeZPaySplit" hidden>
+        <label class="close-field-label">Карта</label>
+        <input name="paid_card" id="paidCard" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+        <label class="close-field-label">Наличные</label>
+        <input name="paid_cash" id="paidCash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+        <label class="close-field-label">Перевод</label>
+        <input name="paid_transfer" id="paidTransfer" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+        <div class="close-hint" id="paySplitHint">Сумма должна сойтись с «К оплате»</div>
+      </div>
       <div class="close-z-sheet-section">
         <label class="close-field-label">Сертификат</label>
         <input name="cert_number" id="certNumber" placeholder="Номер сертификата">
@@ -356,14 +367,75 @@ function initCloseZPaySheet() {
   if (footerTotal) footerTotal.addEventListener('click', openSheet);
   if (closeBtn) closeBtn.addEventListener('click', closeSheet);
   if (backdrop) backdrop.addEventListener('click', closeSheet);
+  const methodInput = document.getElementById('paymentMethod');
+  const split = document.getElementById('closeZPaySplit');
+  const hint = document.getElementById('paySplitHint');
+  const paidCard = document.getElementById('paidCard');
+  const paidCash = document.getElementById('paidCash');
+  const paidTransfer = document.getElementById('paidTransfer');
+  const submitBtn = document.querySelector('.close-z-btn-main');
+
+  function dueLive() {
+    const price = parseFloat(document.getElementById('closePriceInput')?.value || 0) || 0;
+    const cert = parseFloat(document.querySelector('[name="cert_amount"]')?.value || 0) || 0;
+    const bonus = parseFloat(document.getElementById('bonusSpent')?.value || 0) || 0;
+    // friend discount is applied server-side after submit; due uses current price field
+    return Math.max(0, Math.round((price - cert - bonus) * 100) / 100);
+  }
+
+  function syncPaymentSplit() {
+    const method = methodInput?.value || 'card';
+    if (!split) return true;
+    if (method !== 'mixed') {
+      split.hidden = true;
+      if (hint) { hint.textContent = ''; hint.className = 'close-hint'; }
+      if (submitBtn) submitBtn.disabled = false;
+      return true;
+    }
+    split.hidden = false;
+    const due = dueLive();
+    const sum = (parseFloat(paidCard?.value || 0) || 0) + (parseFloat(paidCash?.value || 0) || 0) + (parseFloat(paidTransfer?.value || 0) || 0);
+    const ok = Math.abs(sum - due) < 0.05;
+    if (hint) {
+      hint.className = 'close-hint ' + (ok ? 'ok' : 'bad');
+      hint.textContent = ok
+        ? ('Сходится · ' + Math.round(due).toLocaleString('ru-RU') + ' ₽')
+        : ('Не сходится: сейчас ' + Math.round(sum).toLocaleString('ru-RU') + ' ₽ из ' + Math.round(due).toLocaleString('ru-RU'));
+    }
+    if (submitBtn) submitBtn.disabled = !ok;
+    return ok;
+  }
+
   document.querySelectorAll('.close-z-pay-method').forEach(btn => {
     btn.addEventListener('click', function () {
       document.querySelectorAll('.close-z-pay-method').forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
-      const note = document.getElementById('paymentNote');
-      if (note) note.value = btn.dataset.pay === 'cash' ? 'Наличные' : 'Карта';
+      if (methodInput) methodInput.value = btn.dataset.pay || 'card';
+      if ((btn.dataset.pay || '') === 'mixed') {
+        const due = dueLive();
+        if (paidCard && !paidCard.value) paidCard.value = due;
+        if (paidCash && !paidCash.value) paidCash.value = 0;
+        if (paidTransfer && !paidTransfer.value) paidTransfer.value = 0;
+      }
+      syncPaymentSplit();
     });
   });
+  [paidCard, paidCash, paidTransfer,
+   document.getElementById('closePriceInput'),
+   document.querySelector('[name="cert_amount"]'),
+   document.getElementById('bonusSpent')].forEach(el => {
+    if (el) el.addEventListener('input', syncPaymentSplit);
+  });
+  const form = document.getElementById('closeForm');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!syncPaymentSplit()) {
+        e.preventDefault();
+        openSheet();
+      }
+    });
+  }
+  syncPaymentSplit();
 }
 
 function initCloseZMaster() {

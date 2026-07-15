@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v61'
+BUILD_VERSION = 'client-v62'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -308,6 +308,65 @@ def format_money(val, decimals=0):
         whole, frac = f"{v:,.1f}".split('.')
         return whole.replace(',', ' ') + '.' + frac
     return f"{int(round(v)):,}".replace(',', ' ')
+
+
+PAYMENT_METHODS = {
+    'cash': 'Наличные',
+    'card': 'Карта',
+    'transfer': 'Перевод',
+    'mixed': 'Смешанная',
+}
+
+def payment_method_label(method):
+    return PAYMENT_METHODS.get((method or '').strip(), '')
+
+def payment_method_badge_class(method):
+    m = (method or '').strip()
+    return {
+        'cash': 'pay-cash',
+        'card': 'pay-card',
+        'transfer': 'pay-transfer',
+        'mixed': 'pay-mixed',
+    }.get(m, '')
+
+def parse_payment_from_form(form, due_live):
+    """Разбор способа оплаты. due_live — сумма живыми деньгами (после серта/бонусов)."""
+    due = round(max(0.0, float(due_live or 0)), 2)
+    method = (form.get('payment_method') or form.get('payment_note') or 'card').strip().lower()
+    note_map = {'наличные': 'cash', 'карта': 'card', 'перевод': 'transfer', 'смешанная': 'mixed'}
+    method = note_map.get(method, method)
+    if method not in PAYMENT_METHODS:
+        method = 'card'
+    try:
+        paid_cash = round(float(form.get('paid_cash') or 0), 2)
+        paid_card = round(float(form.get('paid_card') or 0), 2)
+        paid_transfer = round(float(form.get('paid_transfer') or 0), 2)
+    except (TypeError, ValueError):
+        return None, 'Некорректные суммы оплаты'
+    if method == 'cash':
+        paid_cash, paid_card, paid_transfer = due, 0.0, 0.0
+    elif method == 'card':
+        paid_cash, paid_card, paid_transfer = 0.0, due, 0.0
+    elif method == 'transfer':
+        paid_cash, paid_card, paid_transfer = 0.0, 0.0, due
+    else:
+        total = round(paid_cash + paid_card + paid_transfer, 2)
+        if abs(total - due) > 0.05:
+            return None, f'Смешанная оплата не сходится: {total:.0f} ₽ из {due:.0f} ₽'
+        if due > 0 and total <= 0:
+            return None, 'Укажите суммы смешанной оплаты'
+        # если все в одном канале — нормализуем method
+        channels = [('cash', paid_cash), ('card', paid_card), ('transfer', paid_transfer)]
+        nonzero = [k for k, v in channels if v > 0.009]
+        if len(nonzero) == 1:
+            method = nonzero[0]
+    return {
+        'payment_method': method,
+        'paid_cash': paid_cash,
+        'paid_card': paid_card,
+        'paid_transfer': paid_transfer,
+    }, None
+
 
 def format_phone_ru(value):
     digits = re.sub(r'\D+', '', str(value or ''))
@@ -1406,6 +1465,14 @@ def migrate_db(c):
         c.execute("ALTER TABLE appointments ADD COLUMN created_by_user_id INTEGER")
     if 'created_by_name' not in appt_cols:
         c.execute("ALTER TABLE appointments ADD COLUMN created_by_name TEXT")
+    if 'payment_method' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN payment_method TEXT")
+    if 'paid_cash' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN paid_cash REAL DEFAULT 0")
+    if 'paid_card' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN paid_card REAL DEFAULT 0")
+    if 'paid_transfer' not in appt_cols:
+        c.execute("ALTER TABLE appointments ADD COLUMN paid_transfer REAL DEFAULT 0")
     c.execute(
         "CREATE TABLE IF NOT EXISTS appointment_notifications("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, appointment_id INTEGER, kind TEXT, phone TEXT, "
@@ -1565,6 +1632,9 @@ def compute_period_stats(con, period='today'):
         ).fetchone()['c'],
         'active': con.execute("SELECT COUNT(*) c FROM appointments WHERE status NOT IN ('Закрыт','Отменен')").fetchone()['c'],
         'revenue': con.execute(f"SELECT COALESCE(SUM(price),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'paid_cash': con.execute(f"SELECT COALESCE(SUM(paid_cash),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'paid_card': con.execute(f"SELECT COALESCE(SUM(paid_card),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
+        'paid_transfer': con.execute(f"SELECT COALESCE(SUM(paid_transfer),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
         'certificate_paid': con.execute(f"SELECT COALESCE(SUM(certificate_paid),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
         'material_m2': con.execute(f"SELECT COALESCE(SUM(material_m2),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
         'material_cost': con.execute(f"SELECT COALESCE(SUM(material_cost),0) s FROM appointments WHERE {closed_range}", range_args).fetchone()['s'],
@@ -1578,7 +1648,9 @@ def compute_day_stats(con, day):
     row = con.execute(
         "SELECT COUNT(*) cnt, COALESCE(SUM(price),0) revenue, COALESCE(SUM(salary_amount),0) salary, "
         "COALESCE(SUM(profit),0) profit, COALESCE(SUM(certificate_paid),0) certificate_paid, "
-        "COALESCE(SUM(material_cost),0) material_cost, COALESCE(SUM(material_m2),0) m2 "
+        "COALESCE(SUM(material_cost),0) material_cost, COALESCE(SUM(material_m2),0) m2, "
+        "COALESCE(SUM(paid_cash),0) paid_cash, COALESCE(SUM(paid_card),0) paid_card, "
+        "COALESCE(SUM(paid_transfer),0) paid_transfer "
         "FROM appointments WHERE status='Закрыт' AND appointment_date=?",
         (day,),
     ).fetchone()
@@ -1608,6 +1680,9 @@ def compute_day_stats(con, day):
         'certificate_paid': row['certificate_paid'],
         'material_cost': row['material_cost'],
         'm2': row['m2'],
+        'paid_cash': row['paid_cash'],
+        'paid_card': row['paid_card'],
+        'paid_transfer': row['paid_transfer'],
         'by_employee': employees,
     }
 
@@ -3435,6 +3510,11 @@ def notify_telegram_daily_report(report_date, stats):
     if not telegram_enabled():
         return
     lines = [f'<b>Отчёт за {report_date}</b>', f'💰 Касса: {stats["revenue"]:.0f} ₽', f'📋 Закрыто: {stats["appointments"]}']
+    cash = float(stats.get('paid_cash') or 0)
+    card = float(stats.get('paid_card') or 0)
+    transfer = float(stats.get('paid_transfer') or 0)
+    if cash or card or transfer:
+        lines.append(f'💳 Карта {card:.0f} · 💵 Нал {cash:.0f} · ↔️ Перевод {transfer:.0f}')
     for e in stats.get('by_employee', []):
         lines.append(f'{e["name"]}: {e["revenue"]:.0f} ₽')
     send_telegram_message('\n'.join(lines))
@@ -3726,6 +3806,8 @@ def inject():
         'appt_countdown_label': appt_countdown_label,
         'appt_closed_label': appt_closed_label,
         'booking_origin_label': booking_origin_label,
+        'payment_method_label': payment_method_label,
+        'payment_method_badge_class': payment_method_badge_class,
         'booking_origin_short': booking_origin_short,
         'months_ru': MONTHS_RU,
         'crm_status_tone': crm_status_tone,
@@ -4402,7 +4484,7 @@ def delete_extra(aid, eid):
 def reset_appointment_close_data(con, aid, ap):
     restore_appointment_materials(con, aid, ap)
     con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
-    con.execute("UPDATE appointments SET material_id=NULL,material_length_m=0,material_width_cm=0,material_m2=0,material_cost=0,salary_amount=0,profit=0,closed_at=NULL WHERE id=?", (aid,))
+    con.execute("UPDATE appointments SET material_id=NULL,material_length_m=0,material_width_cm=0,material_m2=0,material_cost=0,salary_amount=0,profit=0,payment_method=NULL,paid_cash=0,paid_card=0,paid_transfer=0,closed_at=NULL WHERE id=?", (aid,))
 
 def process_materials_from_form(con, aid, uid, form):
     material_cost = 0
@@ -4483,9 +4565,17 @@ def edit_appointment(aid):
                 con.rollback(); con.close(); flash(cert_msg); return redirect(url_for('edit_appointment', aid=aid))
             cert_paid = float(ap['certificate_paid'] or 0) + float(cert_amount or 0)
             profit = price - cert_paid - material_cost - salary_amount
+            due_live = round(max(0.0, float(price) - float(cert_amount or 0)), 2)
+            pay, pay_err = parse_payment_from_form(request.form, due_live)
+            if pay_err:
+                con.rollback(); con.close(); flash(pay_err); return redirect(url_for('edit_appointment', aid=aid))
             con.execute(
-                "UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,closed_at=? WHERE id=?",
-                (price, mat['first_film_id'], mat['first_len'], mat['first_w'], mat['total_m2'], material_cost, salary_amount, profit, request.form.get('comment', ap['comment'] or ''), now(), aid)
+                "UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,payment_method=?,paid_cash=?,paid_card=?,paid_transfer=?,closed_at=? WHERE id=?",
+                (
+                    price, mat['first_film_id'], mat['first_len'], mat['first_w'], mat['total_m2'], material_cost, salary_amount, profit,
+                    request.form.get('comment', ap['comment'] or ''),
+                    pay['payment_method'], pay['paid_cash'], pay['paid_card'], pay['paid_transfer'], now(), aid,
+                )
             )
             save_appointment_salaries(con, aid, salaries, request.form.get('comment', '') or 'ЗП из закрытой записи')
             con.commit()
@@ -4581,8 +4671,20 @@ def close_appointment(aid):
             price = round(float(price) - friend_discount_amount, 2)
             friend_discount_applied = True
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
-        con.execute("UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,friend_discount_code=?,friend_discount_amount=?,closed_at=? WHERE id=?",
-                    (price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit, request.form.get('comment',''), friend_discount_code if friend_discount_applied else None, friend_discount_amount, now(), aid))
+        due_live = round(max(0.0, float(price) - float(cert_amount or 0) - float(bonus_spent or 0)), 2)
+        pay, pay_err = parse_payment_from_form(request.form, due_live)
+        if pay_err:
+            con.close()
+            flash(pay_err)
+            return redirect(url_for('close_appointment', aid=aid))
+        con.execute(
+            "UPDATE appointments SET status='Закрыт',price=?,material_id=?,material_length_m=?,material_width_cm=?,material_m2=?,material_cost=?,salary_amount=?,profit=?,comment=?,friend_discount_code=?,friend_discount_amount=?,payment_method=?,paid_cash=?,paid_card=?,paid_transfer=?,closed_at=? WHERE id=?",
+            (
+                price, first_film_id, mat['first_len'], mat['first_w'], total_m2, material_cost, salary_amount, profit,
+                request.form.get('comment',''), friend_discount_code if friend_discount_applied else None, friend_discount_amount,
+                pay['payment_method'], pay['paid_cash'], pay['paid_card'], pay['paid_transfer'], now(), aid,
+            ),
+        )
         if friend_discount_applied:
             use_friend_discount_code(con, fc_row, aid)
         save_appointment_salaries(con, aid, salaries, request.form.get('comment', '') or 'ЗП из закрытой записи')
