@@ -3769,6 +3769,10 @@ def design_close_variants():
 def design_close_f():
     return render_template('design_close_f.html')
 
+@app.route('/design/payment')
+def design_payment():
+    return render_template('design_payment.html')
+
 @app.route('/design/client')
 def design_client_variants():
     return render_template('design_client.html')
