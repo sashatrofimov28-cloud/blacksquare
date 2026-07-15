@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v62'
+BUILD_VERSION = 'client-v63'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -5606,6 +5606,16 @@ def service_delete(sid):
         con.execute("DELETE FROM user_services WHERE service_id=?", (sid,)); con.execute("DELETE FROM services WHERE id=?", (sid,)); flash('Услуга удалена')
     con.commit(); con.close(); return redirect(url_for('services'))
 
+
+def employee_redirect_after(uid=None):
+    if request.form.get('next') == 'detail' and uid:
+        return redirect(url_for('employee_detail', uid=uid))
+    return redirect(url_for(
+        'employees',
+        filter=request.form.get('filter', 'all'),
+        q=request.form.get('q', ''),
+    ))
+
 @app.route('/employees', methods=['GET','POST'])
 @login_required
 @perm_required('employees')
@@ -5690,6 +5700,89 @@ def employees():
         q=eq,
     )
 
+
+@app.route('/employees/<int:uid>', methods=['GET', 'POST'])
+@login_required
+@perm_required('employees')
+def employee_detail(uid):
+    con = db()
+    target = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not target:
+        con.close()
+        flash('Сотрудник не найден')
+        return redirect(url_for('employees'))
+    if request.method == 'POST':
+        form_type = request.form.get('form_type')
+        if form_type == 'weekly':
+            default_open, default_close = studio_hours()
+            for wd in range(7):
+                con.execute(
+                    "INSERT INTO employee_weekly_schedule(user_id,weekday,start_time,end_time,is_day_off) VALUES(?,?,?,?,?) "
+                    "ON CONFLICT(user_id,weekday) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off",
+                    (
+                        uid,
+                        wd,
+                        request.form.get(f'start_{wd}') or default_open,
+                        request.form.get(f'end_{wd}') or default_close,
+                        1 if request.form.get(f'off_{wd}') else 0,
+                    ),
+                )
+            con.commit()
+            con.close()
+            flash('Недельный график сохранён')
+            return redirect(url_for('employee_detail', uid=uid) + '#empSchedule')
+        if form_type == 'schedule':
+            default_open, default_close = studio_hours()
+            work_date = (request.form.get('work_date') or '').strip()
+            if not work_date:
+                con.close()
+                flash('Укажите дату')
+                return redirect(url_for('employee_detail', uid=uid) + '#empSchedule')
+            con.execute(
+                "INSERT INTO schedules(user_id,work_date,start_time,end_time,is_day_off,comment) VALUES(?,?,?,?,?,?) "
+                "ON CONFLICT(user_id,work_date) DO UPDATE SET start_time=excluded.start_time,end_time=excluded.end_time,is_day_off=excluded.is_day_off,comment=excluded.comment",
+                (
+                    uid,
+                    work_date,
+                    request.form.get('start_time') or default_open,
+                    request.form.get('end_time') or default_close,
+                    1 if request.form.get('is_day_off') else 0,
+                    request.form.get('comment', ''),
+                ),
+            )
+            con.commit()
+            con.close()
+            flash('График на дату сохранён')
+            return redirect(url_for('employee_detail', uid=uid) + '#empSchedule')
+        con.close()
+        flash('Неизвестное действие')
+        return redirect(url_for('employee_detail', uid=uid))
+
+    services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
+    service_names = {s['id']: s['name'] for s in services}
+    perms = {r['permission']: r['allowed'] for r in con.execute("SELECT * FROM user_permissions WHERE user_id=?", (uid,)).fetchall()}
+    user_services = {r['service_id']: r['allowed'] for r in con.execute("SELECT * FROM user_services WHERE user_id=?", (uid,)).fetchall()}
+    weekly = {r['weekday']: r for r in con.execute("SELECT * FROM employee_weekly_schedule WHERE user_id=?", (uid,)).fetchall()}
+    date_schedules = con.execute(
+        "SELECT * FROM schedules WHERE user_id=? AND work_date>=? ORDER BY work_date LIMIT 30",
+        (uid, today()),
+    ).fetchall()
+    item = enrich_employee(con, target, {uid: user_services}, service_names)
+    con.close()
+    return render_template(
+        'employee_detail.html',
+        item=item,
+        services=services,
+        user_perms=perms,
+        user_services=user_services,
+        weekly=weekly,
+        date_schedules=date_schedules,
+        weekdays_long=WEEKDAYS_LONG,
+        emp_filter=request.args.get('filter', 'all'),
+        q=request.args.get('q', ''),
+    )
+
+
 @app.route('/employees/<int:uid>/update', methods=['POST'])
 @login_required
 @perm_required('employees')
@@ -5699,13 +5792,13 @@ def employee_update(uid):
     if not full_name:
         con.close()
         flash('Укажите имя сотрудника')
-        return redirect(url_for('employees'))
+        return employee_redirect_after(uid)
     new_password = request.form.get('password', '').strip()
     if new_password:
         if u['role'] != 'director' and u['id'] != uid:
             con.close()
             flash('Пароль другого пользователя может менять только директор')
-            return redirect(url_for('employees'))
+            return employee_redirect_after(uid)
         con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_password), uid))
     online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
     con.execute("UPDATE users SET full_name=?,role=?,active=?,online_booking=?,fired_at=? WHERE id=?", (full_name, role, active, online_booking, None if active else today(), uid))
@@ -5714,7 +5807,7 @@ def employee_update(uid):
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))
     for sid in request.form.getlist('service_ids'):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
-    con.commit(); con.close(); flash('Сотрудник обновлен'); return redirect(url_for('employees', filter=request.form.get('filter', 'all'), q=request.form.get('q', '')))
+    con.commit(); con.close(); flash('Сотрудник обновлен'); return employee_redirect_after(uid)
 
 @app.route('/employees/<int:uid>/online', methods=['POST'])
 @login_required
@@ -5725,13 +5818,13 @@ def employee_toggle_online(uid):
     if not user or user['role'] != 'master':
         con.close()
         flash('Онлайн-запись только для мастеров')
-        return redirect(url_for('employees'))
+        return employee_redirect_after(uid)
     online = 1 if request.form.get('online_booking') else 0
     con.execute("UPDATE users SET online_booking=? WHERE id=?", (online, uid))
     con.commit()
     con.close()
     flash('Онлайн-запись обновлена')
-    return redirect(url_for('employees', filter=request.form.get('filter', 'all'), q=request.form.get('q', '')))
+    return employee_redirect_after(uid)
 
 def detach_user_on_delete(con, uid):
     con.execute("DELETE FROM appointment_employees WHERE employee_id=?", (uid,))

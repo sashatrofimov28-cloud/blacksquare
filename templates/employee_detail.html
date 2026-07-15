@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block content %}
+{% set r = item.user %}
+<div class="emp-detail">
+  <header class="emp-detail-head">
+    <a href="{{ url_for('employees', filter=emp_filter, q=q) }}" class="emp-detail-back" aria-label="Назад">‹</a>
+    <div class="emp-detail-title">
+      <p class="emp-kicker">Сотрудник</p>
+      <h1>{{ r.full_name }}</h1>
+    </div>
+    {% if r.id != user.id %}
+    <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" onsubmit="return confirm('Удалить {{ r.full_name }}?')">
+      <button type="submit" class="emp-del" aria-label="Удалить">🗑</button>
+    </form>
+    {% endif %}
+  </header>
+
+  <section class="emp-detail-hero card-surface">
+    <div class="emp-avatar {{ item.role_tone }} lg">{{ item.initials }}</div>
+    <div>
+      <div class="emp-card-top">
+        <b>{{ r.full_name }}</b>
+        <span class="emp-pill {{ item.role_tone }}">{{ item.role_label }}</span>
+      </div>
+      <span class="emp-meta">{{ item.tenure }} · {{ item.closed_cnt }} закрытых</span>
+      <span class="emp-login">@{{ r.username }}{% if not r.active %} · не работает{% endif %}</span>
+    </div>
+    {% if r.role == 'master' %}
+    <form method="post" action="{{ url_for('employee_toggle_online', uid=r.id) }}" class="emp-toggle-form">
+      <input type="hidden" name="next" value="detail">
+      <label class="emp-toggle">
+        <span>Онлайн</span>
+        <input type="checkbox" name="online_booking" {% if item.online %}checked{% endif %} onchange="this.form.submit()">
+        <i></i>
+      </label>
+    </form>
+    {% endif %}
+  </section>
+
+  <nav class="emp-detail-tabs" aria-label="Разделы">
+    <a href="#empSettings" class="emp-detail-tab on" data-tab="settings">Настройки</a>
+    <a href="#empSchedule" class="emp-detail-tab" data-tab="schedule">График</a>
+  </nav>
+
+  <section class="emp-detail-panel" id="empSettings" data-panel="settings">
+    <form method="post" action="{{ url_for('employee_update', uid=r.id) }}" class="emp-detail-form">
+      <input type="hidden" name="next" value="detail">
+      <div class="emp-block card-surface">
+        <h2>Профиль</h2>
+        <label class="emp-field">
+          <span>Имя</span>
+          <input name="full_name" value="{{ r.full_name }}" required>
+        </label>
+        <label class="emp-field">
+          <span>Роль</span>
+          <select name="role">
+            <option value="master" {% if r.role=='master' %}selected{% endif %}>Мастер</option>
+            <option value="admin" {% if r.role=='admin' %}selected{% endif %}>Администратор</option>
+            <option value="director" {% if r.role=='director' %}selected{% endif %}>Директор</option>
+          </select>
+        </label>
+        <label class="emp-switch">
+          <span>Работает</span>
+          <input type="checkbox" name="active" {% if r.active %}checked{% endif %}>
+          <i></i>
+        </label>
+        {% if r.role == 'master' %}
+        <label class="emp-switch">
+          <span>Онлайн-запись</span>
+          <input type="checkbox" name="online_booking" {% if item.online %}checked{% endif %}>
+          <i></i>
+        </label>
+        {% endif %}
+        {% if user.role == 'director' or user.id == r.id %}
+        <label class="emp-field">
+          <span>Новый пароль</span>
+          <input type="password" name="password" placeholder="Не менять" autocomplete="new-password">
+        </label>
+        {% endif %}
+      </div>
+
+      <div class="emp-block card-surface">
+        <h2>Права доступа</h2>
+        <div class="emp-chip-grid">
+          {% for key,title in perms.items() %}
+          <label class="emp-chip-check">
+            <input type="checkbox" name="perm_{{ key }}" {% if r.role=='director' or user_perms.get(key) %}checked{% endif %}>
+            <span>{{ title }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="emp-block card-surface">
+        <h2>Услуги</h2>
+        <div class="emp-chip-grid">
+          {% for s in services %}
+          <label class="emp-chip-check">
+            <input type="checkbox" name="service_ids" value="{{ s.id }}" {% if user_services.get(s.id) %}checked{% endif %}>
+            <span>{{ s.name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="emp-detail-sticky">
+        <button type="submit" class="emp-save-btn">Сохранить настройки</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="emp-detail-panel" id="empSchedule" data-panel="schedule" hidden>
+    <form method="post" action="{{ url_for('employee_detail', uid=r.id) }}" class="emp-schedule-form" id="empWeekForm">
+      <input type="hidden" name="form_type" value="weekly">
+      <div class="emp-block card-surface">
+        <h2>Недельный график</h2>
+        <p class="emp-hint">В выходные онлайн-запись не покажет слоты. Нажмите день, чтобы быстро выставить время.</p>
+        <div class="emp-week-cards">
+          {% for wd in range(7) %}
+          {% set w = weekly.get(wd) %}
+          {% set is_off = w and w.is_day_off %}
+          <article class="emp-day-card{% if is_off %} is-off{% endif %}" data-day="{{ wd }}">
+            <div class="emp-day-top">
+              <b>{{ weekdays_long[wd]|capitalize }}</b>
+              <label class="emp-day-off">
+                <input type="checkbox" name="off_{{ wd }}" class="emp-off-input" {% if is_off %}checked{% endif %}>
+                <span>Выходной</span>
+              </label>
+            </div>
+            <div class="emp-day-times">
+              <label>
+                <span>С</span>
+                <input type="time" name="start_{{ wd }}" class="emp-time-input" value="{{ w.start_time if w else studio_open_time() }}" {% if is_off %}disabled{% endif %}>
+              </label>
+              <label>
+                <span>До</span>
+                <input type="time" name="end_{{ wd }}" class="emp-time-input" value="{{ w.end_time if w else studio_close_time() }}" {% if is_off %}disabled{% endif %}>
+              </label>
+            </div>
+            <div class="emp-day-presets">
+              <button type="button" class="emp-preset" data-start="{{ studio_open_time() }}" data-end="{{ studio_close_time() }}">Студия</button>
+              <button type="button" class="emp-preset" data-start="10:00" data-end="15:00">До 15:00</button>
+              <button type="button" class="emp-preset" data-start="15:00" data-end="{{ studio_close_time() }}">С 15:00</button>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="emp-block card-surface">
+        <h2>На дату</h2>
+        <p class="emp-hint">Разовый выходной или особое время — перекрывает неделю.</p>
+        <label class="emp-field"><span>Дата</span><input type="date" name="work_date" form="empDateForm"></label>
+        <div class="emp-day-times">
+          <label><span>С</span><input type="time" name="start_time" form="empDateForm" value="{{ studio_open_time() }}"></label>
+          <label><span>До</span><input type="time" name="end_time" form="empDateForm" value="{{ studio_close_time() }}"></label>
+        </div>
+        <label class="emp-switch" style="margin-top:10px">
+          <span>Выходной в этот день</span>
+          <input type="checkbox" name="is_day_off" form="empDateForm">
+          <i></i>
+        </label>
+        <label class="emp-field"><span>Комментарий</span><input name="comment" form="empDateForm" placeholder="Необязательно"></label>
+      </div>
+
+      <div class="emp-detail-sticky emp-detail-sticky-two">
+        <button type="submit" class="emp-save-btn">Сохранить неделю</button>
+        <button type="submit" form="empDateForm" class="emp-save-btn ghost">Сохранить дату</button>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('employee_detail', uid=r.id) }}" id="empDateForm" hidden>
+      <input type="hidden" name="form_type" value="schedule">
+      <input type="hidden" name="user_id" value="{{ r.id }}">
+    </form>
+  </section>
+</div>
+
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.emp-detail-tab');
+  const panels = {
+    settings: document.querySelector('[data-panel="settings"]'),
+    schedule: document.querySelector('[data-panel="schedule"]'),
+  };
+  function show(tab) {
+    tabs.forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
+    Object.keys(panels).forEach(k => {
+      if (!panels[k]) return;
+      panels[k].hidden = k !== tab;
+    });
+    if (location.hash !== '#' + (tab === 'schedule' ? 'empSchedule' : 'empSettings')) {
+      history.replaceState(null, '', tab === 'schedule' ? '#empSchedule' : '#empSettings');
+    }
+  }
+  tabs.forEach(t => t.addEventListener('click', (e) => {
+    e.preventDefault();
+    show(t.dataset.tab);
+  }));
+  if ((location.hash || '').toLowerCase() === '#empschedule') show('schedule');
+  else show('settings');
+
+  document.querySelectorAll('.emp-day-card').forEach(card => {
+    const off = card.querySelector('.emp-off-input');
+    const times = card.querySelectorAll('.emp-time-input');
+    function sync() {
+      const isOff = !!off?.checked;
+      card.classList.toggle('is-off', isOff);
+      times.forEach(el => { el.disabled = isOff; });
+    }
+    off?.addEventListener('change', sync);
+    card.querySelectorAll('.emp-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (off) off.checked = false;
+        const [start, end] = times;
+        if (start) start.value = btn.dataset.start || start.value;
+        if (end) end.value = btn.dataset.end || end.value;
+        sync();
+      });
+    });
+    sync();
+  });
+})();
+</script>
+{% endblock %}
