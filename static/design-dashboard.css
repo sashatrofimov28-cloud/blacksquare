@@ -100,14 +100,40 @@
 }
 .dz-side strong{font-size:12px;font-weight:700;color:var(--z-text)}
 .dz-hero{
-  padding:18px 16px;border-radius:18px;margin-bottom:12px;
-  background:linear-gradient(135deg,#34c759,#00b368);color:#fff;
-  box-shadow:0 8px 24px rgba(52,199,89,.28);
+  position:relative;overflow:hidden;
+  padding:18px 16px 16px;border-radius:20px;margin-bottom:12px;
+  background:
+    radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.22),transparent 55%),
+    linear-gradient(145deg,#2fd067 0%,#12b45a 48%,#0a9a4d 100%);
+  color:#fff;
+  box-shadow:0 10px 28px rgba(18,180,90,.28), inset 0 1px 0 rgba(255,255,255,.28);
 }
-.dz-hero small{display:block;font-size:11px;font-weight:700;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
-.dz-hero strong{display:block;margin-top:6px;font-size:32px;font-weight:900;letter-spacing:-1px;line-height:1}
-.dz-hero span{display:block;margin-top:6px;font-size:12px;opacity:.9}
+.dz-hero::after{
+  content:"";position:absolute;right:-18px;bottom:-28px;width:120px;height:120px;border-radius:50%;
+  background:rgba(255,255,255,.08);pointer-events:none;
+}
+.dz-hero-top{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1}
+.dz-hero small{display:block;font-size:11px;font-weight:700;opacity:.9;text-transform:uppercase;letter-spacing:.06em}
+.dz-hero-trend{
+  font-style:normal;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;
+  background:rgba(255,255,255,.18);color:#fff;letter-spacing:.02em;
+}
+.dz-hero-trend.up{background:rgba(255,255,255,.22)}
+.dz-hero-trend.down{background:rgba(0,0,0,.16)}
+.dz-hero strong{
+  display:block;position:relative;z-index:1;margin-top:10px;
+  font-size:34px;font-weight:900;letter-spacing:-1.2px;line-height:1;
+  text-shadow:0 1px 0 rgba(0,0,0,.06);
+}
+.dz-hero-meta{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;position:relative;z-index:1;
+}
+.dz-hero-meta span{
+  display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;
+  font-size:11px;font-weight:700;background:rgba(0,0,0,.14);color:#fff;
+}
 .dz-pills{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.dz-pills-2{grid-template-columns:repeat(2,1fr)}
 .dz-pill-stat{
   padding:10px 8px;border-radius:12px;background:var(--z-card);border:1px solid var(--z-border);
   text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.04);
@@ -139,7 +165,7 @@
 /* ——— Live dashboard (1:1 with mockup) ——— */
 .dz-live{
   max-width:none;width:100%;margin:0;min-height:100%;box-sizing:border-box;
-  padding:calc(8px + env(safe-area-inset-top, 0px)) 16px 12px;
+  padding:calc(8px + env(safe-area-inset-top, 0px)) 16px calc(96px + env(safe-area-inset-bottom, 0px));
   background:#f2f2f7;
 }
 .dz-live .dz-head h2{font-size:26px;font-weight:800;letter-spacing:-.8px}
@@ -207,6 +233,17 @@
 .dz-status-item.is-done b{color:var(--z-green)}
 .dz-link-muted{color:var(--z-muted);font-weight:700;font-size:12px;pointer-events:none}
 .dz-ops .dz-actions:empty{display:none}
+.dz-closed-block{margin-top:2px}
+.dz-list-closed{
+  margin-bottom:0;
+  box-shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 20px rgba(15,23,42,.04);
+}
+.dz-list-foot{
+  padding:11px 12px 12px;text-align:center;
+  font-size:11px;font-weight:700;color:var(--z-muted);
+  background:linear-gradient(180deg,#fafafa,#f3f3f7);
+  border-top:1px solid var(--z-border);
+}
 @media(min-width:1025px){
   .dz-live{max-width:none;padding-left:24px;padding-right:24px}
 }

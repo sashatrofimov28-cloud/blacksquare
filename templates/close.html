@@ -415,8 +415,9 @@ function initCloseZPaySheet() {
 
   document.querySelectorAll('.close-z-pay-method').forEach(btn => {
     btn.addEventListener('click', function () {
-      document.querySelectorAll('.close-z-pay-method').forEach(b => b.classList.remove('on'));
-      btn.classList.add('on');
+      document.querySelectorAll('.close-z-pay-method').forEach(b => b.classList.remove('on', 'is-press'));
+      btn.classList.add('on', 'is-press');
+      window.setTimeout(() => btn.classList.remove('is-press'), 160);
       if (methodInput) methodInput.value = btn.dataset.pay || 'card';
       if ((btn.dataset.pay || '') === 'mixed') {
         const due = dueLive();

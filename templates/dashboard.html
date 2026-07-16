@@ -5,7 +5,7 @@
 {% block main_class %} main-z-light{% endblock %}
 {% block nav_class %} bottom-nav-z{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v=62">
+<link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v={{ build_css_v }}">
 {% endblock %}
 {% block content %}
 {% set closed_n = stats.appointments or 0 %}
@@ -21,17 +21,21 @@
     </a>
   </header>
 
-  <div class="dz-hero">
-    <small>{{ stats.period_label }} · касса</small>
-    <strong>{{ format_money(stats.revenue) }} ₽</strong>
-    <span>
-      {% if closed_n %}{{ closed_n }} закрыто{% else %}Нет закрытых{% endif %}
-      · прибыль {{ format_money(stats.profit) }} ₽
+  <section class="dz-hero" aria-label="Касса сегодня">
+    <div class="dz-hero-top">
+      <small>{{ stats.period_label }} · касса</small>
       {% if trends and trends.revenue is defined and trends.revenue is not none %}
-        · {% if trends.revenue > 0 %}+{% endif %}{{ trends.revenue }}%
+      <em class="dz-hero-trend {% if trends.revenue > 0 %}up{% elif trends.revenue < 0 %}down{% endif %}">
+        {% if trends.revenue > 0 %}+{% endif %}{{ trends.revenue }}%
+      </em>
       {% endif %}
-    </span>
-  </div>
+    </div>
+    <strong>{{ format_money(stats.revenue) }} ₽</strong>
+    <div class="dz-hero-meta">
+      <span>{% if closed_n %}{{ closed_n }} закрыто{% else %}Нет закрытых{% endif %}</span>
+      <span>прибыль {{ format_money(stats.profit) }} ₽</span>
+    </div>
+  </section>
 
   {% set pay_cash = stats.paid_cash or 0 %}
   {% set pay_card = stats.paid_card or 0 %}
@@ -59,9 +63,8 @@
     </div>
   </div>
 
-  <div class="dz-pills">
+  <div class="dz-pills dz-pills-2">
     <div class="dz-pill-stat"><small>ЗП</small><b>{{ format_money(stats.salary) }}</b></div>
-    <div class="dz-pill-stat"><small>м²</small><b>{{ format_money(stats.material_m2, 1) }}</b></div>
     <div class="dz-pill-stat"><small>Ср. чек</small><b>{{ format_money(avg_check) }}</b></div>
   </div>
 
@@ -168,39 +171,44 @@
     {% endfor %}
   </div>
 
-  <div class="dz-sec-head">
-    <div class="dz-cap">Закрыто сегодня</div>
-    {% if closed_today %}
-    <span class="dz-link dz-link-muted">{{ format_money(closed_today_sum) }} ₽</span>
-    {% endif %}
-  </div>
-  <div class="dz-list">
-    {% for r in closed_today %}
-    {% set meta = appt_status_meta(r.status) %}
-    <a class="dz-row" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-      <div class="dz-time">
-        <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
-        <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
-      </div>
-      <div class="dz-body">
-        <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
-        {% set origin = booking_origin_label(r) %}
-        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
-      </div>
-      <div class="dz-side">
-        {% set pay_label = payment_method_label(r.payment_method) %}
-        {% if pay_label %}
-        <span class="dz-pay-badge {{ payment_method_badge_class(r.payment_method) }}">{{ pay_label }}</span>
-        {% else %}
-        <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
-        {% endif %}
-        <strong>{{ format_money(r.price or 0) }} ₽</strong>
-      </div>
-    </a>
-    {% else %}
-    <p class="dz-empty">Сегодня ещё нет закрытых записей</p>
-    {% endfor %}
-  </div>
+  <section class="dz-closed-block" aria-label="Закрыто сегодня">
+    <div class="dz-sec-head">
+      <div class="dz-cap">Закрыто сегодня</div>
+      {% if closed_today %}
+      <span class="dz-link dz-link-muted">{{ format_money(closed_today_sum) }} ₽</span>
+      {% endif %}
+    </div>
+    <div class="dz-list dz-list-closed">
+      {% for r in closed_today %}
+      {% set meta = appt_status_meta(r.status) %}
+      <a class="dz-row" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <div class="dz-time">
+          <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
+          <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
+        </div>
+        <div class="dz-body">
+          <b>{{ r.client_name }}</b>
+          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+          {% set origin = booking_origin_label(r) %}
+          {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
+        </div>
+        <div class="dz-side">
+          {% set pay_label = payment_method_label(r.payment_method) %}
+          {% if pay_label %}
+          <span class="dz-pay-badge {{ payment_method_badge_class(r.payment_method) }}">{{ pay_label }}</span>
+          {% else %}
+          <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
+          {% endif %}
+          <strong>{{ format_money(r.price or 0) }} ₽</strong>
+        </div>
+      </a>
+      {% else %}
+      <p class="dz-empty">Сегодня ещё нет закрытых записей</p>
+      {% endfor %}
+      {% if closed_today %}
+      <div class="dz-list-foot">На сегодня всё · {{ closed_today|length }} {% if closed_today|length == 1 %}визит{% elif closed_today|length in [2,3,4] %}визита{% else %}визитов{% endif %}</div>
+      {% endif %}
+    </div>
+  </section>
 </div>
 {% endblock %}

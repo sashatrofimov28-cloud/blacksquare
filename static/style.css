@@ -1279,6 +1279,10 @@ body.theme-dark.body-z-light .main-wrap{
   background:#fff!important;color:#1c1c1e!important;border:1px solid #e5e5ea!important;
   box-shadow:none!important;min-height:auto!important;
 }
+.theme-dark .close-page-z .close-z-pay-method.on{
+  background:#e8faf1!important;border-color:#00b368!important;color:#00b368!important;
+  box-shadow:0 0 0 2px rgba(0,179,104,.16)!important;
+}
 .theme-dark .close-page-z .close-z-tap{border:0!important;background:#fff!important}
 .theme-dark .close-page-z .close-z-btn-main,
 .theme-dark .close-page-z .close-z-btn,
@@ -1418,8 +1422,15 @@ body.theme-dark.body-z-light .main-wrap{
   padding:12px;border-radius:12px;border:1px solid var(--z-border);background:var(--z-card);
   font-size:14px;font-weight:700;color:var(--z-text);cursor:pointer;font-family:inherit;
   box-shadow:none!important;min-height:auto!important;
+  transition:background .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .16s ease;
+  -webkit-tap-highlight-color:transparent;
 }
-.close-z-pay-method.on{background:var(--z-green-soft);border-color:var(--z-green);color:var(--z-green)}
+.close-z-pay-method:active{transform:scale(.97)}
+.close-z-pay-method.on{
+  background:var(--z-green-soft)!important;border-color:var(--z-green)!important;color:var(--z-green)!important;
+  box-shadow:0 0 0 2px rgba(0,179,104,.16)!important;
+}
+.close-z-pay-method.is-press{transform:scale(.96)}
 .close-z-pay-split{
   display:flex;flex-direction:column;gap:6px;margin:0 0 12px;padding:12px;
   background:#f9f9fb;border:1px solid var(--z-border);border-radius:14px;
