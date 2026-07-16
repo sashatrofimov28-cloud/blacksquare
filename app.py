@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v65'
+BUILD_VERSION = 'client-v66'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -2293,6 +2293,28 @@ def public_base_url():
         return explicit
     return request.url_root.rstrip('/') if request else ''
 
+
+def safe_url_for(endpoint, **values):
+    """url_for, безопасный для фоновых потоков без request/SERVER_NAME."""
+    try:
+        return url_for(endpoint, **values)
+    except RuntimeError:
+        base = (public_base_url() or '').rstrip('/')
+        if endpoint == 'calendar_view':
+            d = values.get('date')
+            path = f'/calendar?date={d}' if d else '/calendar'
+        elif endpoint == 'analytics':
+            path = f"/analytics?start={values.get('start', '')}&end={values.get('end', '')}"
+        elif endpoint == 'finance':
+            path = '/finance'
+        elif endpoint == 'dashboard':
+            path = '/dashboard'
+        elif endpoint == 'profile':
+            path = '/profile'
+        else:
+            path = '/'
+        return f'{base}{path}' if base else path
+
 def bonus_card_url(code):
     base = public_base_url() or booking_public_url().rsplit('/booking', 1)[0]
     return f'{base}/bonus/{code}'
@@ -3629,17 +3651,26 @@ def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, 
         employee_ids = [employee_ids]
     car_part = f' · {car}' if car else ''
     body = f'{ap_date} {start_time} — {client_name}{car_part} · {service_name}'
+    cal_url = safe_url_for('calendar_view', date=ap_date)
     for employee_id in employee_ids:
-        send_push_to_user(employee_id, 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
+        try:
+            send_push_to_user(employee_id, 'Новая запись BlackSquare', body, cal_url)
+        except Exception as e:
+            print(f'push master failed: {e}', flush=True)
     con = db()
-    notify_directors_new_appointment(con, employee_ids, ap_date, start_time, client_name, service_name, car)
+    try:
+        notify_directors_new_appointment(con, employee_ids, ap_date, start_time, client_name, service_name, car)
+    except Exception as e:
+        print(f'push directors failed: {e}', flush=True)
     names = []
     for eid in employee_ids:
         u = con.execute("SELECT full_name FROM users WHERE id=?", (eid,)).fetchone()
         if u:
             names.append(u['full_name'])
-    notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, ', '.join(names) or '—', car, source)
-    con.close()
+    try:
+        notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, ', '.join(names) or '—', car, source)
+    finally:
+        con.close()
 
 
 def defer_notify_new_appointment(employee_ids, ap_date, start_time, client_name, service_name, car='', source=''):
@@ -3692,7 +3723,7 @@ def notify_directors_new_appointment(con, employee_ids, ap_date, start_time, cli
             continue
         if not any(director_wants_employee(con, d['id'], int(eid)) for eid in employee_ids):
             continue
-        send_push_to_user(d['id'], 'Новая запись BlackSquare', body, url_for('calendar_view', date=ap_date))
+        send_push_to_user(d['id'], 'Новая запись BlackSquare', body, safe_url_for('calendar_view', date=ap_date))
 
 def notify_directors_appointment_closed(con, ap, price):
     body = f'{ap["client_name"]} · {ap["service_name"]} — {price:.0f} ₽'
