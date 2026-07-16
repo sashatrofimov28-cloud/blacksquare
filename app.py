@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v66'
+BUILD_VERSION = 'client-v67'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1259,6 +1259,12 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS friend_cards(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, client_id INTEGER, card_number TEXT UNIQUE, access_token TEXT UNIQUE, discount_percent REAL DEFAULT 10, active INTEGER DEFAULT 1, comment TEXT, created_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS friend_discount_codes(id INTEGER PRIMARY KEY AUTOINCREMENT, friend_card_id INTEGER, code TEXT, created_at TEXT, expires_at TEXT, used_at TEXT, appointment_id INTEGER)")
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_discount_code_active ON friend_discount_codes(code) WHERE used_at IS NULL")
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS telegram_outbox("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, text TEXT, "
+        "status TEXT DEFAULT 'pending', tries INTEGER DEFAULT 0, last_error TEXT, "
+        "created_at TEXT, sent_at TEXT)"
+    )
     con.commit()
     migrate_db(c)
 
@@ -1379,6 +1385,12 @@ def trigger_auto_backup():
 def migrate_db(c):
     """Добавляет новые колонки и настройки без потери данных."""
     backup_database()
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS telegram_outbox("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, text TEXT, "
+        "status TEXT DEFAULT 'pending', tries INTEGER DEFAULT 0, last_error TEXT, "
+        "created_at TEXT, sent_at TEXT)"
+    )
     cols = {r[1] for r in c.execute("PRAGMA table_info(stock_items)").fetchall()}
     if 'cost_mode' not in cols:
         c.execute("ALTER TABLE stock_items ADD COLUMN cost_mode TEXT DEFAULT 'per_roll'")
@@ -2696,77 +2708,94 @@ def _telegram_urlopen(url, data=None, timeout=10, method=None):
     import urllib.request
     from urllib.parse import urlparse
 
+    api_base = os.environ.get('TELEGRAM_API_BASE', '').strip().rstrip('/')
+    if api_base and 'api.telegram.org' in url:
+        url = api_base + url.split('api.telegram.org', 1)[1]
+
     proxy = _telegram_proxy_url()
     headers = {'User-Agent': 'BlackSquareCRM/1.0'}
     req_method = method or ('POST' if data is not None else 'GET')
     last_err = None
+    attempts = 2
 
-    for attempt in range(3):
+    for attempt in range(attempts):
         try:
-            if proxy:
-                handler = urllib.request.ProxyHandler({'https': proxy, 'http': proxy})
-                opener = urllib.request.build_opener(handler)
+            # 1) urllib + IPv4-only DNS (через monkeypatch)
+            _orig_getaddrinfo = socket.getaddrinfo
+
+            def _ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+                return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+            socket.getaddrinfo = _ipv4_only
+            try:
+                handlers = []
+                if proxy:
+                    handlers.append(urllib.request.ProxyHandler({'https': proxy, 'http': proxy}))
+                opener = urllib.request.build_opener(*handlers) if handlers else urllib.request.build_opener()
                 req = urllib.request.Request(url, data=data, method=req_method, headers=headers)
                 with opener.open(req, timeout=timeout) as resp:
                     return resp.read()
-
-            parsed = urlparse(url)
-            host = parsed.hostname
-            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-            path = parsed.path or '/'
-            if parsed.query:
-                path = f'{path}?{parsed.query}'
-
-            infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-            if not infos:
-                raise OSError('нет IPv4-адреса для api.telegram.org')
-            family, socktype, proto, _, sockaddr = infos[0]
-            raw = socket.socket(family, socktype, proto)
-            raw.settimeout(timeout)
-            raw.connect(sockaddr)
-            if parsed.scheme == 'https':
-                ctx = ssl.create_default_context()
-                sock = ctx.wrap_socket(raw, server_hostname=host)
-            else:
-                sock = raw
-
-            body = data or b''
-            lines = [
-                f'{req_method} {path} HTTP/1.1',
-                f'Host: {host}',
-                'Connection: close',
-                f'User-Agent: {headers["User-Agent"]}',
-                f'Content-Length: {len(body)}',
-            ]
-            if data is not None:
-                lines.append('Content-Type: application/x-www-form-urlencoded')
-            raw_req = ('\r\n'.join(lines) + '\r\n\r\n').encode() + body
-            sock.sendall(raw_req)
-            chunks = []
-            while True:
-                chunk = sock.recv(65536)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-            sock.close()
-            raw_resp = b''.join(chunks)
-            sep = raw_resp.find(b'\r\n\r\n')
-            if sep < 0:
-                raise OSError('пустой ответ Telegram')
-            header_blob, resp_body = raw_resp[:sep], raw_resp[sep + 4:]
-            status_line = header_blob.split(b'\r\n', 1)[0].decode('latin1', 'ignore')
-            parts = status_line.split(' ', 2)
-            status = int(parts[1]) if len(parts) > 1 else 0
-            # chunked / content-length already in body for simple close; strip chunk encoding if present
-            hdrs = header_blob.lower()
-            if b'transfer-encoding: chunked' in hdrs:
-                resp_body = _dechunk_http(resp_body)
-            if status >= 400:
-                raise urllib.error.HTTPError(url, status, status_line, None, None)
-            return resp_body
+            finally:
+                socket.getaddrinfo = _orig_getaddrinfo
         except Exception as e:
             last_err = e
-            time.sleep(0.35 * (attempt + 1))
+            # 2) raw IPv4 socket fallback
+            try:
+                if proxy:
+                    raise e
+                parsed = urlparse(url)
+                host = parsed.hostname
+                port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+                path = parsed.path or '/'
+                if parsed.query:
+                    path = f'{path}?{parsed.query}'
+                infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+                if not infos:
+                    raise OSError('нет IPv4-адреса для api.telegram.org')
+                family, socktype, proto, _, sockaddr = infos[0]
+                raw = socket.socket(family, socktype, proto)
+                raw.settimeout(timeout)
+                raw.connect(sockaddr)
+                if parsed.scheme == 'https':
+                    ctx = ssl.create_default_context()
+                    sock = ctx.wrap_socket(raw, server_hostname=host)
+                else:
+                    sock = raw
+                body = data or b''
+                lines = [
+                    f'{req_method} {path} HTTP/1.1',
+                    f'Host: {host}',
+                    'Connection: close',
+                    f'User-Agent: {headers["User-Agent"]}',
+                    f'Content-Length: {len(body)}',
+                ]
+                if data is not None:
+                    lines.append('Content-Type: application/x-www-form-urlencoded')
+                raw_req = ('\r\n'.join(lines) + '\r\n\r\n').encode() + body
+                sock.sendall(raw_req)
+                chunks = []
+                while True:
+                    chunk = sock.recv(65536)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                sock.close()
+                raw_resp = b''.join(chunks)
+                sep = raw_resp.find(b'\r\n\r\n')
+                if sep < 0:
+                    raise OSError('пустой ответ Telegram')
+                header_blob, resp_body = raw_resp[:sep], raw_resp[sep + 4:]
+                status_line = header_blob.split(b'\r\n', 1)[0].decode('latin1', 'ignore')
+                parts = status_line.split(' ', 2)
+                status = int(parts[1]) if len(parts) > 1 else 0
+                if b'transfer-encoding: chunked' in header_blob.lower():
+                    resp_body = _dechunk_http(resp_body)
+                if status >= 400:
+                    raise OSError(f'HTTP {status}')
+                return resp_body
+            except Exception as e2:
+                last_err = e2
+                time.sleep(0.25 * (attempt + 1))
     raise last_err
 
 
@@ -2816,7 +2845,7 @@ def _post_telegram_message(token, chat_id, text):
     raw = _telegram_urlopen(
         f'https://api.telegram.org/bot{token}/sendMessage',
         data=payload,
-        timeout=12,
+        timeout=8,
         method='POST',
     )
     return json.loads(raw.decode())
@@ -2829,12 +2858,40 @@ def telegram_record_error(err):
     print(f'Telegram: {err}', flush=True)
 
 
+def telegram_outbox_secret():
+    return (
+        os.environ.get('TELEGRAM_OUTBOX_SECRET', '').strip()
+        or get_setting('telegram_outbox_secret', '').strip()
+    )
+
+
+def queue_telegram_outbox(chat_id, text):
+    con = db()
+    con.execute(
+        "INSERT INTO telegram_outbox(chat_id,text,status,tries,created_at) VALUES(?,?,?,?,?)",
+        (str(chat_id), text[:4096], 'pending', 0, now()),
+    )
+    con.commit()
+    oid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+    con.close()
+    return oid
+
+
 def telegram_status():
+    con = db()
+    try:
+        pending = con.execute(
+            "SELECT COUNT(*) c FROM telegram_outbox WHERE status='pending'"
+        ).fetchone()['c']
+    except Exception:
+        pending = 0
+    con.close()
     return {
         'enabled': telegram_enabled(),
         'has_token': bool(telegram_bot_token()),
         'has_chat': bool(telegram_chat_id()),
         'last_error': get_setting('telegram_last_error', ''),
+        'outbox_pending': pending,
     }
 
 
@@ -2863,13 +2920,18 @@ def send_telegram_message(text, force=False):
             if data.get('ok'):
                 set_setting('telegram_last_error', '')
                 return True, None
+            chat_id = str(new_id)
         err = str(data.get('description', 'Ошибка Telegram'))
-        telegram_record_error(err)
-        return False, err
+        queue_telegram_outbox(chat_id, text)
+        telegram_record_error(f'{err} · сообщение в очереди outbox')
+        return True, None
     except Exception as e:
         err = str(e)[:200]
-        telegram_record_error(err)
-        return False, err
+        queue_telegram_outbox(chat_id, text)
+        telegram_record_error(
+            f'{err} · сообщение в очереди (сервер Timeweb не достучался до api.telegram.org, доставка через outbox)'
+        )
+        return True, None
 
 # ——— SMS клиентам (sms.ru): подтверждение и напоминания ———
 
@@ -4022,6 +4084,73 @@ def healthz():
     except Exception as e:
         tg = {'error': str(e)[:120]}
     return jsonify(status='ok', build=BUILD_VERSION, telegram=tg)
+
+
+def _outbox_auth_ok():
+    secret = telegram_outbox_secret()
+    if not secret:
+        return False
+    auth = (request.headers.get('Authorization') or '').strip()
+    if auth.lower().startswith('bearer '):
+        return auth[7:].strip() == secret
+    return (request.args.get('secret') or request.headers.get('X-Outbox-Secret') or '') == secret
+
+
+@app.route('/api/telegram_outbox', methods=['GET', 'POST'])
+def api_telegram_outbox():
+    """Очередь исходящих Telegram для внешнего relay (GitHub Actions / браузер CRM)."""
+    u = current_user()
+    browser_mode = bool(u)
+    if not browser_mode and not _outbox_auth_ok():
+        return jsonify(ok=False, error='unauthorized'), 401
+    ensure_db()
+    if request.method == 'GET':
+        limit = min(50, max(1, int(request.args.get('limit') or 20)))
+        con = db()
+        rows = con.execute(
+            "SELECT id, chat_id, text, created_at, tries FROM telegram_outbox "
+            "WHERE status='pending' ORDER BY id ASC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        con.close()
+        payload = {'ok': True, 'messages': [dict(r) for r in rows]}
+        # Браузер директора/админа шлёт в Telegram сам: с сервера Timeweb api.telegram.org недоступен
+        if browser_mode:
+            payload['bot_token'] = telegram_bot_token()
+        return jsonify(payload)
+
+    # POST: ack sent / mark failed
+    payload = request.get_json(silent=True) or {}
+    sent_ids = payload.get('sent_ids') or []
+    failed = payload.get('failed') or []  # [{id, error}]
+    con = db()
+    for oid in sent_ids:
+        con.execute(
+            "UPDATE telegram_outbox SET status='sent', sent_at=?, last_error='' WHERE id=?",
+            (now(), int(oid)),
+        )
+    for item in failed:
+        try:
+            oid = int(item.get('id'))
+            err = str(item.get('error') or '')[:300]
+            con.execute(
+                "UPDATE telegram_outbox SET tries=tries+1, last_error=? WHERE id=?",
+                (err, oid),
+            )
+            row = con.execute("SELECT tries FROM telegram_outbox WHERE id=?", (oid,)).fetchone()
+            if row and int(row['tries'] or 0) >= 8:
+                con.execute("UPDATE telegram_outbox SET status='failed' WHERE id=?", (oid,))
+        except Exception:
+            pass
+    con.commit()
+    con.execute(
+        "DELETE FROM telegram_outbox WHERE status='sent' AND sent_at < datetime('now', '-7 day')"
+    )
+    con.commit()
+    con.close()
+    if sent_ids:
+        set_setting('telegram_last_error', '')
+    return jsonify(ok=True)
 
 _db_initialized = False
 

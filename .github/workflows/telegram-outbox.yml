@@ -1,0 +1,78 @@
+name: Telegram outbox drain
+
+# Timeweb Apps often cannot reach api.telegram.org (egress).
+# CRM queues messages locally; this job delivers them every minute.
+
+on:
+  schedule:
+    - cron: "* * * * *"
+  workflow_dispatch:
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Drain telegram outbox
+        env:
+          OUTBOX_URL: https://blacksquare72.ru/api/telegram_outbox
+          OUTBOX_SECRET: ${{ secrets.TELEGRAM_OUTBOX_SECRET }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import json, os, urllib.parse, urllib.request, ssl
+
+          url = os.environ["OUTBOX_URL"].rstrip("/")
+          secret = os.environ.get("OUTBOX_SECRET") or ""
+          token = os.environ.get("BOT_TOKEN") or ""
+          if not secret or not token:
+              raise SystemExit("Missing TELEGRAM_OUTBOX_SECRET or TELEGRAM_BOT_TOKEN")
+
+          ctx = ssl.create_default_context()
+          req = urllib.request.Request(
+              url + "?limit=30",
+              headers={"Authorization": f"Bearer {secret}", "User-Agent": "bs-outbox/1"},
+          )
+          with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
+              data = json.loads(resp.read().decode())
+          if not data.get("ok"):
+              raise SystemExit(data)
+          messages = data.get("messages") or []
+          print(f"pending={len(messages)}")
+          sent, failed = [], []
+          for m in messages:
+              payload = urllib.parse.urlencode({
+                  "chat_id": m["chat_id"],
+                  "text": m["text"],
+                  "parse_mode": "HTML",
+                  "disable_web_page_preview": "true",
+              }).encode()
+              tg_req = urllib.request.Request(
+                  f"https://api.telegram.org/bot{token}/sendMessage",
+                  data=payload,
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(tg_req, timeout=20, context=ctx) as resp:
+                      body = json.loads(resp.read().decode())
+                  if body.get("ok"):
+                      sent.append(m["id"])
+                  else:
+                      failed.append({"id": m["id"], "error": str(body.get("description", "tg error"))[:200]})
+              except Exception as e:
+                  failed.append({"id": m["id"], "error": str(e)[:200]})
+          ack = json.dumps({"sent_ids": sent, "failed": failed}).encode()
+          ack_req = urllib.request.Request(
+              url,
+              data=ack,
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {secret}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "bs-outbox/1",
+              },
+          )
+          with urllib.request.urlopen(ack_req, timeout=30, context=ctx) as resp:
+              print(resp.read().decode()[:300])
+          print(f"sent={len(sent)} failed={len(failed)}")
+          PY

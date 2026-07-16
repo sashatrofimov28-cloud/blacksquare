@@ -106,10 +106,58 @@
 <script>
   window.BS_VAPID_PUBLIC_KEY = {{ vapid_public_key|tojson }};
   window.BS_PUSH_KEY_VERSION = 3;
+  window.BS_TG_OUTBOX = {{ 'true' if user else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='app.js') }}?v=20"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ build_css_v }}"></script>
 <script src="{{ url_for('static', filename='car-photos.js') }}?v=1"></script>
 <script src="{{ url_for('static', filename='car-autocomplete.js') }}?v=3"></script>
+{% if user %}
+<script>
+(function drainTelegramOutbox(){
+  async function tick(){
+    try {
+      const r = await fetch('/api/telegram_outbox?limit=20', {credentials:'same-origin'});
+      if (!r.ok) return;
+      const data = await r.json();
+      const token = data.bot_token;
+      const messages = data.messages || [];
+      if (!token || !messages.length) return;
+      const sent = [];
+      const failed = [];
+      for (const m of messages) {
+        try {
+          const body = new URLSearchParams({
+            chat_id: String(m.chat_id),
+            text: m.text,
+            parse_mode: 'HTML',
+            disable_web_page_preview: 'true'
+          });
+          const tg = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+            method: 'POST',
+            body
+          });
+          const j = await tg.json();
+          if (j.ok) sent.push(m.id);
+          else failed.push({id: m.id, error: String(j.description || 'tg')});
+        } catch (e) {
+          failed.push({id: m.id, error: String(e).slice(0, 200)});
+        }
+      }
+      if (sent.length || failed.length) {
+        await fetch('/api/telegram_outbox', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({sent_ids: sent, failed})
+        });
+      }
+    } catch (e) {}
+  }
+  tick();
+  setInterval(tick, 45000);
+})();
+</script>
+{% endif %}
 {% else %}
 </main>
 {% endif %}
