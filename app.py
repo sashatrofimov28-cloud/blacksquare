@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v67'
+BUILD_VERSION = 'client-v68'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -2716,7 +2716,7 @@ def _telegram_urlopen(url, data=None, timeout=10, method=None):
     headers = {'User-Agent': 'BlackSquareCRM/1.0'}
     req_method = method or ('POST' if data is not None else 'GET')
     last_err = None
-    attempts = 2
+    attempts = 1
 
     for attempt in range(attempts):
         try:
@@ -2739,10 +2739,10 @@ def _telegram_urlopen(url, data=None, timeout=10, method=None):
                 socket.getaddrinfo = _orig_getaddrinfo
         except Exception as e:
             last_err = e
-            # 2) raw IPv4 socket fallback
+            if proxy:
+                raise
+            # 2) raw IPv4 socket fallback (один раз)
             try:
-                if proxy:
-                    raise e
                 parsed = urlparse(url)
                 host = parsed.hostname
                 port = parsed.port or (443 if parsed.scheme == 'https' else 80)
@@ -2754,7 +2754,7 @@ def _telegram_urlopen(url, data=None, timeout=10, method=None):
                     raise OSError('нет IPv4-адреса для api.telegram.org')
                 family, socktype, proto, _, sockaddr = infos[0]
                 raw = socket.socket(family, socktype, proto)
-                raw.settimeout(timeout)
+                raw.settimeout(min(timeout, 5))
                 raw.connect(sockaddr)
                 if parsed.scheme == 'https':
                     ctx = ssl.create_default_context()
@@ -2795,7 +2795,6 @@ def _telegram_urlopen(url, data=None, timeout=10, method=None):
                 return resp_body
             except Exception as e2:
                 last_err = e2
-                time.sleep(0.25 * (attempt + 1))
     raise last_err
 
 
@@ -2845,7 +2844,7 @@ def _post_telegram_message(token, chat_id, text):
     raw = _telegram_urlopen(
         f'https://api.telegram.org/bot{token}/sendMessage',
         data=payload,
-        timeout=8,
+        timeout=5,
         method='POST',
     )
     return json.loads(raw.decode())
@@ -2906,6 +2905,19 @@ def send_telegram_message(text, force=False):
     if not chat_id:
         telegram_record_error('не указан ID чата')
         return False, 'Укажите ID чата в настройках'
+
+    # С сервера Timeweb api.telegram.org обычно недоступен (timeout).
+    # Если нет proxy/API base — сразу в outbox (доставка из браузера CRM).
+    can_direct = bool(_telegram_proxy_url() or os.environ.get('TELEGRAM_API_BASE', '').strip())
+    if not can_direct:
+        queue_telegram_outbox(chat_id, text)
+        pending = telegram_status().get('outbox_pending')
+        telegram_record_error(
+            f'Сообщение в очереди outbox ({pending}). '
+            f'Откройте CRM — доставка в Telegram через браузер (сервер Timeweb без доступа к api.telegram.org).'
+        )
+        return True, None
+
     try:
         data = _post_telegram_message(token, chat_id, text)
         if data.get('ok'):
@@ -2928,9 +2940,7 @@ def send_telegram_message(text, force=False):
     except Exception as e:
         err = str(e)[:200]
         queue_telegram_outbox(chat_id, text)
-        telegram_record_error(
-            f'{err} · сообщение в очереди (сервер Timeweb не достучался до api.telegram.org, доставка через outbox)'
-        )
+        telegram_record_error(f'{err} · сообщение в очереди outbox')
         return True, None
 
 # ——— SMS клиентам (sms.ru): подтверждение и напоминания ———
@@ -3655,8 +3665,15 @@ def telegram_poll_loop():
 def notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, masters_str, car='', source=''):
     if source == 'Telegram /z':
         return
-    telegram_autoconfigure()
+    # Не зовём autoconfigure на каждое уведомление — getUpdates на Timeweb таймаутится надолго
     if not telegram_enabled():
+        return
+    if not telegram_chat_id():
+        try:
+            telegram_autoconfigure()
+        except Exception:
+            pass
+    if not telegram_enabled() or not telegram_chat_id():
         return
     car_part = f'\n🚗 {car}' if car else ''
     src = f'\n📲 {source}' if source else ''
