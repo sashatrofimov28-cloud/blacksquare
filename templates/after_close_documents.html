@@ -9,6 +9,19 @@
     </div>
   </header>
 
+  {% if pay_label or ap.paid_cash or ap.paid_card or ap.paid_transfer %}
+  <section class="card-surface" style="padding:14px;display:grid;gap:6px;margin-bottom:12px">
+    <b>Оплата</b>
+    <p style="margin:0">
+      {% if pay_label %}{{ pay_label }}{% else %}—{% endif %}
+      {% if ap.payment_method == 'mixed' %}
+        · карта {{ format_money(ap.paid_card or 0) }} · нал. {{ format_money(ap.paid_cash or 0) }} · перевод {{ format_money(ap.paid_transfer or 0) }}
+      {% endif %}
+      · {{ format_money(ap.price or 0) }} ₽
+    </p>
+  </section>
+  {% endif %}
+
   <section class="card-surface" style="padding:16px;display:grid;gap:12px">
     <strong style="font-size:18px">Документы по заказу</strong>
     <p class="close-hint" style="margin:0">Сразу после закрытия можно открыть и распечатать документы.</p>
@@ -16,11 +29,17 @@
     <a class="close-link-btn" href="{{ url_for('appointment_completion_act', aid=ap.id) }}" target="_blank" rel="noopener" style="text-align:center;padding:14px;border-radius:14px">Акт выполненных работ</a>
   </section>
 
-  <section class="card-surface" style="padding:14px;display:grid;gap:6px;margin-top:12px">
+  <section class="card-surface" style="padding:14px;display:grid;gap:10px;margin-top:12px">
     <b>Что дальше</b>
     <a href="{{ url_for('calendar_view', date=date_q) }}">Вернуться в календарь</a>
     {% if has_perm('edit_closed_appointments') %}
     <a href="{{ url_for('edit_appointment', aid=ap.id) }}">Редактировать закрытый заказ</a>
+    {% endif %}
+    {% if can_reopen %}
+    <form method="post" action="{{ url_for('reopen_appointment', aid=ap.id) }}" onsubmit="return confirm('Вернуть визит в работу? Материалы и зарплата откатятся, оплату можно будет указать заново.');">
+      <button type="submit" class="close-link-btn" style="width:100%;padding:14px;border-radius:14px;border:1px solid #ffc9c9;background:#fff5f5;color:#c62828;font-weight:700;cursor:pointer">Вернуть в работу</button>
+    </form>
+    <p class="close-hint" style="margin:0">Если закрыли по ошибке — визит снова станет «Записан», склад и ЗП откатятся.</p>
     {% endif %}
   </section>
 </div>

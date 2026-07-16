@@ -53,7 +53,7 @@
         {% set meta = appt_status_meta(r.status) %}
         <a class="cal-event {{ ev.tone }}{% if r.status == 'Отменен' %} cancelled{% endif %}"
            style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc({{ ev.col }} * (100% / {{ ev.col_count }})); width: calc(100% / {{ ev.col_count }} - 4px)"
-           href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+           href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' %}{{ url_for('after_close_documents', aid=r.id, date=r.appointment_date) }}{% else %}#{% endif %}">
           <span class="cal-event-time">{{ r.start_time }} – {{ r.end_time }}</span>
           <b class="cal-event-name">{{ r.client_name }}</b>
           <span class="cal-event-service">{{ r.service_name }}</span>

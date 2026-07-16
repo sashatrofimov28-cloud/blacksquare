@@ -61,10 +61,33 @@
           <span class="close-z-chev">›</span>
         </button>
         <button type="button" class="close-z-row close-z-tap" id="closeZPayOpen">
-          <span>Оплата и скидки</span>
-          <span class="close-z-muted">бонусы · сертификат</span>
+          <span>Скидки и сертификат</span>
+          <span class="close-z-muted">бонусы · серт · друзья</span>
           <span class="close-z-chev">›</span>
         </button>
+      </div>
+    </div>
+
+    <div class="close-z-group close-z-pay-main">
+      <div class="close-z-cap">Способ оплаты</div>
+      <div class="close-z-list close-z-list-pad">
+        <div class="close-z-pay-methods" id="closeZPayMethods">
+          <button type="button" class="close-z-pay-method" data-pay="cash">Наличные</button>
+          <button type="button" class="close-z-pay-method on" data-pay="card">Карта</button>
+          <button type="button" class="close-z-pay-method" data-pay="transfer">Перевод</button>
+          <button type="button" class="close-z-pay-method" data-pay="mixed">Смешанная</button>
+        </div>
+        <input type="hidden" name="payment_method" id="paymentMethod" value="card">
+        <div class="close-z-pay-split" id="closeZPaySplit" hidden>
+          <label class="close-field-label">Карта</label>
+          <input name="paid_card" id="paidCard" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+          <label class="close-field-label">Наличные</label>
+          <input name="paid_cash" id="paidCash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+          <label class="close-field-label">Перевод</label>
+          <input name="paid_transfer" id="paidTransfer" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
+          <div class="close-hint" id="paySplitHint">Сумма должна сойтись с «К оплате»</div>
+        </div>
+        <p class="close-hint" style="margin:8px 0 0">Выберите, как клиент платит — до нажатия «Закрыть визит».</p>
       </div>
     </div>
 
@@ -147,22 +170,6 @@
       <div class="close-z-pay-total">
         <span>К оплате</span>
         <strong id="closeZPayTotal">{{ format_money(ap.price or 0) }} ₽</strong>
-      </div>
-      <div class="close-z-pay-methods">
-        <button type="button" class="close-z-pay-method" data-pay="cash">Наличные</button>
-        <button type="button" class="close-z-pay-method on" data-pay="card">Карта</button>
-        <button type="button" class="close-z-pay-method" data-pay="transfer">Перевод</button>
-        <button type="button" class="close-z-pay-method" data-pay="mixed">Смешанная</button>
-      </div>
-      <input type="hidden" name="payment_method" id="paymentMethod" value="card">
-      <div class="close-z-pay-split" id="closeZPaySplit" hidden>
-        <label class="close-field-label">Карта</label>
-        <input name="paid_card" id="paidCard" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
-        <label class="close-field-label">Наличные</label>
-        <input name="paid_cash" id="paidCash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
-        <label class="close-field-label">Перевод</label>
-        <input name="paid_transfer" id="paidTransfer" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0">
-        <div class="close-hint" id="paySplitHint">Сумма должна сойтись с «К оплате»</div>
       </div>
       <div class="close-z-sheet-section">
         <label class="close-field-label">Сертификат</label>
@@ -431,7 +438,7 @@ function initCloseZPaySheet() {
     form.addEventListener('submit', function (e) {
       if (!syncPaymentSplit()) {
         e.preventDefault();
-        openSheet();
+        document.getElementById('closeZPayMethods')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
   }

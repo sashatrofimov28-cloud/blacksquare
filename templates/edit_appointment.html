@@ -109,6 +109,9 @@
 
   <div class="close-footer-fixed close-z-footer">
     <button type="submit" form="closeForm" class="close-submit close-z-btn-main">Сохранить заказ ✓</button>
+    <form method="post" action="{{ url_for('reopen_appointment', aid=ap.id) }}" style="margin-top:8px" onsubmit="return confirm('Вернуть визит в работу? Материалы и зарплата откатятся.');">
+      <button type="submit" class="close-link-btn" style="width:100%;padding:12px;border-radius:12px;border:1px solid #ffc9c9;background:#fff5f5;color:#c62828;font-weight:700">Вернуть в работу</button>
+    </form>
   </div>
 </div>
 

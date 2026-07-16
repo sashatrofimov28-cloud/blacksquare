@@ -1248,9 +1248,11 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
   --z-bg:#f2f2f7;--z-card:#fff;--z-text:#1c1c1e;--z-muted:#8e8e93;
   --z-border:#e5e5ea;--z-green:#00b368;--z-green-soft:#e8faf1;
   width:100%;max-width:none;margin:0;
-  padding:calc(8px + env(safe-area-inset-top,0px)) 16px calc(168px + env(safe-area-inset-bottom,0px));
+  padding:calc(8px + env(safe-area-inset-top,0px)) 16px calc(200px + env(safe-area-inset-bottom,0px));
   background:var(--z-bg);color:var(--z-text);min-height:100%;box-sizing:border-box;
 }
+.close-z-pay-main .close-z-pay-methods{margin-bottom:4px}
+.close-z-pay-main .close-hint{font-size:12px}
 .theme-dark .main:has(.close-page-z){background:var(--z-bg)!important}
 .theme-dark .main:has(.dz-live){background:var(--z-bg)!important}
 /* Z light shell — full-page gray bg edge-to-edge */

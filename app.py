@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v64'
+BUILD_VERSION = 'client-v65'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -2657,6 +2657,116 @@ def openai_api_key():
 
 _telegram_bot_id = None
 
+def _telegram_proxy_url():
+    return (
+        os.environ.get('TELEGRAM_PROXY', '').strip()
+        or os.environ.get('HTTPS_PROXY', '').strip()
+        or os.environ.get('https_proxy', '').strip()
+        or ''
+    )
+
+
+def _telegram_urlopen(url, data=None, timeout=10, method=None):
+    """HTTP к api.telegram.org с принудительным IPv4 (иначе Errno 101 в контейнере)."""
+    import socket
+    import ssl
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlparse
+
+    proxy = _telegram_proxy_url()
+    headers = {'User-Agent': 'BlackSquareCRM/1.0'}
+    req_method = method or ('POST' if data is not None else 'GET')
+    last_err = None
+
+    for attempt in range(3):
+        try:
+            if proxy:
+                handler = urllib.request.ProxyHandler({'https': proxy, 'http': proxy})
+                opener = urllib.request.build_opener(handler)
+                req = urllib.request.Request(url, data=data, method=req_method, headers=headers)
+                with opener.open(req, timeout=timeout) as resp:
+                    return resp.read()
+
+            parsed = urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+            path = parsed.path or '/'
+            if parsed.query:
+                path = f'{path}?{parsed.query}'
+
+            infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            if not infos:
+                raise OSError('нет IPv4-адреса для api.telegram.org')
+            family, socktype, proto, _, sockaddr = infos[0]
+            raw = socket.socket(family, socktype, proto)
+            raw.settimeout(timeout)
+            raw.connect(sockaddr)
+            if parsed.scheme == 'https':
+                ctx = ssl.create_default_context()
+                sock = ctx.wrap_socket(raw, server_hostname=host)
+            else:
+                sock = raw
+
+            body = data or b''
+            lines = [
+                f'{req_method} {path} HTTP/1.1',
+                f'Host: {host}',
+                'Connection: close',
+                f'User-Agent: {headers["User-Agent"]}',
+                f'Content-Length: {len(body)}',
+            ]
+            if data is not None:
+                lines.append('Content-Type: application/x-www-form-urlencoded')
+            raw_req = ('\r\n'.join(lines) + '\r\n\r\n').encode() + body
+            sock.sendall(raw_req)
+            chunks = []
+            while True:
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            sock.close()
+            raw_resp = b''.join(chunks)
+            sep = raw_resp.find(b'\r\n\r\n')
+            if sep < 0:
+                raise OSError('пустой ответ Telegram')
+            header_blob, resp_body = raw_resp[:sep], raw_resp[sep + 4:]
+            status_line = header_blob.split(b'\r\n', 1)[0].decode('latin1', 'ignore')
+            parts = status_line.split(' ', 2)
+            status = int(parts[1]) if len(parts) > 1 else 0
+            # chunked / content-length already in body for simple close; strip chunk encoding if present
+            hdrs = header_blob.lower()
+            if b'transfer-encoding: chunked' in hdrs:
+                resp_body = _dechunk_http(resp_body)
+            if status >= 400:
+                raise urllib.error.HTTPError(url, status, status_line, None, None)
+            return resp_body
+        except Exception as e:
+            last_err = e
+            time.sleep(0.35 * (attempt + 1))
+    raise last_err
+
+
+def _dechunk_http(data):
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        nl = data.find(b'\r\n', i)
+        if nl < 0:
+            break
+        try:
+            size = int(data[i:nl], 16)
+        except ValueError:
+            return data
+        i = nl + 2
+        if size == 0:
+            break
+        out.extend(data[i:i + size])
+        i += size + 2
+    return bytes(out)
+
+
 def telegram_bot_id():
     global _telegram_bot_id
     if _telegram_bot_id:
@@ -2664,19 +2774,16 @@ def telegram_bot_id():
     token = telegram_bot_token()
     if not token:
         return None
-    import urllib.request
     try:
-        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getMe', timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-            if data.get('ok'):
-                _telegram_bot_id = data['result']['id']
-                return _telegram_bot_id
+        data = json.loads(_telegram_urlopen(f'https://api.telegram.org/bot{token}/getMe', timeout=10).decode())
+        if data.get('ok'):
+            _telegram_bot_id = data['result']['id']
+            return _telegram_bot_id
     except Exception:
         pass
     return None
 
 def _post_telegram_message(token, chat_id, text):
-    import urllib.request
     import urllib.parse
     payload = urllib.parse.urlencode({
         'chat_id': chat_id,
@@ -2684,13 +2791,13 @@ def _post_telegram_message(token, chat_id, text):
         'parse_mode': 'HTML',
         'disable_web_page_preview': 'true',
     }).encode()
-    req = urllib.request.Request(
+    raw = _telegram_urlopen(
         f'https://api.telegram.org/bot{token}/sendMessage',
         data=payload,
+        timeout=12,
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=5) as resp:
-        return json.loads(resp.read().decode())
+    return json.loads(raw.decode())
 
 def telegram_record_error(err):
     if not err:
@@ -2920,27 +3027,25 @@ def telegram_discover_chats():
     token = telegram_bot_token()
     if not token:
         return []
-    import urllib.request
     try:
-        with urllib.request.urlopen(f'https://api.telegram.org/bot{token}/getUpdates?limit=50', timeout=12) as resp:
-            data = json.loads(resp.read().decode())
-            chats = {}
-            order = 0
-            for item in data.get('result', []):
-                order += 1
-                chat = None
-                if item.get('message'):
-                    chat = item['message'].get('chat')
-                elif item.get('channel_post'):
-                    chat = item['channel_post'].get('chat')
-                elif item.get('my_chat_member'):
-                    chat = item['my_chat_member'].get('chat')
-                cid = chat.get('id') if chat else None
-                if cid is not None:
-                    title = chat.get('title') or chat.get('first_name') or str(cid)
-                    chats[str(cid)] = {'title': title, 'order': order}
-            rows = sorted(chats.items(), key=lambda x: x[1]['order'], reverse=True)
-            return [{'id': k, 'title': v['title']} for k, v in rows]
+        data = json.loads(_telegram_urlopen(f'https://api.telegram.org/bot{token}/getUpdates?limit=50', timeout=12).decode())
+        chats = {}
+        order = 0
+        for item in data.get('result', []):
+            order += 1
+            chat = None
+            if item.get('message'):
+                chat = item['message'].get('chat')
+            elif item.get('channel_post'):
+                chat = item['channel_post'].get('chat')
+            elif item.get('my_chat_member'):
+                chat = item['my_chat_member'].get('chat')
+            cid = chat.get('id') if chat else None
+            if cid is not None:
+                title = chat.get('title') or chat.get('first_name') or str(cid)
+                chats[str(cid)] = {'title': title, 'order': order}
+        rows = sorted(chats.items(), key=lambda x: x[1]['order'], reverse=True)
+        return [{'id': k, 'title': v['title']} for k, v in rows]
     except Exception:
         return []
 
@@ -3048,19 +3153,21 @@ def telegram_reply(chat_id, text, reply_to=None):
     token = telegram_bot_token()
     if not token or not chat_id:
         return False, 'Telegram не настроен'
-    import urllib.request
     import urllib.parse
     payload = {'chat_id': chat_id, 'text': text[:4096], 'parse_mode': 'HTML', 'disable_web_page_preview': 'true'}
     if reply_to:
         payload['reply_to_message_id'] = reply_to
     data = urllib.parse.urlencode(payload).encode()
-    req = urllib.request.Request(f'https://api.telegram.org/bot{token}/sendMessage', data=data, method='POST')
     try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            body = json.loads(resp.read().decode())
-            if body.get('ok'):
-                return True, None
-            return False, str(body.get('description', 'Ошибка Telegram'))
+        body = json.loads(_telegram_urlopen(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            data=data,
+            timeout=12,
+            method='POST',
+        ).decode())
+        if body.get('ok'):
+            return True, None
+        return False, str(body.get('description', 'Ошибка Telegram'))
     except Exception as e:
         return False, str(e)[:200]
 
@@ -3434,13 +3541,11 @@ def process_telegram_updates():
     if not token:
         return
     offset = int(get_setting('telegram_update_offset', '0') or 0)
-    import urllib.request
     url = f'https://api.telegram.org/bot{token}/getUpdates?timeout=20&limit=20'
     if offset:
         url += f'&offset={offset + 1}'
     try:
-        with urllib.request.urlopen(url, timeout=25) as resp:
-            data = json.loads(resp.read().decode())
+        data = json.loads(_telegram_urlopen(url, timeout=25).decode())
     except Exception:
         return
     if not data.get('ok'):
@@ -3817,6 +3922,8 @@ def inject():
         'studio_close_time': studio_close_time,
         'bottom_nav_slots': build_bottom_nav_slots(),
         'bottom_nav_choices': bottom_nav_choices_for_user(),
+        'build_version': BUILD_VERSION,
+        'build_css_v': BUILD_VERSION.replace('client-v', ''),
     }
 
 @app.route('/', methods=['GET', 'POST'])
@@ -4486,6 +4593,111 @@ def reset_appointment_close_data(con, aid, ap):
     con.execute("DELETE FROM salary WHERE appointment_id=?", (aid,))
     con.execute("UPDATE appointments SET material_id=NULL,material_length_m=0,material_width_cm=0,material_m2=0,material_cost=0,salary_amount=0,profit=0,payment_method=NULL,paid_cash=0,paid_card=0,paid_transfer=0,closed_at=NULL WHERE id=?", (aid,))
 
+
+def reverse_appointment_finance_side_effects(con, aid, ap, user_id=None):
+    """Откат бонусов, сертификата и скидки друга при возврате закрытого визита в работу."""
+    # Бонусы: сначала откатываем баланс, затем удаляем исходные tx, чтобы повторное закрытие начислило снова
+    for tx in con.execute(
+        "SELECT * FROM bonus_transactions WHERE appointment_id=? AND type IN ('earn','spend') ORDER BY id",
+        (aid,),
+    ).fetchall():
+        client_id = tx['client_id']
+        amount = float(tx['amount'] or 0)
+        if tx['type'] == 'earn' and amount:
+            ok, _ = adjust_client_bonus(con, client_id, -abs(amount), user_id, f'Отмена начисления · визит №{aid}')
+            if not ok:
+                # если баланс уже потратили — всё равно обнуляем до нуля
+                client = con.execute("SELECT bonus_balance FROM clients WHERE id=?", (client_id,)).fetchone()
+                bal = float(client['bonus_balance'] or 0) if client else 0
+                if bal > 0:
+                    adjust_client_bonus(con, client_id, -min(bal, abs(amount)), user_id, f'Частичная отмена начисления · визит №{aid}')
+        elif tx['type'] == 'spend' and amount:
+            adjust_client_bonus(con, client_id, abs(amount), user_id, f'Возврат бонусов · визит №{aid}')
+    con.execute("DELETE FROM bonus_transactions WHERE appointment_id=? AND type IN ('earn','spend')", (aid,))
+
+    # Сертификат: вернуть списанные суммы
+    moves = con.execute(
+        "SELECT * FROM certificate_moves WHERE appointment_id=? AND amount < 0",
+        (aid,),
+    ).fetchall()
+    restored = 0.0
+    for m in moves:
+        amt = abs(float(m['amount'] or 0))
+        if amt <= 0:
+            continue
+        cert = con.execute("SELECT * FROM certificates WHERE id=?", (m['certificate_id'],)).fetchone()
+        if not cert:
+            continue
+        new_balance = round(float(cert['balance'] or 0) + amt, 2)
+        con.execute(
+            "UPDATE certificates SET balance=?, status='Активен' WHERE id=?",
+            (new_balance, cert['id']),
+        )
+        con.execute(
+            "INSERT INTO certificate_moves(certificate_id,appointment_id,user_id,amount,move_type,comment,created_at) VALUES(?,?,?,?,?,?,?)",
+            (cert['id'], aid, user_id, amt, 'Возврат при открытии визита', f'Визит №{aid}', now()),
+        )
+        restored += amt
+    if restored > 0 or float(ap['certificate_paid'] or 0) > 0:
+        con.execute("UPDATE appointments SET certificate_paid=0 WHERE id=?", (aid,))
+
+    # Скидка для друзей: разблокировать код и вернуть цену
+    friend_amt = float(ap['friend_discount_amount'] or 0) if 'friend_discount_amount' in ap.keys() else 0.0
+    friend_code = (ap['friend_discount_code'] or '') if 'friend_discount_code' in ap.keys() else ''
+    if friend_code or friend_amt:
+        con.execute(
+            "UPDATE friend_discount_codes SET used_at=NULL, appointment_id=NULL WHERE appointment_id=?",
+            (aid,),
+        )
+        new_price = round(float(ap['price'] or 0) + friend_amt, 2)
+        con.execute(
+            "UPDATE appointments SET price=?, friend_discount_code=NULL, friend_discount_amount=0 WHERE id=?",
+            (new_price, aid),
+        )
+
+
+def can_reopen_appointment(con, u, ap, aid):
+    if not ap or ap['status'] != 'Закрыт':
+        return False
+    if has_perm('edit_closed_appointments') or u['role'] == 'director':
+        return True
+    if not has_perm('calendar'):
+        return False
+    if u['role'] == 'master' and not user_on_appointment(con, aid, u['id'], ap['employee_id']):
+        return False
+    return True
+
+
+@app.route('/appointment/<int:aid>/reopen', methods=['POST'])
+@login_required
+def reopen_appointment(aid):
+    con = db()
+    u = current_user()
+    ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+    if not ap:
+        con.close()
+        flash('Запись не найдена')
+        return redirect(url_for('calendar_view'))
+    if not can_reopen_appointment(con, u, ap, aid):
+        con.close()
+        flash('Нет права вернуть визит в работу')
+        return redirect(url_for('calendar_view', date=ap['appointment_date'] if ap else today()))
+    try:
+        reverse_appointment_finance_side_effects(con, aid, ap, u['id'])
+        ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+        reset_appointment_close_data(con, aid, ap)
+        con.execute("UPDATE appointments SET status='Записан', profit=0 WHERE id=?", (aid,))
+        con.commit()
+    except Exception as e:
+        con.rollback()
+        con.close()
+        flash(f'Не удалось вернуть визит: {e}')
+        return redirect(url_for('after_close_documents', aid=aid, date=ap['appointment_date']))
+    con.close()
+    refresh_dashboard_stats()
+    flash('Визит снова в работе — можно править и закрыть заново')
+    return redirect(url_for('close_appointment', aid=aid))
+
 def process_materials_from_form(con, aid, uid, form):
     material_cost = 0
     total_m2 = 0
@@ -4760,8 +4972,16 @@ def after_close_documents(aid):
         flash('Документы доступны только после закрытия визита')
         return redirect(url_for('close_appointment', aid=aid))
     date_q = request.args.get('date') or ap['appointment_date'] or today()
+    can_reopen = can_reopen_appointment(con, u, ap, aid)
+    pay_label = payment_method_label(ap['payment_method'] if 'payment_method' in ap.keys() else '')
     con.close()
-    return render_template('after_close_documents.html', ap=ap, date_q=date_q)
+    return render_template(
+        'after_close_documents.html',
+        ap=ap,
+        date_q=date_q,
+        can_reopen=can_reopen,
+        pay_label=pay_label,
+    )
 
 @app.route('/appointment/<int:aid>/order-sheet')
 @login_required
