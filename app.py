@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v69'
+BUILD_VERSION = 'client-v70'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1268,7 +1268,12 @@ def init_db():
     con.commit()
     migrate_db(c)
 
-    default_users = [('director','director','Директор'),('admin','admin','Администратор'),('katya','master','Катя'),('stas','master','Стас')]
+    # Только служебные учётки. Мастеров (Катя/Стас и др.) не создавать автоматически —
+    # после увольнения они снова появлялись при деплое.
+    default_users = [
+        ('director', 'director', 'Директор'),
+        ('admin', 'admin', 'Администратор'),
+    ]
     for username, role, full_name in default_users:
         c.execute("INSERT OR IGNORE INTO users(username,password_hash,role,full_name,hired_at,created_at) VALUES(?,?,?,?,?,?)", (username, generate_password_hash(DEFAULT_PASSWORD), role, full_name, today(), now()))
         uid = c.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()['id']
@@ -2241,10 +2246,10 @@ def get_schedule(con, uid, d):
     open_t, close_t = studio_hours()
     return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 0}
 
-def slot_free(con, uid, d, start, end):
+def slot_free(con, uid, d, start, end, exclude_aid=None):
     s = hm2m(start); e = hm2m(end)
     rows = con.execute(
-        "SELECT a.start_time,a.end_time FROM appointments a "
+        "SELECT a.id,a.start_time,a.end_time FROM appointments a "
         "WHERE a.appointment_date=? AND a.status!='Отменен' "
         "AND (a.employee_id=? OR EXISTS ("
         "SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=a.id AND ae.employee_id=?"
@@ -2252,11 +2257,13 @@ def slot_free(con, uid, d, start, end):
         (d, uid, uid),
     ).fetchall()
     for r in rows:
+        if exclude_aid and r['id'] == exclude_aid:
+            continue
         if s < hm2m(r['end_time']) and e > hm2m(r['start_time']):
             return False
     return True
 
-def available_slots_for_duration(con, uid, duration_min, d):
+def available_slots_for_duration(con, uid, duration_min, d, exclude_aid=None):
     emp = con.execute("SELECT * FROM users WHERE id=? AND active=1 AND role='master'", (uid,)).fetchone()
     if not emp:
         return []
@@ -2270,7 +2277,7 @@ def available_slots_for_duration(con, uid, duration_min, d):
     while t + dur <= end_day:
         a = m2hm(t)
         b = m2hm(t + dur)
-        if slot_free(con, uid, d, a, b):
+        if slot_free(con, uid, d, a, b, exclude_aid=exclude_aid):
             out.append({'start': a, 'end': b})
         t += 30
     return out
@@ -4354,7 +4361,8 @@ def booking():
             con.close()
             flash('Это время недоступно для онлайн-записи. Выберите свободное окно из списка.')
             return redirect(url_for('booking'))
-        name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
+        name = request.form['client_name']; phone = request.form['phone']
+        car = normalize_car_input(request.form.get('car','')); plate = request.form.get('plate_number','').upper().replace(' ','')
         cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
         price = float(request.form.get('price') or bundle['base_price'] or 0)
         con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -4363,11 +4371,12 @@ def booking():
         set_appointment_employees(con, aid, [int(uid)])
         set_appointment_services(con, aid, service_ids)
         stamp_appointment_origin(con, aid, 'online')
+        token = ensure_confirmation_token(con, aid)
         con.commit()
         defer_notify_new_appointment(uid, d, start, name, bundle['name'], car or plate, source='Онлайн-запись')
         defer_client_appointment_notify(aid, 'confirm')
         con.close()
-        return render_template('booking_success.html', services=bundle['rows'], service_name=bundle['name'], emp=emp, d=d, start=start, end=end)
+        return redirect(url_for('visit_confirm', token=token))
     services = con.execute(
         "SELECT * FROM services WHERE active=1 AND online_calendar=1 ORDER BY category_id, name"
     ).fetchall()
@@ -4383,6 +4392,21 @@ def booking():
         studio_address=studio_address,
     )
 
+@app.route('/visit/<token>/slots')
+def visit_slots(token):
+    con = db()
+    ap = con.execute("SELECT * FROM appointments WHERE confirmation_token=?", (token,)).fetchone()
+    if not ap or ap['status'] != 'Записан':
+        con.close()
+        return jsonify([])
+    d = request.args.get('date') or ap['appointment_date']
+    duration = int(ap['duration_min'] or 60)
+    uid = ap['employee_id']
+    out = available_slots_for_duration(con, uid, duration, d, exclude_aid=ap['id']) if uid else []
+    con.close()
+    return jsonify(out)
+
+
 @app.route('/visit/<token>', methods=['GET', 'POST'])
 def visit_confirm(token):
     con = db()
@@ -4390,24 +4414,193 @@ def visit_confirm(token):
     if not ap:
         con.close()
         return render_template('visit_confirm.html', found=False), 404
-    if request.method == 'POST' and ap['status'] == 'Записан':
-        con.execute("UPDATE appointments SET client_confirmed_at=? WHERE id=?", (now(), ap['id']))
-        con.commit()
-        con.close()
-        return redirect(url_for('visit_confirm', token=token))
+
+    can_manage = ap['status'] == 'Записан'
+    action = (request.form.get('action') or 'confirm').strip() if request.method == 'POST' else ''
+    panel = request.args.get('panel', '')
+    flash_msg = None
+
+    if request.method == 'POST' and can_manage:
+        if action == 'confirm':
+            con.execute("UPDATE appointments SET client_confirmed_at=? WHERE id=?", (now(), ap['id']))
+            con.commit()
+            con.close()
+            return redirect(url_for('visit_confirm', token=token))
+        if action == 'cancel':
+            reason = (request.form.get('cancel_reason') or 'Отмена клиентом').strip()
+            note = f'Отмена клиентом: {reason}'
+            comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
+            con.execute("UPDATE appointments SET status='Отменен', comment=? WHERE id=?", (comment, ap['id']))
+            con.commit()
+            con.close()
+            return redirect(url_for('visit_confirm', token=token))
+        if action == 'reschedule':
+            d = (request.form.get('appointment_date') or '').strip()
+            start = normalize_hm(request.form.get('start_time', ''))
+            if not d or not start:
+                flash_msg = 'Выберите дату и время'
+                panel = 'reschedule'
+            else:
+                duration = int(ap['duration_min'] or 0)
+                if not duration:
+                    service_ids = get_appointment_service_ids(con, ap['id'], ap['service_id'])
+                    bundle = resolve_services_bundle(con, service_ids)
+                    duration = int(bundle['duration_min']) if bundle else 60
+                uid = ap['employee_id']
+                same = d == ap['appointment_date'] and start == normalize_hm(ap['start_time'] or '')
+                allowed = same
+                if not allowed and uid:
+                    allowed = any(
+                        normalize_hm(s['start']) == start
+                        for s in available_slots_for_duration(con, uid, duration, d, exclude_aid=ap['id'])
+                    )
+                if not allowed:
+                    flash_msg = 'Это время недоступно. Выберите другое окно.'
+                    panel = 'reschedule'
+                else:
+                    end = m2hm(hm2m(start) + duration)
+                    note = f'Перенос клиентом: {ap["appointment_date"]} {ap["start_time"]} → {d} {start}'
+                    comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
+                    con.execute(
+                        "UPDATE appointments SET appointment_date=?, start_time=?, end_time=?, duration_min=?, comment=?, client_confirmed_at=? WHERE id=?",
+                        (d, start, end, duration, comment, now(), ap['id']),
+                    )
+                    clear_appointment_client_notifications(con, ap['id'])
+                    con.commit()
+                    employee_ids = get_appointment_employee_ids(con, ap['id'], ap['employee_id'])
+                    con.close()
+                    defer_notify_new_appointment(
+                        employee_ids, d, start, ap['client_name'], ap['service_name'],
+                        ap['car'] or ap['plate_number'], source='Перенос клиентом',
+                    )
+                    defer_client_appointment_notify(ap['id'], 'confirm')
+                    return redirect(url_for('visit_confirm', token=token))
+
+    # refresh after possible failed post
+    ap = con.execute("SELECT * FROM appointments WHERE confirmation_token=?", (token,)).fetchone()
     emp = None
     if ap['employee_id']:
         emp = con.execute("SELECT full_name FROM users WHERE id=?", (ap['employee_id'],)).fetchone()
+    service_ids = get_appointment_service_ids(con, ap['id'], ap['service_id'])
+    services = []
+    if service_ids:
+        placeholders = ','.join('?' * len(service_ids))
+        services = con.execute(
+            f"SELECT id, name, duration_min, base_price FROM services WHERE id IN ({placeholders})",
+            service_ids,
+        ).fetchall()
+        # keep appointment order
+        by_id = {s['id']: s for s in services}
+        services = [by_id[i] for i in service_ids if i in by_id]
+    if not services and ap['service_name']:
+        services = [{
+            'id': ap['service_id'],
+            'name': ap['service_name'],
+            'duration_min': ap['duration_min'],
+            'base_price': ap['price'],
+        }]
+
+    status = ap['status'] or ''
+    cancelled = status == 'Отменен'
+    closed = status == 'Закрыт'
+    confirmed = bool(ap['client_confirmed_at'])
+    can_manage = status == 'Записан'
+    if cancelled:
+        status_label = 'Отменена'
+        status_tone = 'cancel'
+    elif closed:
+        status_label = 'Завершена'
+        status_tone = 'done'
+    elif status in ('В работе', 'Начат'):
+        status_label = 'В работе'
+        status_tone = 'work'
+    else:
+        status_label = 'Вы записаны'
+        status_tone = 'ok'
+
+    emp_name = emp['full_name'] if emp else ''
+    emp_initials = ''.join(w[0] for w in emp_name.split()[:2]).upper()[:2] if emp_name else '—'
+    date_heading = format_date_dashboard_ru(ap['appointment_date'])
+    start_s = (ap['start_time'] or '')[:5]
+    end_s = (ap['end_time'] or '')[:5]
+    time_range = f'{start_s}–{end_s}' if end_s else start_s
+    price_val = float(ap['price'] or 0)
+    studio_address = get_setting('client_sms_address', '').strip() or 'Тюмень'
     con.close()
     return render_template(
         'visit_confirm.html',
         found=True,
         ap=ap,
         emp=emp,
+        emp_name=emp_name,
+        emp_initials=emp_initials,
+        services=services,
+        date_heading=date_heading,
         date_label=format_date_calendar_ru(ap['appointment_date']),
-        confirmed=bool(ap['client_confirmed_at']),
-        cancelled=ap['status'] == 'Отменен',
+        time_range=time_range,
+        confirmed=confirmed,
+        cancelled=cancelled,
+        closed=closed,
+        can_manage=can_manage,
+        status_label=status_label,
+        status_tone=status_tone,
+        price_val=price_val,
+        panel=panel,
+        flash_msg=flash_msg,
+        studio_address=studio_address,
+        default_date=ap['appointment_date'],
+        ics_url=url_for('visit_ics', token=token),
     )
+
+
+@app.route('/visit/<token>.ics')
+def visit_ics(token):
+    con = db()
+    ap = con.execute("SELECT * FROM appointments WHERE confirmation_token=?", (token,)).fetchone()
+    emp = None
+    if ap and ap['employee_id']:
+        emp = con.execute("SELECT full_name FROM users WHERE id=?", (ap['employee_id'],)).fetchone()
+    con.close()
+    if not ap:
+        return 'Not found', 404
+    start_hm = normalize_hm(ap['start_time'] or '10:00')
+    end_hm = normalize_hm(ap['end_time'] or start_hm)
+    d = ap['appointment_date'].replace('-', '')
+    sh, sm = start_hm.split(':')
+    eh, em = end_hm.split(':')
+    dt_start = f'{d}T{sh}{sm}00'
+    dt_end = f'{d}T{eh}{em}00'
+    summary = (ap['service_name'] or 'Запись BlackSquare').replace('\n', ' ')
+    loc = (get_setting('client_sms_address', '').strip() or 'BlackSquare').replace('\n', ' ')
+    desc_parts = [summary]
+    if emp:
+        desc_parts.append(f"Мастер: {emp['full_name']}")
+    if ap['car'] or ap['plate_number']:
+        desc_parts.append(' · '.join(x for x in [ap['car'], ap['plate_number']] if x))
+    desc = '\\n'.join(desc_parts)
+    uid = f"visit-{ap['id']}@blacksquare72.ru"
+    ics = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//BlackSquare//Visit//RU\r\n"
+        "CALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\n"
+        f"UID:{uid}\r\nDTSTAMP:{datetime.now(APP_TZ).strftime('%Y%m%dT%H%M%SZ')}\r\n"
+        f"DTSTART:{dt_start}\r\nDTEND:{dt_end}\r\n"
+        f"SUMMARY:{summary}\r\nLOCATION:{loc}\r\nDESCRIPTION:{desc}\r\n"
+        "END:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    return app.response_class(
+        ics,
+        mimetype='text/calendar; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="blacksquare-{ap["appointment_date"]}.ics"'},
+    )
+
+
+@app.route('/api/cars/resolve')
+def api_cars_resolve():
+    q = request.args.get('q', '').strip()
+    if len(q) < 1:
+        return jsonify(value='')
+    return jsonify(value=normalize_car_input(q))
+
 
 @app.route('/api/masters')
 def api_masters():
@@ -4456,7 +4649,10 @@ def load_car_catalog():
     return _CAR_CATALOG
 
 def _car_norm(s):
-    return (s or '').lower().replace('ё', 'е').strip()
+    s = (s or '').lower().replace('ё', 'е')
+    s = s.replace('-', ' ').replace('_', ' ')
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
 
 def _car_model_name(model):
     if isinstance(model, dict):
@@ -4477,56 +4673,196 @@ def _car_brand_thumb(brand):
         'initials': ''.join(w[0] for w in brand['name'].split()[:2]).upper()[:2],
     }
 
+def _car_alias_hit(query, alias):
+    """Очки совпадения query↔alias (кириллица/латиница, токены)."""
+    q = _car_norm(query)
+    a = _car_norm(alias)
+    if not q or not a:
+        return 0
+    if a == q:
+        return 100
+    if a.startswith(q):
+        return 70 + min(len(q), 20)
+    if q.startswith(a) and len(a) >= 3:
+        return 55
+    if q in a:
+        return 35
+    q_tokens = [t for t in q.split() if t]
+    a_tokens = [t for t in a.split() if t]
+    if not q_tokens or not a_tokens:
+        return 0
+    hit = 0
+    for qt in q_tokens:
+        best = 0
+        for at in a_tokens:
+            if at == qt:
+                best = max(best, 30)
+            elif at.startswith(qt) or (qt.startswith(at) and len(at) >= 3):
+                best = max(best, 18)
+            elif qt in at or at in qt:
+                best = max(best, 10)
+        hit += best
+    return hit if hit >= 18 else 0
+
+
+def resolve_car_from_catalog(raw):
+    """Каноническая 'Brand Model' (или только Brand) по RU/EN вводу."""
+    text = (raw or '').strip()
+    if not text:
+        return ''
+    q = _car_norm(text)
+    tokens = [t for t in q.split() if t]
+    if not tokens:
+        return ''
+
+    def best_alias(query, aliases):
+        return max(((_car_alias_hit(query, a), a) for a in aliases), default=(0, ''))
+
+    best_model = None  # (score, label)
+    best_brand = None  # (score, name)
+    for brand in load_car_catalog().get('brands', []):
+        brand_name = str(brand.get('name') or '').strip()
+        if not brand_name:
+            continue
+        brand_aliases = [brand_name] + list(brand.get('aliases') or [])
+        # Match brand against whole query and against prefix tokens
+        b_whole, _ = best_alias(q, brand_aliases)
+        b_first, matched_ba = best_alias(tokens[0], brand_aliases)
+        brand_score = max(b_whole, b_first)
+        if brand_score >= 55 and (best_brand is None or brand_score > best_brand[0]):
+            best_brand = (brand_score, brand_name)
+
+        # Strip matched brand from query to get model remainder
+        remainder = q
+        if b_first >= 55:
+            # drop first token(s) that match brand
+            remainder = ' '.join(tokens[1:]).strip()
+        elif b_whole >= 55 and len(tokens) == 1:
+            remainder = ''
+
+        for model in brand.get('models', []):
+            model_name = _car_model_name(model)
+            if not model_name:
+                continue
+            model_aliases = [model_name] + _car_model_aliases(model)
+            label = f'{brand_name} {model_name}'.strip()
+            # Model-only query (камри, гелик)
+            m_only, _ = best_alias(q, model_aliases)
+            m_rem = best_alias(remainder, model_aliases)[0] if remainder else 0
+            full_aliases = [f'{ba} {ma}'.strip() for ba in brand_aliases for ma in model_aliases]
+            full_score, _ = best_alias(q, full_aliases)
+            # Penalize full_score that only matches the brand prefix of "brand model"
+            if remainder == '' and brand_score >= 55:
+                full_score = 0
+            score = 0
+            if remainder and m_rem >= 40 and brand_score >= 40:
+                score = max(score, brand_score + m_rem + 40)
+            if m_only >= 70:
+                score = max(score, m_only + (20 if brand_score >= 40 else 0))
+            if full_score >= 80:
+                score = max(score, full_score + 15)
+            if score < 70:
+                continue
+            if best_model is None or score > best_model[0]:
+                best_model = (score, label)
+
+    if best_model:
+        return best_model[1]
+    if best_brand:
+        return best_brand[1]
+    return ''
+
+
 def suggest_cars_from_catalog(query, limit=12):
     q = _car_norm(query)
     if not q:
         return []
-    results, seen = [], set()
+    tokens = [t for t in q.split() if t]
+    scored = []
     for brand in load_car_catalog().get('brands', []):
         name = brand['name']
         thumb = _car_brand_thumb(brand)
-        names = [name] + list(brand.get('aliases') or [])
-        brand_hit = any(_car_norm(n).startswith(q) or q in _car_norm(n) for n in names)
-        if brand_hit and name not in seen:
-            results.append({
+        brand_aliases = [name] + list(brand.get('aliases') or [])
+        first = tokens[0] if tokens else q
+        brand_score = max((_car_alias_hit(first, ba) for ba in brand_aliases), default=0)
+        brand_score = max(brand_score, max((_car_alias_hit(q, ba) for ba in brand_aliases), default=0))
+        if brand_score >= 40 and len(tokens) <= 1 and name not in {s[1].get('value') for s in scored}:
+            scored.append((brand_score - 5, {
                 'label': name, 'value': name, 'kind': 'brand',
                 'hint': '', 'color': thumb['color'], 'initials': thumb['initials'],
-            })
-            seen.add(name)
+            }))
         for model in brand.get('models', []):
             mname = _car_model_name(model)
             if not mname:
                 continue
             aliases = _car_model_aliases(model)
+            model_aliases = [mname] + aliases
             full = f'{name} {mname}'
+            full_aliases = [f'{ba} {ma}'.strip() for ba in brand_aliases for ma in model_aliases]
+            full_score = max((_car_alias_hit(q, fa) for fa in full_aliases), default=0)
+            model_score = max((_car_alias_hit(q, ma) for ma in model_aliases), default=0)
+            combo = 0
+            if len(tokens) >= 2:
+                for bp, mp in [(' '.join(tokens[:-1]), tokens[-1]), (tokens[0], ' '.join(tokens[1:]))]:
+                    b_sc = max((_car_alias_hit(bp, ba) for ba in brand_aliases), default=0)
+                    m_sc = max((_car_alias_hit(mp, ma) for ma in model_aliases), default=0)
+                    if b_sc and m_sc:
+                        combo = max(combo, b_sc + m_sc + 30)
+            score = max(full_score, combo, model_score + (15 if brand_score else 0))
+            if brand_score >= 40 and len(tokens) == 1 and score < brand_score:
+                score = max(score, brand_score - 8)
+            if score < 18:
+                continue
             codes = [a for a in aliases if re.match(r'^[A-Za-z]?\d', a) or (len(a) <= 4 and a.upper() == a)]
             hint_codes = [a for a in aliases if _car_norm(a) == q or _car_norm(a).startswith(q)]
-            hit = (
-                _car_norm(full).startswith(q) or _car_norm(mname).startswith(q) or q in _car_norm(full)
-                or any(_car_norm(a) == q or _car_norm(a).startswith(q) or q in _car_norm(a) for a in aliases)
-            )
-            if not hit:
-                continue
-            if full in seen:
-                continue
             hint = ''
             if hint_codes:
                 hint = hint_codes[0].upper() if len(hint_codes[0]) <= 5 else hint_codes[0]
             elif codes:
                 hint = codes[0]
-            label = f'{full}' + (f' · {hint}' if hint and hint.lower() not in full.lower() else '')
-            results.append({
+            label = full + (f' · {hint}' if hint and hint.lower() not in full.lower() else '')
+            scored.append((score, {
                 'label': label,
                 'value': full,
                 'kind': 'model',
                 'hint': hint,
                 'color': thumb['color'],
                 'initials': thumb['initials'],
-            })
-            seen.add(full)
-            if len(results) >= limit:
-                return results
-    return results[:limit]
+            }))
+    scored.sort(key=lambda x: (-x[0], x[1]['value']))
+    out, seen = [], set()
+    for _, item in scored:
+        v = item['value']
+        if v in seen:
+            continue
+        seen.add(v)
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def normalize_car_input(raw):
+    """Нормализует ввод: каталог (RU→EN) или аккуратный title-case."""
+    text = (raw or '').strip()
+    if not text:
+        return ''
+    resolved = resolve_car_from_catalog(text)
+    if resolved:
+        return resolved
+    parts = re.split(r'\s+', text)
+    norm_parts = []
+    for p in parts:
+        if not p:
+            continue
+        if p.isupper() and len(p) <= 4:
+            norm_parts.append(p)
+        elif any(ch.isdigit() for ch in p) and p.upper() == p:
+            norm_parts.append(p)
+        else:
+            norm_parts.append(p[:1].upper() + p[1:] if len(p) > 1 else p.upper())
+    return ' '.join(norm_parts)
+
 
 def suggest_cars_from_db(con, query, limit=5):
     q = f'%{query.strip()}%'
@@ -4605,7 +4941,7 @@ def calendar_view():
                 existing = find_client_by_phone(con, phone)
                 if existing and not name:
                     name = existing['name'] or name
-                car = request.form.get('car',''); plate = request.form.get('plate_number','').upper().replace(' ','')
+                car = normalize_car_input(request.form.get('car','')); plate = request.form.get('plate_number','').upper().replace(' ','')
                 cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
                 price = float(request.form.get('price') or bundle['base_price'] or 0)
                 primary = employee_ids[0]
@@ -4982,7 +5318,8 @@ def edit_appointment(aid):
         bundle = resolve_services_bundle(con, service_ids)
         primary = employee_ids[0]; d = request.form['appointment_date']; start = request.form['start_time']
         end = m2hm(hm2m(start) + int(bundle['duration_min']))
-        name = request.form['client_name']; phone = request.form['phone']; car = request.form.get('car', ''); plate = request.form.get('plate_number', '').upper().replace(' ', '')
+        name = request.form['client_name']; phone = request.form['phone']
+        car = normalize_car_input(request.form.get('car', '')); plate = request.form.get('plate_number', '').upper().replace(' ', '')
         price = float(request.form.get('price') or bundle['base_price'] or 0)
         con.execute(
             "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
@@ -6505,7 +6842,7 @@ def crm():
         con.execute("INSERT INTO clients(name,phone,source,stage,reason,comment,created_at) VALUES(?,?,?,?,?,?,?)", (request.form.get('name'), request.form.get('phone'), request.form.get('source','Ручное добавление'), request.form.get('stage','Новый'), request.form.get('reason',''), request.form.get('comment',''), now()))
         cid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
         ensure_client_bonus_code(con, cid)
-        car = request.form.get('car','')
+        car = normalize_car_input(request.form.get('car',''))
         plate = request.form.get('plate_number','').upper().replace(' ','')
         if car or plate:
             con.execute("INSERT INTO cars(client_id,car_model,plate_number,created_at) VALUES(?,?,?,?)", (cid, car, plate, now()))
@@ -6598,7 +6935,7 @@ def client_update(cid):
     con = db()
     con.execute("UPDATE clients SET name=?, phone=?, source=?, stage=?, reason=?, comment=? WHERE id=?",
                 (request.form.get('name'), request.form.get('phone'), request.form.get('source'), request.form.get('stage'), request.form.get('reason'), request.form.get('comment'), cid))
-    car = request.form.get('car','')
+    car = normalize_car_input(request.form.get('car',''))
     plate = request.form.get('plate_number','').upper().replace(' ','')
     if car or plate:
         exists = con.execute("SELECT id FROM cars WHERE client_id=? AND (plate_number=? OR car_model=?)", (cid, plate, car)).fetchone()
