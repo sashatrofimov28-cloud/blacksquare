@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Новая запись — макет окна</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f2f2f7;--card:#fff;--text:#111;--mute:#8e8e93;--line:#e5e5ea;
+    --green:#00b368;--green-soft:#e8f6ef;--red:#ff3b30;--shadow:0 16px 40px rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0c0c0d;color:#eee;font-family:Inter,system-ui,sans-serif}
+  .page{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+  .intro{text-align:center;margin-bottom:18px}
+  .intro a{color:#34c759;font-size:13px;font-weight:700;text-decoration:none}
+  .intro h1{margin:10px 0 8px;font-size:clamp(22px,4vw,32px);font-weight:800;letter-spacing:-.03em}
+  .intro p{margin:0 auto;max-width:620px;color:#9a9aa2;font-size:14px;line-height:1.5}
+  .banner{
+    display:inline-block;margin-top:10px;padding:6px 12px;border-radius:999px;
+    background:#1d3a2a;color:#3ddc84;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em
+  }
+  .stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-top:22px}
+  .panel{background:#141416;border:1px solid #242428;border-radius:24px;overflow:hidden}
+  .meta{padding:14px 16px;border-bottom:1px solid #242428}
+  .meta b{display:block;font-size:16px}
+  .meta span{display:block;margin-top:6px;color:#9a9aa2;font-size:12px;line-height:1.45}
+  .phone{
+    width:min(100%,390px);margin:16px auto 18px;border-radius:32px;overflow:hidden;
+    border:1px solid #2a2a2e;background:#111;box-shadow:0 24px 60px rgba(0,0,0,.45);position:relative
+  }
+  .screen{background:var(--bg);color:var(--text);min-height:720px;position:relative}
+  .jr-mini{padding:12px 12px 0;opacity:.55;pointer-events:none}
+  .jr-mini h2{margin:0;font-size:20px;font-weight:800}
+  .jr-mini .strip{display:flex;gap:6px;margin-top:10px}
+  .jr-mini .d{width:42px;height:46px;border-radius:12px;background:#fff;display:grid;place-items:center;font-size:11px;font-weight:800}
+  .jr-mini .d.on{background:#111;color:#fff}
+  .jr-mini .board{margin-top:10px;height:220px;border-radius:14px;background:#fff;border:1px solid var(--line)}
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.38);backdrop-filter:blur(2px)}
+  .note{padding:0 16px 16px;color:#9a9aa2;font-size:12px;line-height:1.45}
+  .note b{color:#ddd}
+
+  /* ——— Sheet A ——— */
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;top:12%;
+    background:var(--bg);border-radius:22px 22px 0 0;
+    display:flex;flex-direction:column;box-shadow:var(--shadow);
+    animation:up .35s ease;
+  }
+  @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+  .sheet-handle{width:36px;height:4px;border-radius:999px;background:#d1d1d6;margin:8px auto 0}
+  .sheet-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 16px 10px
+  }
+  .sheet-head h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em}
+  .sheet-x,.sheet-back{
+    width:32px;height:32px;border-radius:50%;border:1px solid var(--line);
+    background:#fff;display:grid;place-items:center;color:var(--text);font-size:16px;font-weight:700
+  }
+  .sheet-meta{
+    margin:0 16px 10px;padding:10px 12px;border-radius:14px;background:#fff;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700
+  }
+  .sheet-meta span{color:var(--mute);font-weight:600}
+  .sheet-meta b{color:var(--text)}
+  .sheet-scroll{flex:1;overflow:auto;padding:0 16px 110px;-webkit-overflow-scrolling:touch}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;font-weight:700;color:var(--mute);margin:0 0 5px;letter-spacing:.02em}
+  .field input,.field textarea{
+    width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:#fff;color:var(--text);font:inherit;font-size:15px;font-weight:600
+  }
+  .field textarea{min-height:72px;resize:none}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .block{
+    margin:12px 0;padding:12px;border-radius:16px;background:#fff;border:1px solid var(--line)
+  }
+  .block-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .block-h b{font-size:13px;font-weight:800}
+  .block-h span{font-size:11px;color:var(--mute);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border-radius:999px;
+    border:1px solid var(--line);background:#f7f7f8;font-size:12px;font-weight:700;color:var(--text)
+  }
+  .chip.on{background:var(--green-soft);border-color:#9dd9bb;color:#0a7d4f}
+  .chip small{opacity:.7;font-weight:600}
+  .masters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .mcard{
+    border:1px solid var(--line);background:#fafafa;border-radius:14px;padding:10px 6px;text-align:center
+  }
+  .mcard.on{background:var(--green-soft);border-color:#9dd9bb}
+  .mav{
+    width:36px;height:36px;border-radius:50%;margin:0 auto 6px;display:grid;place-items:center;
+    font-size:12px;font-weight:800;color:#fff;background:#2979ff
+  }
+  .mcard b{display:block;font-size:12px}
+  .mcard small{display:block;font-size:10px;color:var(--mute);margin-top:2px}
+  .sheet-foot{
+    position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(14px + env(safe-area-inset-bottom,0px));
+    background:rgba(242,242,247,.92);border-top:1px solid var(--line);backdrop-filter:blur(12px)
+  }
+  .sheet-foot button{
+    width:100%;border:0;border-radius:16px;padding:14px 16px;background:#111;color:#fff;
+    font-size:15px;font-weight:800;font-family:inherit
+  }
+  .hint{margin:0 0 8px;font-size:11px;color:var(--mute);line-height:1.4}
+  .linkish{color:var(--green);font-weight:700;font-size:12px;text-decoration:none}
+
+  /* ——— Modal B ——— */
+  .modal-wrap{position:absolute;inset:0;display:grid;place-items:end center;padding:12px}
+  .modal{
+    width:100%;max-height:88%;background:var(--card);border-radius:22px;
+    display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden;animation:pop .3s ease
+  }
+  @keyframes pop{from{transform:translateY(18px) scale(.98);opacity:.5}to{transform:none;opacity:1}}
+  .modal-head{
+    display:flex;align-items:center;gap:10px;padding:14px 14px 8px;border-bottom:1px solid var(--line)
+  }
+  .modal-head h3{margin:0;flex:1;font-size:17px;font-weight:800}
+  .modal-scroll{flex:1;overflow:auto;padding:12px 14px 100px}
+  .seg{
+    display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border-radius:12px;
+    background:#e5e5ea;margin-bottom:12px
+  }
+  .seg i{display:block;text-align:center;padding:8px;border-radius:10px;font-style:normal;font-size:12px;font-weight:700;color:var(--mute)}
+  .seg i.on{background:#fff;color:#111;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .time-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .time-row::-webkit-scrollbar{display:none}
+  .tchip{
+    flex:0 0 auto;padding:8px 12px;border-radius:12px;border:1px solid var(--line);
+    background:#fff;font-size:12px;font-weight:750
+  }
+  .tchip.on{background:#111;color:#fff;border-color:#111}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <a href="/design">← Все макеты</a>
+    <h1>Новая запись — отдельное окно</h1>
+    <p>Не форма снизу журнала, а отдельный экран поверх. Светлый YClients-стиль: белые поля, чипы услуг, карточки мастеров, кнопка «Сохранить» снизу.</p>
+    <div class="banner">Только макет · живой журнал не меняет</div>
+  </div>
+
+  <div class="stage">
+    <article class="panel">
+      <div class="meta">
+        <b>A · Нижний sheet</b>
+        <span>Как в YClients: журнал слегка затемняется, форма выезжает снизу на весь экран. Удобно с телефона.</span>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="jr-mini">
+            <h2>Журнал записи</h2>
+            <div class="strip"><div class="d on">Пт<br>31</div><div class="d">Сб<br>1</div><div class="d">Вс<br>2</div></div>
+            <div class="board"></div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="sheet-handle"></div>
+            <div class="sheet-head">
+              <span class="sheet-x">×</span>
+              <h3>Новая запись</h3>
+              <span style="width:32px"></span>
+            </div>
+            <div class="sheet-meta">
+              <div><span>Дата</span><br><b>31 июля, пятница</b></div>
+              <div style="text-align:right"><span>Время · мастер</span><br><b>14:00 · Александр</b></div>
+            </div>
+            <div class="sheet-scroll">
+              <p class="hint">Слот и мастер уже подставлены из журнала. Можно поменять.</p>
+              <div class="field"><label>Клиент</label><input placeholder="Имя" value="Игорь"></div>
+              <div class="field"><label>Телефон</label><input placeholder="+7 …" value="+7 912 000-00-00"></div>
+              <div class="row2">
+                <div class="field"><label>Авто</label><input placeholder="Марка / модель" value="BMW X5"></div>
+                <div class="field"><label>Госномер</label><input placeholder="А000АА 72" value="К777КК 72"></div>
+              </div>
+
+              <div class="block">
+                <div class="block-h"><b>Услуги</b><span>можно несколько</span></div>
+                <div class="chips">
+                  <span class="chip on">Задняя часть <small>5 500</small></span>
+                  <span class="chip">Передние <small>2 500</small></span>
+                  <span class="chip">Атермалка <small>6 000</small></span>
+                  <span class="chip">+ ещё</span>
+                </div>
+              </div>
+
+              <div class="block">
+                <div class="block-h"><b>Мастер</b><span>из колонки журнала</span></div>
+                <div class="masters">
+                  <div class="mcard on"><div class="mav">А</div><b>Александр</b><small>выбран</small></div>
+                  <div class="mcard"><div class="mav" style="background:#00b368">М</div><b>Мария</b><small>свободен</small></div>
+                  <div class="mcard"><div class="mav" style="background:#ff9500">И</div><b>Ирина</b><small>свободен</small></div>
+                </div>
+              </div>
+
+              <div class="row2">
+                <div class="field"><label>Цена, ₽</label><input value="5500"></div>
+                <div class="field"><label>Комментарий</label><input placeholder="Необязательно"></div>
+              </div>
+              <a class="linkish" href="#">Ссылка клиенту на онлайн-запись →</a>
+            </div>
+            <div class="sheet-foot">
+              <button>Сохранить запись</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note"><b>Рекомендую A</b> — привычно на телефоне, журнал остаётся «под» формой, слот и мастер уже заполнены.</p>
+    </article>
+
+    <article class="panel">
+      <div class="meta">
+        <b>B · Карточка по центру</b>
+        <span>Компактное модальное окно: сегмент Дата/Время, чипы слотов, те же белые блоки услуг и мастеров.</span>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="jr-mini">
+            <h2>Журнал записи</h2>
+            <div class="strip"><div class="d on">Пт<br>31</div><div class="d">Сб<br>1</div><div class="d">Вс<br>2</div></div>
+            <div class="board"></div>
+          </div>
+          <div class="scrim"></div>
+          <div class="modal-wrap">
+            <div class="modal">
+              <div class="modal-head">
+                <span class="sheet-back">‹</span>
+                <h3>Записать клиента</h3>
+                <span class="sheet-x">×</span>
+              </div>
+              <div class="modal-scroll">
+                <div class="seg"><i class="on">Данные</i><i>Время</i></div>
+                <div class="field"><label>Клиент</label><input placeholder="Имя"></div>
+                <div class="field"><label>Телефон</label><input placeholder="+7 …"></div>
+                <div class="row2">
+                  <div class="field"><label>Авто</label><input placeholder="BMW X5"></div>
+                  <div class="field"><label>Госномер</label><input placeholder="А000АА 72"></div>
+                </div>
+                <div class="block">
+                  <div class="block-h"><b>Услуги</b><span>выберите</span></div>
+                  <div class="chips">
+                    <span class="chip on">Задняя часть</span>
+                    <span class="chip">Передние</span>
+                    <span class="chip">Атермалка</span>
+                  </div>
+                </div>
+                <div class="block">
+                  <div class="block-h"><b>Мастер</b><span>Александр</span></div>
+                  <div class="masters">
+                    <div class="mcard on"><div class="mav">А</div><b>Александр</b><small>14:00</small></div>
+                    <div class="mcard"><div class="mav" style="background:#00b368">М</div><b>Мария</b><small>—</small></div>
+                    <div class="mcard"><div class="mav" style="background:#ff9500">И</div><b>Ирина</b><small>—</small></div>
+                  </div>
+                </div>
+                <div class="field"><label>Ближайшие слоты</label></div>
+                <div class="time-row">
+                  <span class="tchip">13:00</span>
+                  <span class="tchip on">14:00</span>
+                  <span class="tchip">14:30</span>
+                  <span class="tchip">15:00</span>
+                  <span class="tchip">16:00</span>
+                </div>
+              </div>
+              <div class="sheet-foot">
+                <button>Сохранить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note"><b>Вариант B</b> — если хотите короче и «как диалог». Чуть больше шагов (данные / время).</p>
+    </article>
+  </div>
+</div>
+</body>
+</html>

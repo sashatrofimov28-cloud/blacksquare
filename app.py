@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v78'
+BUILD_VERSION = 'client-v79'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -4231,6 +4231,10 @@ def design_journal():
 @app.route('/design/bottom-nav')
 def design_bottom_nav():
     return app.send_static_file('mockups/bottom-nav-variants.html')
+
+@app.route('/design/booking-sheet')
+def design_booking_sheet():
+    return app.send_static_file('mockups/booking-sheet-mockup.html')
 
 @app.route('/design/booking')
 def design_booking_variants():
