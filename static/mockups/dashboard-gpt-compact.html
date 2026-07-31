@@ -132,7 +132,7 @@
   <div class="intro">
     <a href="/design">← Все макеты</a>
     <h1>Главная по идее ChatGPT</h1>
-    <p>Компактная сводка вместо огромного зелёного блока, быстрые действия 2×2, записи карточками с цветной полоской, статистика внизу. Стиль ближе к iOS / Notion / Linear.</p>
+    <p>Компактная сводка вместо огромного зелёного блока, быстрые действия 2×2, записи карточками с цветной полоской, статистика внизу. Приветствие меняется по времени суток, имя — у сотрудника из профиля.</p>
     <div class="banner">Только макет · живую главную не меняет</div>
   </div>
 
@@ -147,14 +147,14 @@
         <div class="screen">
           <header class="head">
             <div>
-              <h2>Добрый день</h2>
-              <strong>Александр</strong>
+              <h2 id="greetLine">Добрый день</h2>
+              <strong id="greetName">Александр</strong>
             </div>
             <div class="head-right">
               <div class="icon-btn" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 006 0"/></svg>
               </div>
-              <div class="av">A</div>
+              <div class="av" id="greetAv">A</div>
             </div>
           </header>
 
@@ -217,9 +217,33 @@
           </div>
         </div>
       </div>
-      <p class="compare"><b>Что исправлено:</b> зелёный блок не съедает экран, записи выше, карточки с акцентом, меньше «пустых» одинаковых плиток.</p>
+      <p class="compare"><b>Что исправлено:</b> зелёный блок не съедает экран, записи выше, карточки с акцентом, меньше «пустых» одинаковых плиток.<br><b>Приветствие:</b> доброе утро / день / вечер / ночи — по московскому времени. Имя берётся из карточки сотрудника (ниже в макете — демо).</p>
     </article>
   </div>
 </div>
+<script>
+(function () {
+  // Демо: в живой версии имя придёт с сервера из current_user.full_name
+  var demoName = 'Александр';
+  var hour = new Date().getHours();
+  // Для макета можно смотреть «как будто» другое время: ?h=9
+  var q = new URLSearchParams(location.search).get('h');
+  if (q !== null && q !== '' && !isNaN(+q)) hour = Math.max(0, Math.min(23, +q));
+
+  var greet = 'Добрый день';
+  if (hour >= 5 && hour < 12) greet = 'Доброе утро';
+  else if (hour >= 12 && hour < 17) greet = 'Добрый день';
+  else if (hour >= 17 && hour < 23) greet = 'Добрый вечер';
+  else greet = 'Доброй ночи';
+
+  var first = (demoName || '').trim().split(/\s+/)[0] || 'коллега';
+  var elG = document.getElementById('greetLine');
+  var elN = document.getElementById('greetName');
+  var elA = document.getElementById('greetAv');
+  if (elG) elG.textContent = greet;
+  if (elN) elN.textContent = first;
+  if (elA) elA.textContent = first.charAt(0).toUpperCase();
+})();
+</script>
 </body>
 </html>
