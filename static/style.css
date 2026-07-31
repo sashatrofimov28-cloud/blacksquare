@@ -818,11 +818,11 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 }
 .jr-board{
   display:grid;grid-template-columns:44px repeat(var(--jr-cols,1),minmax(124px,1fr));
-  min-width:max(100%, calc(44px + var(--jr-cols,1) * 124px));background:var(--jr-card)
+  min-width:max(100%, calc(44px + var(--jr-cols,1) * 124px));background:#fff
 }
 .jr-hours{position:relative;border-right:1px solid var(--jr-line);background:#fafafa;z-index:2}
 .jr-mhead{
-  position:sticky;top:0;z-index:3;background:var(--jr-card);padding:10px 8px;
+  position:sticky;top:0;z-index:3;background:#fff;padding:10px 8px;
   border-bottom:1px solid var(--jr-line);text-align:center;min-height:74px;box-sizing:border-box
 }
 .jr-mhead-spacer{background:#fafafa;border-right:0}
@@ -836,19 +836,25 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .jr-av.tone-orange{background:#ff9500}
 .jr-mhead b{display:block;font-size:12px;font-weight:800;color:var(--jr-text)}
 .jr-mhead small{display:block;font-size:10px;color:var(--jr-mute);margin-top:2px}
-.jr-col{position:relative;border-right:1px solid var(--jr-line);min-width:0}
+.jr-col{position:relative;border-right:1px solid var(--jr-line);min-width:0;background:#fff}
 .jr-col:last-child{border-right:0}
-.jr-hours-body,.jr-grid{position:relative}
+.jr-hours-body,.jr-grid{position:relative;background:#fff}
+.jr-page .jr-grid.cal-grid,
+.jr-page .cal-grid{
+  background:#fff!important;min-height:0
+}
 .jr-hour{
   padding:4px 4px 0;font-size:10px;font-weight:700;color:var(--jr-mute);
-  border-bottom:1px solid #f0f0f0;box-sizing:border-box
+  border-bottom:1px solid #f0f0f0;box-sizing:border-box;background:transparent
 }
-.jr-line{border-bottom:1px solid #f0f0f0;box-sizing:border-box;pointer-events:none}
-.jr-slots{position:absolute;inset:0;z-index:0}
-.jr-slot{
-  position:absolute;left:0;right:0;cursor:pointer;background:transparent;z-index:1;border:0;padding:0;margin:0
+.jr-line{border-bottom:1px solid #f0f0f0;box-sizing:border-box;pointer-events:none;background:transparent}
+.jr-slots{position:absolute;inset:0;z-index:0;background:transparent}
+.jr-slot,.jr-page .cal-slot{
+  position:absolute;left:0;right:0;cursor:pointer;background:transparent!important;
+  z-index:1;border:0;padding:0;margin:0;min-height:0!important;border-radius:0!important;
+  box-shadow:none!important;color:inherit
 }
-.jr-slot:hover{background:rgba(0,179,104,.07)}
+.jr-slot:hover,.jr-page .cal-slot:hover{background:rgba(0,179,104,.07)!important}
 .jr-grid{cursor:pointer}
 .jr-marker{
   position:absolute;left:2px;right:2px;z-index:2;pointer-events:none;border-radius:8px;
