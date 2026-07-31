@@ -1,27 +1,43 @@
 {% extends "base.html" %}
-{% block theme_color %}#f2f2f7{% endblock %}
-{% block status_bar_style %}black-translucent{% endblock %}
-{% block body_class %} body-z-light{% endblock %}
-{% block main_class %} main-z-light{% endblock %}
-{% block nav_class %} bottom-nav-z{% endblock %}
+{% block theme_color %}#0a0a0b{% endblock %}
+{% block status_bar_style %}black{% endblock %}
+{% block body_class %} body-ad-noir{% endblock %}
+{% block main_class %} main-ad-noir{% endblock %}
+{% block nav_class %} bottom-nav-ad{% endblock %}
 {% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700;9..40,800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='design-dashboard.css') }}?v={{ build_css_v }}">
 {% endblock %}
 {% block content %}
 {% set closed_n = stats.appointments or 0 %}
 {% set avg_check = (stats.revenue / closed_n) if closed_n else 0 %}
-<div class="dz dz-live dz-ops">
-  <header class="dz-head">
-    <div>
-      <h2>Главная</h2>
-      <p>{{ format_date_dashboard_ru() }}</p>
+{% set pay_cash = stats.paid_cash or 0 %}
+{% set pay_card = stats.paid_card or 0 %}
+{% set pay_transfer = stats.paid_transfer or 0 %}
+{% set pay_sum = pay_cash + pay_card + pay_transfer %}
+{% set pay_max = pay_sum if pay_sum > 0 else 1 %}
+<div class="dz dz-live dz-ops dz-ad">
+  <header class="dz-ad-head">
+    <div class="dz-ad-brand">
+      <span class="dz-ad-sq" aria-hidden="true"></span>
+      <div>
+        <b>BLACKSQUARE</b>
+        <small>{{ format_date_dashboard_ru() }}</small>
+      </div>
     </div>
-    <a href="{{ url_for('profile') }}" class="dz-bell" aria-label="Профиль">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
-    </a>
+    <div class="dz-ad-head-right">
+      {% if period == 'today' and (day_status.in_work or day_status.waiting) %}
+      <span class="dz-ad-live"><i></i> Live</span>
+      {% endif %}
+      <a href="{{ url_for('profile') }}" class="dz-bell" aria-label="Профиль">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
+      </a>
+    </div>
   </header>
 
-  <section class="dz-hero" aria-label="Касса сегодня">
+  <section class="dz-hero dz-ad-hero" aria-label="Касса сегодня">
     <div class="dz-hero-top">
       <small>{{ stats.period_label }} · касса</small>
       {% if trends and trends.revenue is defined and trends.revenue is not none %}
@@ -35,18 +51,26 @@
       <span>{% if closed_n %}{{ closed_n }} закрыто{% else %}Нет закрытых{% endif %}</span>
       <span>прибыль {{ format_money(stats.profit) }} ₽</span>
     </div>
+    {% if pay_cash or pay_card or pay_transfer %}
+    <div class="dz-ad-bars" aria-label="Разбивка оплаты">
+      <div class="dz-ad-bar">
+        <small>Карта</small>
+        <b>{{ format_money(pay_card) }}</b>
+        <i><em style="width:{{ (pay_card / pay_max * 100)|round(0) }}%"></em></i>
+      </div>
+      <div class="dz-ad-bar">
+        <small>Нал</small>
+        <b>{{ format_money(pay_cash) }}</b>
+        <i><em class="is-cash" style="width:{{ (pay_cash / pay_max * 100)|round(0) }}%"></em></i>
+      </div>
+      <div class="dz-ad-bar">
+        <small>Перевод</small>
+        <b>{{ format_money(pay_transfer) }}</b>
+        <i><em class="is-transfer" style="width:{{ (pay_transfer / pay_max * 100)|round(0) }}%"></em></i>
+      </div>
+    </div>
+    {% endif %}
   </section>
-
-  {% set pay_cash = stats.paid_cash or 0 %}
-  {% set pay_card = stats.paid_card or 0 %}
-  {% set pay_transfer = stats.paid_transfer or 0 %}
-  {% if pay_cash or pay_card or pay_transfer %}
-  <div class="dz-pay-break" aria-label="Разбивка оплаты">
-    <div><small>Карта</small><b>{{ format_money(pay_card) }}</b></div>
-    <div><small>Нал</small><b>{{ format_money(pay_cash) }}</b></div>
-    <div><small>Перевод</small><b>{{ format_money(pay_transfer) }}</b></div>
-  </div>
-  {% endif %}
 
   <div class="dz-status" aria-label="Статус дня">
     <div class="dz-status-item is-work">
@@ -119,7 +143,7 @@
   {% endif %}
 
   {% if in_work_list %}
-  <div class="dz-cap">Сейчас в работе</div>
+  <div class="dz-cap">На полу сейчас</div>
   <div class="dz-list">
     {% for r in in_work_list %}
     {% set meta = appt_status_meta(r.status) %}
@@ -129,8 +153,8 @@
         <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
       </div>
       <div class="dz-body">
-        <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+        <b>{% if r.car %}{{ r.car }}{% else %}{{ r.client_name }}{% endif %}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</b>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
         {% set origin = booking_origin_label(r) %}
         {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
@@ -156,8 +180,8 @@
         <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
       </div>
       <div class="dz-body">
-        <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+        <b>{% if r.car %}{{ r.car }}{% else %}{{ r.client_name }}{% endif %}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</b>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
         {% set origin = booking_origin_label(r) %}
         {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
       </div>
@@ -187,8 +211,8 @@
           <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
         </div>
         <div class="dz-body">
-          <b>{{ r.client_name }}</b>
-          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
+          <b>{% if r.car %}{{ r.car }}{% else %}{{ r.client_name }}{% endif %}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</b>
+          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
           {% set origin = booking_origin_label(r) %}
           {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
         </div>
