@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlackSquare — варианты главной</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0c0c0d;--ink:#f4f4f5;--mute:#8b8b93}
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"DM Sans",system-ui,sans-serif;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:28px 16px 64px}
+  .intro{text-align:center;margin-bottom:28px}
+  .intro a{color:#3ddc84;font-size:13px;font-weight:700;text-decoration:none}
+  .intro h1{
+    margin:10px 0 8px;font-family:Syne,sans-serif;font-size:clamp(26px,4vw,40px);
+    font-weight:800;letter-spacing:-.04em;
+  }
+  .intro p{margin:0 auto;max-width:640px;color:var(--mute);font-size:14px;line-height:1.55}
+  .grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:28px;align-items:start;
+  }
+  .card{
+    background:#141416;border:1px solid #242428;border-radius:28px;overflow:hidden;
+  }
+  .card-meta{padding:16px 16px 14px;border-bottom:1px solid #242428}
+  .card-meta b{display:block;font-family:Syne,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.02em}
+  .card-meta span{display:block;margin-top:6px;color:var(--mute);font-size:13px;line-height:1.45}
+  .tag{
+    display:inline-block;margin-top:10px;padding:4px 9px;border-radius:8px;
+    font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    background:#1d3a2a;color:#3ddc84;
+  }
+  .phone{
+    width:min(100%,360px);margin:18px auto 22px;border-radius:34px;
+    border:1px solid #2a2a2e;overflow:hidden;background:#111;box-shadow:0 30px 60px rgba(0,0,0,.45);
+  }
+  .notch{
+    height:28px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;
+    font-size:10px;font-weight:700;color:#666;background:inherit;
+  }
+  .screen{min-height:640px;padding:8px 14px 18px;position:relative}
+  .nav{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:2px;margin-top:14px;
+    padding:10px 4px 4px;border-top:1px solid rgba(128,128,128,.18);
+  }
+  .nav i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;font-size:9px;font-weight:700;opacity:.55}
+  .nav i.on{opacity:1}
+  .nav svg{width:18px;height:18px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .list{border-radius:16px;overflow:hidden}
+  .item{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:11px 12px}
+  .item + .item{border-top:1px solid rgba(128,128,128,.12)}
+  .t strong{display:block;font-size:13px;font-weight:800}
+  .t span{display:block;font-size:10px;opacity:.55;margin-top:2px}
+  .b b{display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b span{display:block;font-size:11px;opacity:.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .s{text-align:right}
+  .s em{display:inline-block;font-style:normal;font-size:9px;font-weight:800;padding:3px 7px;border-radius:6px}
+  .s strong{display:block;margin-top:4px;font-size:12px}
+  .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .act{text-align:center;padding:12px 6px;border-radius:14px;font-size:10px;font-weight:700}
+  .act .ic{width:34px;height:34px;margin:0 auto 6px;border-radius:11px;display:grid;place-items:center}
+  .stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .stats2{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+  .cap{margin:14px 2px 8px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+
+  /* ——— A: Noir Studio ——— */
+  .a .screen{
+    background:
+      radial-gradient(80% 50% at 50% -10%,rgba(61,220,132,.12),transparent 55%),
+      linear-gradient(180deg,#101012,#0a0a0b);
+    color:#f5f5f5;
+  }
+  .a .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .a .sq{width:28px;height:28px;background:#f5f5f5;border-radius:7px}
+  .a .brand b{font-family:Syne,sans-serif;font-size:13px;letter-spacing:.12em}
+  .a .brand small{display:block;font-size:10px;opacity:.45;letter-spacing:.02em;margin-top:1px}
+  .a .hero{
+    position:relative;padding:20px 18px 18px;border-radius:22px;margin-bottom:12px;
+    background:#161618;border:1px solid #2a2a2e;
+  }
+  .a .hero::before{
+    content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:2px;background:#3ddc84;
+  }
+  .a .hero small{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.5}
+  .a .hero strong{
+    display:block;margin-top:8px;font-family:Syne,sans-serif;font-size:40px;font-weight:800;
+    letter-spacing:-.05em;line-height:1;
+  }
+  .a .hero .meta{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .a .hero .meta span{
+    font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px;background:#222226;color:#cfcfd4;
+  }
+  .a .hero .meta span.ok{color:#3ddc84;background:#173526}
+  .a .tile{background:#161618;border:1px solid #2a2a2e;border-radius:16px;padding:12px 8px;text-align:center}
+  .a .tile b{display:block;font-size:22px;font-weight:800;letter-spacing:-.04em}
+  .a .tile small{display:block;margin-top:4px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.45}
+  .a .tile.w b{color:#5aa8ff}.a .tile.q b{color:#ffb020}.a .tile.d b{color:#3ddc84}
+  .a .act{background:#161618;border:1px solid #2a2a2e;color:#eee}
+  .a .act .ic{background:#1d3a2a;color:#3ddc84}
+  .a .list{background:#161618;border:1px solid #2a2a2e}
+  .a .s em{background:#173526;color:#3ddc84}
+  .a .nav i.on{color:#3ddc84}
+
+  /* ——— B: Obsidian Glass (light premium) ——— */
+  .b-var .screen{
+    background:
+      linear-gradient(165deg,#e9edf2 0%,#f7f8fa 40%,#eef1f5 100%);
+    color:#121316;
+  }
+  .b-var .head h2{margin:0;font-family:Syne,sans-serif;font-size:28px;font-weight:800;letter-spacing:-.04em}
+  .b-var .head p{margin:2px 0 0;font-size:12px;color:#6b7280}
+  .b-var .av{width:36px;height:36px;border-radius:50%;background:#121316;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .b-var .hero{
+    margin:14px 0 10px;padding:0;border-radius:24px;overflow:hidden;
+    background:#121316;color:#fff;
+    box-shadow:0 18px 40px rgba(18,19,22,.22);
+  }
+  .b-var .hero-bg{
+    position:relative;padding:18px 16px 16px;
+    background:
+      linear-gradient(120deg,rgba(18,19,22,.2),rgba(18,19,22,.75)),
+      radial-gradient(120% 100% at 100% 0%,#2a3340,transparent 55%),
+      linear-gradient(145deg,#1a1d22,#0e1013);
+  }
+  .b-var .hero-bg::after{
+    content:"";position:absolute;inset:auto -20% -40% 40%;height:140px;
+    background:radial-gradient(circle,rgba(61,220,132,.25),transparent 60%);
+    pointer-events:none;
+  }
+  .b-var .hero small{position:relative;z-index:1;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.65}
+  .b-var .hero strong{position:relative;z-index:1;display:block;margin-top:8px;font-family:Syne,sans-serif;font-size:38px;font-weight:800;letter-spacing:-.05em}
+  .b-var .hero .meta{position:relative;z-index:1;display:flex;gap:8px;margin-top:14px}
+  .b-var .hero .meta span{font-size:11px;font-weight:700;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.1)}
+  .b-var .tile{background:rgba(255,255,255,.82);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.7);border-radius:18px;padding:12px 8px;text-align:center;box-shadow:0 8px 20px rgba(15,23,42,.05)}
+  .b-var .tile b{display:block;font-size:22px;font-weight:800}
+  .b-var .tile small{display:block;margin-top:4px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b7280}
+  .b-var .tile.w b{color:#2563eb}.b-var .tile.q b{color:#d97706}.b-var .tile.d b{color:#059669}
+  .b-var .act{background:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.9);box-shadow:0 6px 16px rgba(15,23,42,.05)}
+  .b-var .act .ic{background:#e8f8ef;color:#059669}
+  .b-var .list{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.95);box-shadow:0 8px 20px rgba(15,23,42,.05)}
+  .b-var .s em{background:#e8f8ef;color:#059669}
+  .b-var .nav{background:rgba(255,255,255,.7);backdrop-filter:blur(10px);border-radius:16px;border:1px solid rgba(255,255,255,.8)}
+  .b-var .nav i.on{color:#059669}
+
+  /* ——— C: Editorial Board ——— */
+  .c .screen{background:#f4f5f7;color:#101114}
+  .c .mast{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+    padding-bottom:12px;margin-bottom:12px;border-bottom:2px solid #101114;
+  }
+  .c .mast h2{margin:0;font-family:Syne,sans-serif;font-size:30px;font-weight:800;letter-spacing:-.05em;line-height:.95}
+  .c .mast p{margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .c .hero{
+    display:grid;grid-template-columns:1.2fr .8fr;gap:10px;margin-bottom:10px;
+  }
+  .c .cash{
+    background:#101114;color:#fff;border-radius:4px 20px 20px 20px;padding:16px;
+  }
+  .c .cash small{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+  .c .cash strong{display:block;margin-top:8px;font-family:Syne,sans-serif;font-size:32px;font-weight:800;letter-spacing:-.05em}
+  .c .cash span{display:block;margin-top:10px;font-size:12px;font-weight:600;opacity:.7}
+  .c .side{display:grid;gap:8px}
+  .c .side .box{background:#fff;border:1px solid #d7dbe2;border-radius:16px;padding:12px}
+  .c .side .box small{display:block;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6b7280}
+  .c .side .box b{display:block;margin-top:4px;font-size:20px;font-weight:800;letter-spacing:-.03em}
+  .c .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:#fff;border:1px solid #d7dbe2;border-radius:16px;overflow:hidden;margin-bottom:10px}
+  .c .strip div{padding:12px 8px;text-align:center}
+  .c .strip div+div{border-left:1px solid #d7dbe2}
+  .c .strip b{display:block;font-size:20px;font-weight:800}
+  .c .strip small{display:block;margin-top:3px;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6b7280}
+  .c .act{background:#fff;border:1px solid #d7dbe2}
+  .c .act .ic{background:#101114;color:#fff}
+  .c .list{background:#fff;border:1px solid #d7dbe2}
+  .c .s em{background:#101114;color:#fff}
+  .c .nav i.on{color:#101114}
+
+  /* ——— D: Live Floor ——— */
+  .d .screen{
+    background:#0f1115;color:#eef0f4;
+    background-image:
+      linear-gradient(180deg,#12151b 0%,#0d0f13 100%),
+      repeating-linear-gradient(90deg,transparent,transparent 23px,rgba(255,255,255,.015) 24px);
+  }
+  .d .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .d .live{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;
+    background:#1a2030;border:1px solid #2a3348;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8fa0c0;
+  }
+  .d .dot{width:7px;height:7px;border-radius:50%;background:#3ddc84;box-shadow:0 0 0 3px rgba(61,220,132,.18)}
+  .d .hero{
+    border-radius:22px;padding:16px;margin-bottom:10px;
+    background:
+      linear-gradient(135deg,rgba(61,220,132,.16),transparent 45%),
+      linear-gradient(180deg,#171b24,#12151c);
+    border:1px solid #273044;
+  }
+  .d .hero .k{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7f8aa3}
+  .d .hero strong{display:block;margin-top:6px;font-family:Syne,sans-serif;font-size:36px;font-weight:800;letter-spacing:-.05em}
+  .d .bars{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;margin-top:14px}
+  .d .bar{background:#0f131a;border-radius:12px;padding:10px}
+  .d .bar small{display:block;font-size:9px;font-weight:700;color:#7f8aa3;text-transform:uppercase;letter-spacing:.06em}
+  .d .bar b{display:block;margin-top:4px;font-size:14px;font-weight:800}
+  .d .bar i{display:block;height:4px;border-radius:4px;margin-top:8px;background:#243044;overflow:hidden}
+  .d .bar i em{display:block;height:100%;background:#3ddc84;border-radius:4px}
+  .d .lane{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .d .lane .box{background:#151922;border:1px solid #273044;border-radius:16px;padding:12px}
+  .d .lane small{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7f8aa3}
+  .d .lane b{display:block;margin-top:6px;font-size:24px;font-weight:800;letter-spacing:-.04em}
+  .d .lane .box.w b{color:#6aa8ff}.d .lane .box.q b{color:#ffb020}
+  .d .act{background:#151922;border:1px solid #273044;color:#eef0f4}
+  .d .act .ic{background:#1d3a2a;color:#3ddc84}
+  .d .list{background:#151922;border:1px solid #273044}
+  .d .s em{background:#1d3a2a;color:#3ddc84}
+  .d .nav i.on{color:#3ddc84}
+
+  .pick{
+    display:block;margin:0 16px 16px;text-align:center;padding:12px;border-radius:14px;
+    background:#1d3a2a;color:#3ddc84;font-weight:800;font-size:13px;text-decoration:none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <a href="/design/dashboard">← к текущим макетам</a>
+    <h1>Главная: более солидные варианты</h1>
+    <p>Один и тот же смысл экрана — касса, статус дня, быстрые действия, ближайшие записи — но разный характер. Сейчас у вас светлый «утилитарный» стиль; ниже четыре направления «как с Pinterest».</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- A -->
+    <article class="card">
+      <div class="card-meta">
+        <b>A · Noir Studio</b>
+        <span>Чёрный фон, белый квадрат бренда, тонкий зелёный акцент. Самый «дорогой детейлинг / тонировка» вайб.</span>
+        <div class="tag">Рекомендую, если хочется солидности</div>
+      </div>
+      <div class="phone a">
+        <div class="notch">9:41</div>
+        <div class="screen">
+          <div class="brand">
+            <div class="sq"></div>
+            <div><b>BLACKSQUARE</b><small>операции · сегодня</small></div>
+          </div>
+          <div class="hero">
+            <small>Касса</small>
+            <strong>84 600 ₽</strong>
+            <div class="meta">
+              <span class="ok">+18%</span>
+              <span>6 закрыто</span>
+              <span>прибыль 41 200</span>
+            </div>
+          </div>
+          <div class="stats3">
+            <div class="tile w"><b>2</b><small>В работе</small></div>
+            <div class="tile q"><b>3</b><small>Ждут</small></div>
+            <div class="tile d"><b>6</b><small>Закрыто</small></div>
+          </div>
+          <div class="stats2" style="margin-top:7px">
+            <div class="tile"><b>18 400</b><small>ЗП</small></div>
+            <div class="tile"><b>14 100</b><small>Ср. чек</small></div>
+          </div>
+          <div class="acts" style="margin-top:10px">
+            <div class="act"><div class="ic">▦</div>Календарь</div>
+            <div class="act"><div class="ic">+</div>Запись</div>
+            <div class="act"><div class="ic">◎</div>Клиенты</div>
+          </div>
+          <div class="cap">Ближайшие</div>
+          <div class="list">
+            <div class="item">
+              <div class="t"><strong>11:30</strong><span>сейчас</span></div>
+              <div class="b"><b>BMW X5 · K777KK</b><span>Задняя часть · Стас</span></div>
+              <div class="s"><em>В работе</em><strong>12 000</strong></div>
+            </div>
+            <div class="item">
+              <div class="t"><strong>14:00</strong><span>+2 ч</span></div>
+              <div class="b"><b>Camry · А123ВС</b><span>Атермалка · Катя</span></div>
+              <div class="s"><em>Ждёт</em><strong>8 500</strong></div>
+            </div>
+          </div>
+          <div class="nav">
+            <i class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5L12 4l8 6.5V20H4z"/></svg>Главная</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>Записи</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c1-3 3-5 6-5"/></svg>Клиенты</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>Статистика</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Ещё</i>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- B -->
+    <article class="card">
+      <div class="card-meta">
+        <b>B · Obsidian Glass</b>
+        <span>Светлый экран, но касса — тёмная «плита» с глубиной. Меньше зелёной плашки, больше контраста и воздуха.</span>
+        <div class="tag">Близко к текущему, но дороже</div>
+      </div>
+      <div class="phone b-var">
+        <div class="notch" style="color:#999">9:41</div>
+        <div class="screen">
+          <div class="row head">
+            <div><h2>Главная</h2><p>Пятница, 31 июля</p></div>
+            <div class="av">A</div>
+          </div>
+          <div class="hero">
+            <div class="hero-bg">
+              <small>Сегодня · касса</small>
+              <strong>84 600 ₽</strong>
+              <div class="meta"><span>+18%</span><span>6 закрыто</span><span>прибыль 41 200</span></div>
+            </div>
+          </div>
+          <div class="stats3">
+            <div class="tile w"><b>2</b><small>В работе</small></div>
+            <div class="tile q"><b>3</b><small>Ждут</small></div>
+            <div class="tile d"><b>6</b><small>Закрыто</small></div>
+          </div>
+          <div class="stats2" style="margin-top:7px">
+            <div class="tile"><b>18 400</b><small>ЗП</small></div>
+            <div class="tile"><b>14 100</b><small>Ср. чек</small></div>
+          </div>
+          <div class="acts" style="margin-top:10px">
+            <div class="act"><div class="ic">▦</div>Календарь</div>
+            <div class="act"><div class="ic">+</div>Запись</div>
+            <div class="act"><div class="ic">◎</div>Клиенты</div>
+          </div>
+          <div class="cap">Ближайшие</div>
+          <div class="list">
+            <div class="item">
+              <div class="t"><strong>11:30</strong><span>сейчас</span></div>
+              <div class="b"><b>BMW X5 · K777KK</b><span>Задняя часть · Стас</span></div>
+              <div class="s"><em>В работе</em><strong>12 000</strong></div>
+            </div>
+            <div class="item">
+              <div class="t"><strong>14:00</strong><span>+2 ч</span></div>
+              <div class="b"><b>Camry · А123ВС</b><span>Атермалка · Катя</span></div>
+              <div class="s"><em>Ждёт</em><strong>8 500</strong></div>
+            </div>
+          </div>
+          <div class="nav">
+            <i class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5L12 4l8 6.5V20H4z"/></svg>Главная</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/></svg>Записи</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c1-3 3-5 6-5"/></svg>Клиенты</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>Статистика</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Ещё</i>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- C -->
+    <article class="card">
+      <div class="card-meta">
+        <b>C · Editorial Board</b>
+        <span>Как журнал / пульт студии: жирная типографика, чёрный блок кассы, сетка без «милого» зелёного героя.</span>
+        <div class="tag">Максимум характера</div>
+      </div>
+      <div class="phone c">
+        <div class="notch" style="color:#999">9:41</div>
+        <div class="screen">
+          <div class="mast">
+            <div>
+              <h2>Главная</h2>
+              <p style="margin-top:6px;opacity:.55">Пт · 31 июля</p>
+            </div>
+            <p>BS</p>
+          </div>
+          <div class="hero">
+            <div class="cash">
+              <small>Касса дня</small>
+              <strong>84 600 ₽</strong>
+              <span>6 закрыто · прибыль 41 200</span>
+            </div>
+            <div class="side">
+              <div class="box"><small>ЗП</small><b>18 400</b></div>
+              <div class="box"><small>Ср. чек</small><b>14 100</b></div>
+            </div>
+          </div>
+          <div class="strip">
+            <div><b style="color:#2563eb">2</b><small>В работе</small></div>
+            <div><b style="color:#d97706">3</b><small>Ждут</small></div>
+            <div><b style="color:#059669">6</b><small>Закрыто</small></div>
+          </div>
+          <div class="acts">
+            <div class="act"><div class="ic">▦</div>Календарь</div>
+            <div class="act"><div class="ic">+</div>Запись</div>
+            <div class="act"><div class="ic">◎</div>Клиенты</div>
+          </div>
+          <div class="cap">Ближайшие</div>
+          <div class="list">
+            <div class="item">
+              <div class="t"><strong>11:30</strong><span>сейчас</span></div>
+              <div class="b"><b>BMW X5 · K777KK</b><span>Задняя часть · Стас</span></div>
+              <div class="s"><em>В работе</em><strong>12 000</strong></div>
+            </div>
+            <div class="item">
+              <div class="t"><strong>14:00</strong><span>+2 ч</span></div>
+              <div class="b"><b>Camry · А123ВС</b><span>Атермалка · Катя</span></div>
+              <div class="s"><em>Ждёт</em><strong>8 500</strong></div>
+            </div>
+          </div>
+          <div class="nav">
+            <i class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5L12 4l8 6.5V20H4z"/></svg>Главная</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/></svg>Записи</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c1-3 3-5 6-5"/></svg>Клиенты</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>Статистика</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Ещё</i>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- D -->
+    <article class="card">
+      <div class="card-meta">
+        <b>D · Live Floor</b>
+        <span>Тёмный пульт смены: live-индикатор, полоски оплаты, акцент на «что сейчас в боксе».</span>
+        <div class="tag">Для работы в зале</div>
+      </div>
+      <div class="phone d">
+        <div class="notch">9:41</div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <div style="font-family:Syne,sans-serif;font-weight:800;font-size:22px;letter-spacing:-.03em">Смена</div>
+              <div style="font-size:12px;color:#7f8aa3;margin-top:2px">Пятница · 31 июля</div>
+            </div>
+            <div class="live"><span class="dot"></span> Live</div>
+          </div>
+          <div class="hero">
+            <div class="k">Касса сегодня</div>
+            <strong>84 600 ₽</strong>
+            <div class="bars">
+              <div class="bar"><small>Карта</small><b>52 400</b><i><em style="width:72%"></em></i></div>
+              <div class="bar"><small>Нал</small><b>18 200</b><i><em style="width:34%;background:#6aa8ff"></em></i></div>
+              <div class="bar"><small>Перевод</small><b>14 000</b><i><em style="width:28%;background:#ffb020"></em></i></div>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="box w"><small>В работе</small><b>2</b></div>
+            <div class="box q"><small>Ждут</small><b>3</b></div>
+          </div>
+          <div class="acts">
+            <div class="act"><div class="ic">▦</div>Календарь</div>
+            <div class="act"><div class="ic">+</div>Запись</div>
+            <div class="act"><div class="ic">◎</div>Клиенты</div>
+          </div>
+          <div class="cap">На полу сейчас</div>
+          <div class="list">
+            <div class="item">
+              <div class="t"><strong>11:30</strong><span>бокс 1</span></div>
+              <div class="b"><b>BMW X5 · K777KK</b><span>Задняя часть · Стас</span></div>
+              <div class="s"><em>В работе</em><strong>12 000</strong></div>
+            </div>
+            <div class="item">
+              <div class="t"><strong>14:00</strong><span>ожидает</span></div>
+              <div class="b"><b>Camry · А123ВС</b><span>Атермалка · Катя</span></div>
+              <div class="s"><em>Ждёт</em><strong>8 500</strong></div>
+            </div>
+          </div>
+          <div class="nav">
+            <i class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5L12 4l8 6.5V20H4z"/></svg>Главная</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/></svg>Записи</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c1-3 3-5 6-5"/></svg>Клиенты</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>Статистика</i>
+            <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>Ещё</i>
+          </div>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</div>
+</body>
+</html>
