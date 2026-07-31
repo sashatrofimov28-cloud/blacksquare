@@ -1,73 +1,112 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
 {% block content %}
-<div class="cal-page">
-  <header class="cal-header">
-    <h1>Журнал записи</h1>
-    <nav class="cal-views" aria-label="Режим">
-      <a href="{{ url_for('calendar_view', date=selected, view='day', q=q) }}" class="cal-view{% if view == 'day' %} active{% endif %}">День</a>
-      <a href="{{ url_for('calendar_view', date=selected, view='week', q=q) }}" class="cal-view{% if view == 'week' %} active{% endif %}">Неделя</a>
-      <a href="{{ url_for('calendar_view', date=selected, view='month', q=q) }}" class="cal-view{% if view == 'month' %} active{% endif %}">Месяц</a>
-    </nav>
-    <label class="cal-pick" title="Выбрать дату">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-      <input type="date" class="cal-pick-input" value="{{ selected }}" onchange="location.href='{{ url_for('calendar_view') }}?view={{ view }}&date='+this.value{% if q %}+'&q={{ q|urlencode }}'{% endif %}">
-    </label>
+<div class="jr-page cal-page">
+  <header class="jr-top">
+    <div class="jr-top-row">
+      <h1>Журнал записи</h1>
+      <div class="jr-top-actions">
+        <button type="button" class="jr-ic" id="jrSearchToggle" aria-label="Поиск" aria-expanded="false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        </button>
+        <nav class="jr-views" aria-label="Режим">
+          <a href="{{ url_for('calendar_view', date=selected, view='day', q=q) }}" class="jr-view{% if view == 'day' %} on{% endif %}">День</a>
+          <a href="{{ url_for('calendar_view', date=selected, view='week', q=q) }}" class="jr-view{% if view == 'week' %} on{% endif %}">Нед</a>
+          <a href="{{ url_for('calendar_view', date=selected, view='month', q=q) }}" class="jr-view{% if view == 'month' %} on{% endif %}">Мес</a>
+        </nav>
+      </div>
+    </div>
+
+    {% if view == 'day' and date_strip %}
+    <div class="jr-days" role="tablist" aria-label="Дни недели">
+      {% for d in date_strip %}
+      <a class="jr-day{% if d.is_selected %} on{% endif %}{% if d.is_today and not d.is_selected %} today{% endif %}"
+         href="{{ url_for('calendar_view', date=d.date, view='day', q=q) }}"
+         role="tab" aria-selected="{{ 'true' if d.is_selected else 'false' }}">
+        <small>{{ d.weekday }}</small>
+        <b>{{ d.day }}</b>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="jr-datebar">
+      <a class="jr-nav" href="{{ url_for('calendar_view', date=prev_date, view=view, q=q) }}" aria-label="Назад">‹</a>
+      <div class="jr-date-title">
+        <strong>{{ date_title }}{% if view == 'day' %} ▾{% endif %}</strong>
+        {% if view == 'day' %}<span>{{ load.c }} записей · {{ load.mins }} мин</span>{% endif %}
+      </div>
+      <a class="jr-nav" href="{{ url_for('calendar_view', date=next_date, view=view, q=q) }}" aria-label="Вперёд">›</a>
+      <label class="jr-pick" title="Выбрать дату">
+        <input type="date" class="jr-pick-input" value="{{ selected }}" onchange="location.href='{{ url_for('calendar_view') }}?view={{ view }}&date='+this.value{% if q %}+'&q={{ q|urlencode }}'{% endif %}">
+      </label>
+    </div>
   </header>
 
-  <div class="cal-date-nav">
-    <a class="cal-nav-btn" href="{{ url_for('calendar_view', date=prev_date, view=view, q=q) }}" aria-label="Назад">‹</a>
-    <div class="cal-date-title">
-      <strong>{{ date_title }}</strong>
-      {% if view == 'day' %}<span>{{ load.c }} записей · {{ load.mins }} мин</span>{% endif %}
-    </div>
-    <a class="cal-nav-btn" href="{{ url_for('calendar_view', date=next_date, view=view, q=q) }}" aria-label="Вперёд">›</a>
-  </div>
-
-  <form method="get" class="cal-search">
+  <form method="get" class="jr-search{% if q %} open{% endif %}" id="jrSearch">
     <input type="hidden" name="view" value="{{ view }}">
     <input type="hidden" name="date" value="{{ selected }}">
-    <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя">
-    {% if q %}<a class="cal-search-clear" href="{{ url_for('calendar_view', date=selected, view=view) }}">×</a>{% endif %}
+    <input name="q" value="{{ q }}" placeholder="Телефон / госномер / имя" id="jrSearchInput">
+    {% if q %}<a class="jr-search-clear" href="{{ url_for('calendar_view', date=selected, view=view) }}">×</a>{% endif %}
   </form>
 
-  {% if view == 'day' and timeline %}
-  <div class="cal-timeline-wrap">
-    <div class="cal-timeline" style="--cal-height: {{ timeline.height_px }}px; --cal-hour: {{ timeline.px_per_hour }}px">
-      <div class="cal-hours">
-        {% for h in timeline.hours %}
-        <div class="cal-hour" style="height: var(--cal-hour)">{{ h }}</div>
-        {% endfor %}
+  {% if view == 'day' and master_board %}
+  <div class="jr-board-wrap">
+    <div class="jr-board" style="--jr-cols: {{ master_board.columns|length }}; --jr-height: {{ master_board.height_px }}px; --jr-hour: {{ master_board.px_per_hour }}px">
+      <div class="jr-hours">
+        <div class="jr-mhead jr-mhead-spacer" aria-hidden="true"></div>
+        <div class="jr-hours-body" style="height: var(--jr-height)">
+          {% for h in master_board.hours %}
+          <div class="jr-hour" style="height: var(--jr-hour)">{{ h }}</div>
+          {% endfor %}
+          {% if now_marker %}
+          <div class="jr-now jr-now-label" style="top: {{ now_marker.top }}px" data-t="{{ now_marker.label }}"></div>
+          {% endif %}
+        </div>
       </div>
-      <div class="cal-grid" data-selected-date="{{ selected }}">
-        <div class="cal-slots" aria-hidden="true">
-          {% for slot in timeline.slots %}
-          <div class="cal-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" role="button" tabindex="-1" aria-hidden="true"></div>
+      {% for col in master_board.columns %}
+      <div class="jr-col">
+        <div class="jr-mhead">
+          <div class="jr-av {{ col.tone }}">{{ col.initials }}</div>
+          <b>{{ col.name }}</b>
+          <small>мастер</small>
+        </div>
+        <div class="jr-grid cal-grid" data-selected-date="{{ selected }}" data-master-id="{{ col.id }}" style="height: var(--jr-height)">
+          <div class="jr-slots" aria-hidden="true">
+            {% for slot in master_board.slots %}
+            <div class="jr-slot cal-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" role="button" tabindex="-1" aria-hidden="true"></div>
+            {% endfor %}
+          </div>
+          {% for h in master_board.hours %}
+          <div class="jr-line" style="height: var(--jr-hour)"></div>
+          {% endfor %}
+          {% if now_marker %}
+          <div class="jr-now" style="top: {{ now_marker.top }}px"></div>
+          {% endif %}
+          <div class="jr-marker cal-slot-marker" hidden></div>
+          {% for ev in col.events %}
+          {% set r = ev.row %}
+          <a class="jr-event {{ ev.tone }}{% if r.status == 'Закрыт' %} done{% endif %}"
+             style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc(4px + {{ ev.col }} * ((100% - 8px) / {{ ev.col_count }})); width: calc((100% - 8px) / {{ ev.col_count }} - 2px)"
+             href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' %}{{ url_for('after_close_documents', aid=r.id, date=r.appointment_date) }}{% else %}#{% endif %}">
+            <strong>{{ r.start_time }}–{{ r.end_time }}</strong>
+            <span>{{ r.client_name }}</span>
+            <span>{{ r.service_name }}</span>
+          </a>
           {% endfor %}
         </div>
-        {% for h in timeline.hours %}
-        <div class="cal-grid-line" style="height: var(--cal-hour)"></div>
-        {% endfor %}
-        <div class="cal-slot-marker" id="calSlotMarker" hidden></div>
-        {% for ev in timeline.events %}
-        {% set r = ev.row %}
-        {% set meta = appt_status_meta(r.status) %}
-        <a class="cal-event {{ ev.tone }}{% if r.status == 'Отменен' %} cancelled{% endif %}"
-           style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc({{ ev.col }} * (100% / {{ ev.col_count }})); width: calc(100% / {{ ev.col_count }} - 4px)"
-           href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' %}{{ url_for('after_close_documents', aid=r.id, date=r.appointment_date) }}{% else %}#{% endif %}">
-          <span class="cal-event-time">{{ r.start_time }} – {{ r.end_time }}</span>
-          <b class="cal-event-name">{{ r.client_name }}</b>
-          <span class="cal-event-service">{{ r.service_name }}</span>
-          {% if r.employee_name %}<span class="cal-event-master">{{ r.employee_name }}</span>{% endif %}
-        </a>
-        {% endfor %}
-        {% if not timeline.events %}
-        <p class="cal-empty">Нажмите на свободное время, чтобы записать клиента</p>
-        {% endif %}
       </div>
+      {% else %}
+      <div class="jr-empty-board">Нет активных мастеров</div>
+      {% endfor %}
     </div>
   </div>
   {% elif view == 'week' and week_columns %}
-  <div class="cal-week">
+  <div class="jr-week cal-week">
     {% for col in week_columns %}
     <a class="cal-week-col{% if col.is_selected %} selected{% endif %}{% if col.is_today %} today{% endif %}"
        href="{{ url_for('calendar_view', date=col.date, view='day', q=q) }}">
@@ -90,7 +129,7 @@
     {% endfor %}
   </div>
   {% elif view == 'month' %}
-  <div class="cal-month">
+  <div class="jr-month cal-month">
     <div class="cal-month-weekdays">
       {% for wd in weekdays %}<span>{{ wd }}</span>{% endfor %}
     </div>
@@ -111,7 +150,7 @@
   {% endif %}
 
   {% if rows %}
-  <details class="cal-day-list">
+  <details class="jr-fold cal-day-list">
     <summary>Список записей ({{ rows|length }})</summary>
     <div class="dash-appt-list">
       {% for r in rows %}
@@ -145,10 +184,10 @@
   </details>
   {% endif %}
 
-  <details class="cal-booking-fold" id="calBookingFold">
+  <details class="jr-fold cal-booking-fold" id="calBookingFold">
     <summary id="calBookingSummary">+ Записать клиента</summary>
     <div class="panel cal-booking-panel">
-      <p class="cal-booking-note" id="calBookingHint">Любое время — ограничения графика только для онлайн-записи. Нажмите на свободный слот в сетке выше.</p>
+      <p class="cal-booking-note" id="calBookingHint">Нажмите свободный слот в колонке мастера или кнопку «+».</p>
       <p class="cal-booking-link"><b>Ссылка клиенту:</b> <a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></p>
       <form method="post" class="form-grid cal-booking-form" id="manualBookingForm" autocomplete="off">
         <input name="client_name" id="calClientName" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
@@ -184,6 +223,8 @@
       </form>
     </div>
   </details>
+
+  <button type="button" class="jr-fab" id="jrFab" aria-label="Новая запись">+</button>
 </div>
 <script>
 window.BS_MASTERS = {{ masters_json|safe }};
@@ -191,11 +232,9 @@ window.BS_INITIAL_MASTERS = {{ (form_data.getlist('employee_ids') if form_data e
 window.BS_SERVICES = {{ services_json|safe }};
 window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data else [])|tojson }};
 (function () {
-  const grid = document.querySelector('.cal-grid');
   const fold = document.getElementById('calBookingFold');
   const summary = document.getElementById('calBookingSummary');
   const hint = document.getElementById('calBookingHint');
-  const marker = document.getElementById('calSlotMarker');
   const dateInput = document.getElementById('calApptDate');
   const timeInput = document.getElementById('calStartTime');
   const nameInput = document.getElementById('calClientName');
@@ -203,8 +242,14 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
   const carInput = document.getElementById('calClientCar');
   const plateInput = document.getElementById('calClientPlate');
   const clientHint = document.getElementById('calClientHint');
+  const fab = document.getElementById('jrFab');
+  const searchToggle = document.getElementById('jrSearchToggle');
+  const searchForm = document.getElementById('jrSearch');
+  const searchInput = document.getElementById('jrSearchInput');
+  const grids = document.querySelectorAll('.jr-grid.cal-grid');
   let lookupTimer = null;
   let lookupToken = 0;
+  let activeMarker = null;
 
   function setClientHint(text, tone) {
     if (!clientHint) return;
@@ -264,6 +309,15 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     phoneInput.addEventListener('blur', lookupClientByPhone);
   }
 
+  if (searchToggle && searchForm) {
+    searchToggle.addEventListener('click', function () {
+      searchForm.classList.toggle('open');
+      const open = searchForm.classList.contains('open');
+      searchToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open && searchInput) searchInput.focus();
+    });
+  }
+
   var bookParams = new URLSearchParams(window.location.search);
   if (bookParams.get('book') === '1' && fold) {
     fold.open = true;
@@ -278,18 +332,19 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 300);
   }
 
-  if (!grid || !fold || !dateInput || !timeInput) return;
-
-  const pxPerHour = parseFloat(getComputedStyle(document.querySelector('.cal-timeline')).getPropertyValue('--cal-hour')) || 72;
-  const dayDate = grid.dataset.selectedDate;
-
-  function openBookingAt(time, top, height) {
+  function openBookingAt(time, top, height, masterId, markerEl, dayDate) {
+    if (!fold || !dateInput || !timeInput) return;
     dateInput.value = dayDate;
     timeInput.value = time;
-    if (marker) {
-      marker.hidden = false;
-      marker.style.top = top + 'px';
-      marker.style.height = (height || pxPerHour / 2) + 'px';
+    document.querySelectorAll('.jr-marker').forEach(function (m) { m.hidden = true; });
+    if (markerEl) {
+      markerEl.hidden = false;
+      markerEl.style.top = top + 'px';
+      markerEl.style.height = (height || 28) + 'px';
+      activeMarker = markerEl;
+    }
+    if (masterId && window.BS_setAppointmentMasters) {
+      window.BS_setAppointmentMasters([masterId]);
     }
     if (summary) summary.textContent = 'Запись на ' + time;
     if (hint) hint.textContent = 'Новая запись на ' + dayDate + ' в ' + time + '. Заполните данные клиента ниже.';
@@ -299,26 +354,43 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 200);
   }
 
-  grid.querySelectorAll('.cal-slot').forEach(function (slot) {
-    slot.addEventListener('click', function () {
-      openBookingAt(slot.dataset.time, parseFloat(slot.style.top), parseFloat(slot.style.height));
+  if (fab && fold) {
+    fab.addEventListener('click', function () {
+      fold.open = true;
+      fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (summary) summary.textContent = '+ Записать клиента';
+      if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 200);
     });
-  });
+  }
 
-  grid.addEventListener('click', function (e) {
-    if (e.target.closest('.cal-event') || e.target.closest('.cal-slot')) return;
-    const rect = grid.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const slotH = pxPerHour / 2;
-    const idx = Math.max(0, Math.floor(y / slotH));
-    const top = idx * slotH;
-    const firstHour = document.querySelector('.cal-hour');
-    let startH = 9;
-    if (firstHour) startH = parseInt(firstHour.textContent.trim().split(':')[0], 10) || 9;
-    const totalMin = startH * 60 + idx * 30;
-    const hh = String(Math.floor(totalMin / 60)).padStart(2, '0');
-    const mm = String(totalMin % 60).padStart(2, '0');
-    openBookingAt(hh + ':' + mm, top, slotH);
+  grids.forEach(function (grid) {
+    const pxPerHour = parseFloat(getComputedStyle(document.querySelector('.jr-board')).getPropertyValue('--jr-hour')) || 56;
+    const dayDate = grid.dataset.selectedDate;
+    const masterId = grid.dataset.masterId;
+    const marker = grid.querySelector('.jr-marker');
+
+    grid.querySelectorAll('.cal-slot').forEach(function (slot) {
+      slot.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openBookingAt(slot.dataset.time, parseFloat(slot.style.top), parseFloat(slot.style.height), masterId, marker, dayDate);
+      });
+    });
+
+    grid.addEventListener('click', function (e) {
+      if (e.target.closest('.jr-event') || e.target.closest('.cal-slot')) return;
+      const rect = grid.getBoundingClientRect();
+      const y = e.clientY - rect.top + grid.scrollTop;
+      const slotH = pxPerHour / 2;
+      const idx = Math.max(0, Math.floor(y / slotH));
+      const top = idx * slotH;
+      const firstHour = document.querySelector('.jr-hour');
+      let startH = 10;
+      if (firstHour) startH = parseInt(firstHour.textContent.trim().split(':')[0], 10) || 10;
+      const totalMin = startH * 60 + idx * 30;
+      const hh = String(Math.floor(totalMin / 60)).padStart(2, '0');
+      const mm = String(totalMin % 60).padStart(2, '0');
+      openBookingAt(hh + ':' + mm, top, slotH, masterId, marker, dayDate);
+    });
   });
 })();
 </script>

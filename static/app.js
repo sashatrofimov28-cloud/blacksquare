@@ -557,6 +557,21 @@
       syncSalaryMasterGrid();
     }
 
+    function clearMasters() {
+      selected.clear();
+      if (chips) chips.innerHTML = '';
+      if (hidden) hidden.innerHTML = '';
+      syncEmptyHint();
+      syncSalaryMasterGrid();
+    }
+
+    window.BS_setAppointmentMasters = function (ids) {
+      clearMasters();
+      (ids || []).forEach(function (id) {
+        if (id && String(id) !== '0') addMaster(id);
+      });
+    };
+
     if (addBtn) {
       addBtn.addEventListener('click', function () {
         if (!select.value) {
