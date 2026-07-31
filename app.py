@@ -4232,6 +4232,10 @@ def design_journal():
 def design_bottom_nav():
     return app.send_static_file('mockups/bottom-nav-variants.html')
 
+@app.route('/design/booking-sheet')
+def design_booking_sheet():
+    return app.send_static_file('mockups/booking-sheet-mockup.html')
+
 @app.route('/design/booking')
 def design_booking_variants():
     return render_template('design_booking.html')
