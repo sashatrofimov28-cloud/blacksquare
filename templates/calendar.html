@@ -75,10 +75,10 @@
           <b>{{ col.name }}</b>
           <small>мастер</small>
         </div>
-        <div class="jr-grid cal-grid" data-selected-date="{{ selected }}" data-master-id="{{ col.id }}" style="height: var(--jr-height)">
+        <div class="jr-grid" data-selected-date="{{ selected }}" data-master-id="{{ col.id }}" style="height: var(--jr-height)">
           <div class="jr-slots" aria-hidden="true">
             {% for slot in master_board.slots %}
-            <div class="jr-slot cal-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" role="button" tabindex="-1" aria-hidden="true"></div>
+            <div class="jr-slot" style="top: {{ slot.top }}px; height: {{ slot.height }}px" data-time="{{ slot.time }}" role="button" tabindex="-1" aria-hidden="true"></div>
             {% endfor %}
           </div>
           {% for h in master_board.hours %}
@@ -246,7 +246,7 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
   const searchToggle = document.getElementById('jrSearchToggle');
   const searchForm = document.getElementById('jrSearch');
   const searchInput = document.getElementById('jrSearchInput');
-  const grids = document.querySelectorAll('.jr-grid.cal-grid');
+  const grids = document.querySelectorAll('.jr-grid');
   let lookupTimer = null;
   let lookupToken = 0;
   let activeMarker = null;
@@ -369,7 +369,7 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     const masterId = grid.dataset.masterId;
     const marker = grid.querySelector('.jr-marker');
 
-    grid.querySelectorAll('.cal-slot').forEach(function (slot) {
+    grid.querySelectorAll('.jr-slot').forEach(function (slot) {
       slot.addEventListener('click', function (e) {
         e.stopPropagation();
         openBookingAt(slot.dataset.time, parseFloat(slot.style.top), parseFloat(slot.style.height), masterId, marker, dayDate);
@@ -377,7 +377,7 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     });
 
     grid.addEventListener('click', function (e) {
-      if (e.target.closest('.jr-event') || e.target.closest('.cal-slot')) return;
+      if (e.target.closest('.jr-event') || e.target.closest('.jr-slot')) return;
       const rect = grid.getBoundingClientRect();
       const y = e.clientY - rect.top + grid.scrollTop;
       const slotH = pxPerHour / 2;

@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v77'
+BUILD_VERSION = 'client-v78'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1709,6 +1709,19 @@ def migrate_db(c):
         "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, "
         "token_hash TEXT NOT NULL UNIQUE, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)"
     )
+    # Уволенные демо-мастера: не показывать в журнале / онлайн-записи после деплоя.
+    fired = c.execute(
+        "SELECT id FROM users WHERE role='master' AND active=1 AND ("
+        "lower(username) IN ('katya','stas','kate') OR "
+        "lower(trim(full_name)) IN ('катя','стас','katya','stas','kate') OR "
+        "lower(full_name) LIKE 'катя %' OR lower(full_name) LIKE 'стас %'"
+        ")"
+    ).fetchall()
+    for row in fired:
+        c.execute(
+            "UPDATE users SET active=0, online_booking=0, fired_at=COALESCE(NULLIF(fired_at,''), ?) WHERE id=?",
+            (today(), row['id']),
+        )
 
 def get_setting(key, default=''):
     con = db()
