@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v75'
+BUILD_VERSION = 'client-v76'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -215,23 +215,23 @@ PERMS = {
 BOTTOM_NAV_DEFAULT = ('calendar', 'crm', 'finance')
 
 BOTTOM_NAV_ITEMS = {
-    'calendar': {'label': 'Журнал', 'icon': '📅', 'endpoint': 'calendar_view', 'perm': 'calendar',
+    'calendar': {'label': 'Журнал', 'icon': 'calendar', 'endpoint': 'calendar_view', 'perm': 'calendar',
                  'active': ('calendar_view', 'close_appointment', 'edit_appointment')},
-    'crm': {'label': 'Клиенты', 'icon': '👥', 'endpoint': 'crm', 'perm': 'crm',
+    'crm': {'label': 'Клиенты', 'icon': 'crm', 'endpoint': 'crm', 'perm': 'crm',
             'active': ('crm', 'client_card')},
-    'finance': {'label': 'Финансы', 'icon': '💳', 'endpoint': 'finance', 'perm': 'finance',
+    'finance': {'label': 'Финансы', 'icon': 'finance', 'endpoint': 'finance', 'perm': 'finance',
                 'active': ('finance',)},
-    'salary': {'label': 'Зарплата', 'icon': '💰', 'endpoint': 'salary', 'perm': 'salary',
+    'salary': {'label': 'Зарплата', 'icon': 'salary', 'endpoint': 'salary', 'perm': 'salary',
                'active': ('salary',)},
-    'analytics': {'label': 'Статистика', 'icon': '📊', 'endpoint': 'analytics', 'perm': 'analytics',
+    'analytics': {'label': 'Статистика', 'icon': 'analytics', 'endpoint': 'analytics', 'perm': 'analytics',
                   'active': ('analytics',)},
-    'stock': {'label': 'Склад', 'icon': '📦', 'endpoint': 'stock', 'perm': 'stock',
+    'stock': {'label': 'Склад', 'icon': 'stock', 'endpoint': 'stock', 'perm': 'stock',
               'active': ('stock',)},
-    'services': {'label': 'Услуги', 'icon': '🚗', 'endpoint': 'services', 'perm': 'services',
+    'services': {'label': 'Услуги', 'icon': 'services', 'endpoint': 'services', 'perm': 'services',
                  'active': ('services',)},
-    'employees': {'label': 'Команда', 'icon': '👤', 'endpoint': 'employees', 'perm': 'employees',
+    'employees': {'label': 'Команда', 'icon': 'employees', 'endpoint': 'employees', 'perm': 'employees',
                   'active': ('employees',)},
-    'certificates': {'label': 'Сертификаты', 'icon': '🎁', 'endpoint': 'certificates', 'perm': 'certificates',
+    'certificates': {'label': 'Сертификаты', 'icon': 'certificates', 'endpoint': 'certificates', 'perm': 'certificates',
                      'active': ('certificates',)},
 }
 
@@ -4104,6 +4104,10 @@ def design_dashboard_gpt():
 @app.route('/design/journal')
 def design_journal():
     return app.send_static_file('mockups/journal-yclients-mockup.html')
+
+@app.route('/design/bottom-nav')
+def design_bottom_nav():
+    return app.send_static_file('mockups/bottom-nav-variants.html')
 
 @app.route('/design/booking')
 def design_booking_variants():

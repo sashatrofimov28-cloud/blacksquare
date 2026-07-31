@@ -93,12 +93,13 @@
       {% block content %}{% endblock %}
 {% if user %}
     </main>
+    {% from "macros/nav_icons.html" import nav_icon %}
     <nav class="bottom-nav{% block nav_class %}{% endblock %}" aria-label="Навигация">
-      <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">🏠</span><span>Главная</span></a>
+      <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">{{ nav_icon('home') }}</span><span>Главная</span></a>
       {% for slot in bottom_nav_slots %}
-      <a href="{{ slot.href }}" class="bottom-nav-item{% if slot.active %} active{% endif %}"><span class="bottom-nav-icon">{{ slot.icon }}</span><span>{{ slot.label }}</span></a>
+      <a href="{{ slot.href }}" class="bottom-nav-item{% if slot.active %} active{% endif %}"><span class="bottom-nav-icon">{{ nav_icon(slot.icon) }}</span><span>{{ slot.label }}</span></a>
       {% endfor %}
-      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">☰</span><span>Ещё</span></button>
+      <button type="button" class="bottom-nav-item bottom-nav-more" id="menuBtnBottom" aria-label="Меню"><span class="bottom-nav-icon">{{ nav_icon('more') }}</span><span>Ещё</span></button>
     </nav>
   </div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
