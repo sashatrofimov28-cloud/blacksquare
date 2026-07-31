@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v73'
+BUILD_VERSION = 'client-v75'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -197,7 +197,7 @@ def remote_backup_database():
 DB = resolve_database_path()
 
 PERMS = {
-    'calendar': 'Календарь',
+    'calendar': 'Журнал записи',
     'services': 'Услуги',
     'crm': 'CRM',
     'stock': 'Склад',
@@ -215,7 +215,7 @@ PERMS = {
 BOTTOM_NAV_DEFAULT = ('calendar', 'crm', 'finance')
 
 BOTTOM_NAV_ITEMS = {
-    'calendar': {'label': 'Записи', 'icon': '📅', 'endpoint': 'calendar_view', 'perm': 'calendar',
+    'calendar': {'label': 'Журнал', 'icon': '📅', 'endpoint': 'calendar_view', 'perm': 'calendar',
                  'active': ('calendar_view', 'close_appointment', 'edit_appointment')},
     'crm': {'label': 'Клиенты', 'icon': '👥', 'endpoint': 'crm', 'perm': 'crm',
             'active': ('crm', 'client_card')},
@@ -244,6 +244,40 @@ WEEKDAYS_LONG = ['понедельник', 'вторник', 'среда', 'че
 def format_date_dashboard_ru(day_s=None):
     d = date.fromisoformat(day_s or today())
     return f"{WEEKDAYS_LONG[d.weekday()].capitalize()}, {d.day} {MONTHS_RU_GEN[d.month]}"
+
+def greeting_by_hour(hour=None):
+    """Доброе утро / день / вечер / ночи по часу (APP_TZ)."""
+    h = app_now().hour if hour is None else int(hour)
+    if 5 <= h < 12:
+        return 'Доброе утро'
+    if 12 <= h < 17:
+        return 'Добрый день'
+    if 17 <= h < 23:
+        return 'Добрый вечер'
+    return 'Доброй ночи'
+
+
+def user_first_name(user):
+    if not user:
+        return 'коллега'
+    raw = (user['full_name'] or user['username'] or '').strip()
+    if not raw:
+        return 'коллега'
+    return raw.split()[0]
+
+
+def user_initials(user):
+    if not user:
+        return '?'
+    raw = (user['full_name'] or user['username'] or '').strip()
+    parts = [p for p in raw.split() if p]
+    if not parts:
+        return '?'
+    if len(parts) == 1:
+        return parts[0][:1].upper()
+    return (parts[0][:1] + parts[1][:1]).upper()
+
+
 
 def booking_origin_label(ap):
     """Кто создал запись: сотрудник / Онлайн запись / Telegram."""
@@ -4067,6 +4101,10 @@ def design_dashboard_solid():
 def design_dashboard_gpt():
     return app.send_static_file('mockups/dashboard-gpt-compact.html')
 
+@app.route('/design/journal')
+def design_journal():
+    return app.send_static_file('mockups/journal-yclients-mockup.html')
+
 @app.route('/design/booking')
 def design_booking_variants():
     return render_template('design_booking.html')
@@ -4326,6 +4364,16 @@ def dashboard():
     closed_today_sum = sum(float(r['price'] or 0) for r in closed_today)
     in_work_list = [r for r in upcoming if (r['status'] or '') in ('В работе', 'Начат')]
     requests = con.execute("SELECT pr.*,u.full_name user_name,a.client_name,a.plate_number FROM phone_access_requests pr LEFT JOIN users u ON u.id=pr.user_id LEFT JOIN appointments a ON a.id=pr.appointment_id WHERE pr.status='Ожидает' ORDER BY pr.id DESC LIMIT 20").fetchall()
+    # compact home extras
+    day_clients = con.execute(
+        "SELECT COUNT(DISTINCT phone) c FROM appointments WHERE appointment_date=? AND status!='Отменен' AND phone IS NOT NULL AND TRIM(phone)!=''",
+        (day,),
+    ).fetchone()['c']
+    day_remaining = con.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE appointment_date=? AND status NOT IN ('Закрыт','Отменен','В работе','Начат')",
+        (day,),
+    ).fetchone()['c']
+    greet_user = u
     con.close(); return render_template(
         'dashboard.html',
         stats=stats,
@@ -4339,6 +4387,11 @@ def dashboard():
         in_work_list=in_work_list,
         requests=requests,
         period=period,
+        greet_line=greeting_by_hour(),
+        greet_name=user_first_name(greet_user),
+        greet_initials=user_initials(greet_user),
+        day_clients=int(day_clients or 0),
+        day_remaining=int(day_remaining or 0),
     )
 
 @app.route('/booking', methods=['GET','POST'])

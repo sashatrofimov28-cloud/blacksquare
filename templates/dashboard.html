@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block theme_color %}#f2f2f7{% endblock %}
+{% block theme_color %}#f5f5f7{% endblock %}
 {% block status_bar_style %}black-translucent{% endblock %}
 {% block body_class %} body-z-light{% endblock %}
 {% block main_class %} main-z-light{% endblock %}
@@ -10,86 +10,56 @@
 {% block content %}
 {% set closed_n = stats.appointments or 0 %}
 {% set avg_check = (stats.revenue / closed_n) if closed_n else 0 %}
-<div class="dz dz-live dz-ops">
-  <header class="dz-head">
+<div class="dz dz-live dz-compact">
+  <header class="dzc-head">
     <div>
-      <h2>Главная</h2>
-      <p>{{ format_date_dashboard_ru() }}</p>
+      <h2>{{ greet_line }}</h2>
+      <strong>{{ greet_name }}</strong>
     </div>
-    <a href="{{ url_for('profile') }}" class="dz-bell" aria-label="Профиль">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
-    </a>
+    <div class="dzc-head-right">
+      <a href="{{ url_for('profile') }}" class="dzc-av" aria-label="Профиль">{{ greet_initials }}</a>
+    </div>
   </header>
 
-  <section class="dz-hero" aria-label="Касса сегодня">
-    <div class="dz-hero-top">
-      <small>{{ stats.period_label }} · касса</small>
-      {% if trends and trends.revenue is defined and trends.revenue is not none %}
-      <em class="dz-hero-trend {% if trends.revenue > 0 %}up{% elif trends.revenue < 0 %}down{% endif %}">
-        {% if trends.revenue > 0 %}+{% endif %}{{ trends.revenue }}%
-      </em>
-      {% endif %}
-    </div>
-    <strong>{{ format_money(stats.revenue) }} ₽</strong>
-    <div class="dz-hero-meta">
-      <span>{% if closed_n %}{{ closed_n }} закрыто{% else %}Нет закрытых{% endif %}</span>
-      <span>прибыль {{ format_money(stats.profit) }} ₽</span>
+  <section class="dzc-summary" aria-label="Сводка">
+    <div class="dzc-summary-label">{{ stats.period_label }} · касса</div>
+    <div class="dzc-money">{{ format_money(stats.revenue) }} <span>₽</span></div>
+    <div class="dzc-summary-row">
+      <div><small>Клиентов</small><b>{{ day_clients if period == 'today' else closed_n }}</b></div>
+      <div><small>{% if period == 'today' %}Осталось записей{% else %}Закрыто{% endif %}</small><b>{% if period == 'today' %}{{ day_remaining }}{% else %}{{ closed_n }}{% endif %}</b></div>
     </div>
   </section>
 
-  {% set pay_cash = stats.paid_cash or 0 %}
-  {% set pay_card = stats.paid_card or 0 %}
-  {% set pay_transfer = stats.paid_transfer or 0 %}
-  {% if pay_cash or pay_card or pay_transfer %}
-  <div class="dz-pay-break" aria-label="Разбивка оплаты">
-    <div><small>Карта</small><b>{{ format_money(pay_card) }}</b></div>
-    <div><small>Нал</small><b>{{ format_money(pay_cash) }}</b></div>
-    <div><small>Перевод</small><b>{{ format_money(pay_transfer) }}</b></div>
-  </div>
-  {% endif %}
-
-  <div class="dz-status" aria-label="Статус дня">
-    <div class="dz-status-item is-work">
-      <b>{{ day_status.in_work }}</b>
-      <small>В работе</small>
-    </div>
-    <div class="dz-status-item is-wait">
-      <b>{{ day_status.waiting }}</b>
-      <small>Ждут</small>
-    </div>
-    <div class="dz-status-item is-done">
-      <b>{{ day_status.closed }}</b>
-      <small>Закрыто</small>
-    </div>
-  </div>
-
-  <div class="dz-pills dz-pills-2">
-    <div class="dz-pill-stat"><small>ЗП</small><b>{{ format_money(stats.salary) }}</b></div>
-    <div class="dz-pill-stat"><small>Ср. чек</small><b>{{ format_money(avg_check) }}</b></div>
-  </div>
-
-  {% if has_perm('calendar') or has_perm('crm') %}
-  <div class="dz-actions">
+  {% if has_perm('calendar') or has_perm('crm') or has_perm('finance') %}
+  <div class="dzc-actions">
     {% if has_perm('calendar') %}
-    <a class="dz-act" href="{{ url_for('calendar_view') }}">
-      <span class="dz-act-ic" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
-      </span>
-      Календарь
+    <a class="dzc-act primary" href="{{ url_for('calendar_view') }}#calBookingFold">
+      <i aria-hidden="true">+</i>Новая запись
     </a>
-    <a class="dz-act" href="{{ url_for('calendar_view') }}#calBookingFold">
-      <span class="dz-act-ic" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-      </span>
-      Запись
+    <a class="dzc-act" href="{{ url_for('calendar_view') }}">
+      <i aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      </i>Журнал
     </a>
     {% endif %}
     {% if has_perm('crm') %}
-    <a class="dz-act" href="{{ url_for('crm') }}">
-      <span class="dz-act-ic" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="3.5"/><path d="M22 21v-2a3.5 3.5 0 00-2.5-3.3M16.5 3.7a3.5 3.5 0 010 6.6"/></svg>
-      </span>
-      Клиенты
+    <a class="dzc-act" href="{{ url_for('crm') }}">
+      <i aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c1-3 3-5 6-5s5 2 6 5"/></svg>
+      </i>Клиенты
+    </a>
+    {% endif %}
+    {% if has_perm('finance') %}
+    <a class="dzc-act" href="{{ url_for('finance') }}">
+      <i aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg>
+      </i>Касса
+    </a>
+    {% elif has_perm('analytics') %}
+    <a class="dzc-act" href="{{ url_for('analytics') }}">
+      <i aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>
+      </i>Статистика
     </a>
     {% endif %}
   </div>
@@ -118,97 +88,92 @@
   </div>
   {% endif %}
 
-  {% if in_work_list %}
-  <div class="dz-cap">Сейчас в работе</div>
-  <div class="dz-list">
+  <div class="dzc-sec">
+    <b>Сегодня</b>
+    {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}">Все ›</a>{% endif %}
+  </div>
+  <div class="dzc-cards">
+    {% set ns = namespace(n=0) %}
     {% for r in in_work_list %}
     {% set meta = appt_status_meta(r.status) %}
-    <a class="dz-row" href="{% if has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% else %}#{% endif %}">
-      <div class="dz-time">
+    {% set ns.n = ns.n + 1 %}
+    <a class="dzc-appt" href="{% if has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% else %}#{% endif %}">
+      <span class="dzc-stripe work" aria-hidden="true"></span>
+      <div class="dzc-when">
         <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
         <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
       </div>
-      <div class="dz-body">
-        <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
-        {% set origin = booking_origin_label(r) %}
-        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
+      <div class="dzc-who">
+        <b>{{ r.client_name }}{% if r.car %} · {{ r.car }}{% endif %}</b>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
       </div>
-      <div class="dz-side">
-        <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
+      <div class="dzc-side">
+        <em class="work">{{ meta.label }}</em>
+        <strong>{{ format_money(r.price or 0) }} ₽</strong>
+      </div>
+    </a>
+    {% endfor %}
+    {% for r in upcoming %}
+      {% if (r.status or '') not in ['В работе', 'Начат'] and ns.n < 6 %}
+      {% set meta = appt_status_meta(r.status) %}
+      {% set ns.n = ns.n + 1 %}
+      <a class="dzc-appt" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+        <span class="dzc-stripe wait" aria-hidden="true"></span>
+        <div class="dzc-when">
+          <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
+          <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
+        </div>
+        <div class="dzc-who">
+          <b>{{ r.client_name }}{% if r.car %} · {{ r.car }}{% endif %}</b>
+          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
+        </div>
+        <div class="dzc-side">
+          <em class="wait">{{ meta.label }}</em>
+          <strong>{{ format_money(r.price or 0) }} ₽</strong>
+        </div>
+      </a>
+      {% endif %}
+    {% endfor %}
+    {% if ns.n == 0 %}
+    <p class="dz-empty">Нет записей на сегодня</p>
+    {% endif %}
+  </div>
+
+  <div class="dzc-stats">
+    <div class="dzc-stat"><small>Ср. чек</small><b>{{ format_money(avg_check) }}</b></div>
+    <div class="dzc-stat"><small>Закрыто</small><b>{% if period == 'today' %}{{ day_status.closed }}{% else %}{{ closed_n }}{% endif %}</b></div>
+    <div class="dzc-stat"><small>ЗП</small><b>{{ format_money(stats.salary) }}</b></div>
+  </div>
+
+  {% if closed_today and period == 'today' %}
+  <div class="dzc-sec">
+    <b>Закрыто сегодня</b>
+    <span class="dzc-muted">{{ format_money(closed_today_sum) }} ₽</span>
+  </div>
+  <div class="dzc-cards dzc-cards-closed">
+    {% for r in closed_today[:4] %}
+    <a class="dzc-appt" href="{% if has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
+      <span class="dzc-stripe next" aria-hidden="true"></span>
+      <div class="dzc-when">
+        <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
+        <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
+      </div>
+      <div class="dzc-who">
+        <b>{{ r.client_name }}{% if r.car %} · {{ r.car }}{% endif %}</b>
+        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}</span>
+      </div>
+      <div class="dzc-side">
+        {% set pay_label = payment_method_label(r.payment_method) %}
+        {% if pay_label %}
+        <em class="next">{{ pay_label }}</em>
+        {% else %}
+        <em class="next">Закрыт</em>
+        {% endif %}
         <strong>{{ format_money(r.price or 0) }} ₽</strong>
       </div>
     </a>
     {% endfor %}
   </div>
   {% endif %}
-
-  <div class="dz-sec-head">
-    <div class="dz-cap">Ближайшие записи</div>
-    {% if has_perm('calendar') %}<a class="dz-link" href="{{ url_for('calendar_view') }}">Все ›</a>{% endif %}
-  </div>
-  <div class="dz-list">
-    {% for r in upcoming %}
-    {% set meta = appt_status_meta(r.status) %}
-    <a class="dz-row" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-      <div class="dz-time">
-        <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
-        <span>{{ appt_countdown_label(r.appointment_date, r.start_time) }}</span>
-      </div>
-      <div class="dz-body">
-        <b>{{ r.client_name }}</b>
-        <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
-        {% set origin = booking_origin_label(r) %}
-        {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
-      </div>
-      <div class="dz-side">
-        <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
-        <strong>{{ format_money(r.price or 0) }} ₽</strong>
-      </div>
-    </a>
-    {% else %}
-    <p class="dz-empty">Нет ближайших записей</p>
-    {% endfor %}
-  </div>
-
-  <section class="dz-closed-block" aria-label="Закрыто сегодня">
-    <div class="dz-sec-head">
-      <div class="dz-cap">Закрыто сегодня</div>
-      {% if closed_today %}
-      <span class="dz-link dz-link-muted">{{ format_money(closed_today_sum) }} ₽</span>
-      {% endif %}
-    </div>
-    <div class="dz-list dz-list-closed">
-      {% for r in closed_today %}
-      {% set meta = appt_status_meta(r.status) %}
-      <a class="dz-row" href="{% if r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
-        <div class="dz-time">
-          <strong>{{ r.start_time[:5] if r.start_time else '—' }}</strong>
-          <span>{{ appt_closed_label(r.closed_at, r.start_time) }}</span>
-        </div>
-        <div class="dz-body">
-          <b>{{ r.client_name }}</b>
-          <span>{{ r.service_name }}{% if r.employee_name %} · {{ r.employee_name }}{% endif %}{% if r.car %} · {{ r.car }}{% endif %}</span>
-          {% set origin = booking_origin_label(r) %}
-          {% if origin %}<i class="booking-origin-inline">{{ origin }}</i>{% endif %}
-        </div>
-        <div class="dz-side">
-          {% set pay_label = payment_method_label(r.payment_method) %}
-          {% if pay_label %}
-          <span class="dz-pay-badge {{ payment_method_badge_class(r.payment_method) }}">{{ pay_label }}</span>
-          {% else %}
-          <span class="dz-pill {{ meta.pill }}">{{ meta.label }}</span>
-          {% endif %}
-          <strong>{{ format_money(r.price or 0) }} ₽</strong>
-        </div>
-      </a>
-      {% else %}
-      <p class="dz-empty">Сегодня ещё нет закрытых записей</p>
-      {% endfor %}
-      {% if closed_today %}
-      <div class="dz-list-foot">На сегодня всё · {{ closed_today|length }} {% if closed_today|length == 1 %}визит{% elif closed_today|length in [2,3,4] %}визита{% else %}визитов{% endif %}</div>
-      {% endif %}
-    </div>
-  </section>
 </div>
 {% endblock %}

@@ -2,7 +2,7 @@
 {% block content %}
 <div class="cal-page">
   <header class="cal-header">
-    <h1>Календарь</h1>
+    <h1>Журнал записи</h1>
     <nav class="cal-views" aria-label="Режим">
       <a href="{{ url_for('calendar_view', date=selected, view='day', q=q) }}" class="cal-view{% if view == 'day' %} active{% endif %}">День</a>
       <a href="{{ url_for('calendar_view', date=selected, view='week', q=q) }}" class="cal-view{% if view == 'week' %} active{% endif %}">Неделя</a>

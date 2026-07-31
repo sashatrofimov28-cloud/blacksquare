@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Журнал записи — макет</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f2f2f7;--card:#fff;--text:#111;--mute:#8e8e93;--line:#e5e5ea;--green:#00b368;--red:#ff3b30}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0c0c0d;color:#eee;font-family:Inter,system-ui,sans-serif}
+  .page{max-width:980px;margin:0 auto;padding:24px 16px 56px}
+  .intro{text-align:center;margin-bottom:20px}
+  .intro a{color:#34c759;font-size:13px;font-weight:700;text-decoration:none}
+  .intro h1{margin:10px 0 8px;font-size:28px;font-weight:800;letter-spacing:-.03em}
+  .intro p{margin:0 auto;max-width:560px;color:#9a9aa2;font-size:14px;line-height:1.5}
+  .banner{display:inline-block;margin-top:10px;padding:6px 12px;border-radius:999px;background:#1d3a2a;color:#3ddc84;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+  .phone{
+    width:min(100%,420px);margin:18px auto 0;background:var(--bg);color:var(--text);
+    border-radius:28px;overflow:hidden;border:1px solid #2a2a2e;box-shadow:0 24px 60px rgba(0,0,0,.45);
+  }
+  .top{padding:14px 14px 8px;background:var(--bg)}
+  .top-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .top h2{margin:0;font-size:26px;font-weight:800;letter-spacing:-.04em}
+  .icons{display:flex;gap:8px}
+  .ic{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center}
+  .days{display:flex;gap:6px;overflow-x:auto;padding:12px 0 8px;scrollbar-width:none}
+  .days::-webkit-scrollbar{display:none}
+  .day{min-width:46px;padding:8px 6px;border-radius:14px;text-align:center}
+  .day small{display:block;font-size:10px;font-weight:700;color:var(--mute)}
+  .day b{display:block;margin-top:4px;font-size:15px;font-weight:800}
+  .day.on{background:#111;color:#fff}
+  .day.on small{color:rgba(255,255,255,.7)}
+  .datebar{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:6px 2px 10px;font-size:13px;font-weight:700;
+  }
+  .datebar span{color:var(--mute)}
+  .board{display:grid;grid-template-columns:44px repeat(3,minmax(120px,1fr));gap:0;min-height:520px;background:#fff;border-top:1px solid var(--line);overflow-x:auto}
+  .hours,.col{position:relative;border-right:1px solid var(--line)}
+  .hours{background:#fafafa}
+  .hour{height:56px;padding:4px 4px 0;font-size:10px;font-weight:700;color:var(--mute);border-bottom:1px solid #f0f0f0}
+  .mhead{position:sticky;top:0;z-index:2;background:#fff;padding:10px 8px;border-bottom:1px solid var(--line);text-align:center}
+  .av{width:34px;height:34px;border-radius:50%;margin:0 auto 6px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+  .mhead b{display:block;font-size:12px}
+  .mhead small{display:block;font-size:10px;color:var(--mute);margin-top:2px}
+  .slot{height:56px;border-bottom:1px solid #f0f0f0}
+  .ev{
+    position:absolute;left:4px;right:4px;border-radius:10px;padding:6px 7px;color:#111;
+    font-size:10px;line-height:1.25;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);
+  }
+  .ev strong{display:block;font-size:11px;font-weight:800}
+  .ev span{display:block;opacity:.8;margin-top:2px}
+  .now{
+    position:absolute;left:0;right:0;height:2px;background:var(--red);z-index:3;
+  }
+  .now::before{
+    content:attr(data-t);position:absolute;left:-2px;top:-8px;transform:translateX(-100%);
+    background:var(--red);color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:6px;
+  }
+  .fab{
+    position:absolute;right:16px;bottom:72px;width:52px;height:52px;border-radius:50%;
+    background:#111;color:#fff;display:grid;place-items:center;font-size:28px;font-weight:500;
+    box-shadow:0 8px 20px rgba(0,0,0,.25);
+  }
+  .wrap{position:relative}
+  .nav{
+    display:grid;grid-template-columns:repeat(5,1fr);background:rgba(255,255,255,.96);
+    border-top:1px solid var(--line);padding:8px 4px 10px;
+  }
+  .nav i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;font-size:9px;font-weight:700;color:var(--mute)}
+  .nav i.on{color:#111}
+  .note{max-width:420px;margin:14px auto 0;color:#9a9aa2;font-size:12px;line-height:1.45;text-align:center}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <a href="/design">← Все макеты</a>
+    <h1>Журнал записи</h1>
+    <p>Как на вашем скрине: заголовок «Журнал записи», лента дат, колонки мастеров, ось времени, цветные записи, кнопка «+».</p>
+    <div class="banner">Макет · живой календарь пока только переименован</div>
+  </div>
+
+  <div class="phone wrap">
+    <div class="top">
+      <div class="top-row">
+        <h2>Журнал записи</h2>
+        <div class="icons">
+          <div class="ic">⌕</div>
+          <div class="ic">☰</div>
+        </div>
+      </div>
+      <div class="days">
+        <div class="day"><small>Пн</small><b>20</b></div>
+        <div class="day"><small>Вт</small><b>21</b></div>
+        <div class="day on"><small>Ср</small><b>22</b></div>
+        <div class="day"><small>Чт</small><b>23</b></div>
+        <div class="day"><small>Пт</small><b>24</b></div>
+        <div class="day"><small>Сб</small><b>25</b></div>
+        <div class="day"><small>Вс</small><b>26</b></div>
+      </div>
+      <div class="datebar">
+        <span>‹</span>
+        <b>22 ноя, среда ▾</b>
+        <span>›</span>
+      </div>
+    </div>
+
+    <div class="board">
+      <div class="hours">
+        <div class="mhead" style="height:74px"></div>
+        <div class="hour">09:00</div>
+        <div class="hour">10:00</div>
+        <div class="hour">11:00</div>
+        <div class="hour">12:00</div>
+        <div class="hour">13:00</div>
+        <div class="hour">14:00</div>
+        <div class="hour">15:00</div>
+        <div class="hour">16:00</div>
+        <div class="hour">17:00</div>
+      </div>
+
+      <div class="col">
+        <div class="mhead"><div class="av" style="background:#00b368">А</div><b>Александр</b><small>мастер</small></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="ev" style="top:86px;height:100px;background:#d8f5e5">
+          <strong>09:00–10:45</strong>
+          <span>Игорь · BMW X5</span>
+          <span>Задняя часть</span>
+        </div>
+        <div class="ev" style="top:260px;height:70px;background:#ffe8b8">
+          <strong>12:00–13:00</strong>
+          <span>Camry · атермалка</span>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="mhead"><div class="av" style="background:#007aff">М</div><b>Мария</b><small>мастер</small></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="ev" style="top:142px;height:90px;background:#d6e8ff">
+          <strong>10:00–11:30</strong>
+          <span>Марина · передние</span>
+        </div>
+        <div class="ev" style="top:320px;height:80px;background:#f3d6ff">
+          <strong>13:00–14:20</strong>
+          <span>Tiguan · бронеплёнка</span>
+        </div>
+        <div class="now" style="top:370px" data-t="15:38"></div>
+      </div>
+
+      <div class="col">
+        <div class="mhead"><div class="av" style="background:#ff9500">И</div><b>Ирина</b><small>мастер</small></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="ev" style="top:200px;height:110px;background:#ffd6e0">
+          <strong>11:00–13:00</strong>
+          <span>Алексей · полный</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fab">+</div>
+    <div class="nav">
+      <i class="on">📒<span>Журнал</span></i>
+      <i>👥<span>Клиенты</span></i>
+      <i>📊<span>Статистика</span></i>
+      <i>🔔<span>Уведомл.</span></i>
+      <i>☰<span>Ещё</span></i>
+    </div>
+  </div>
+  <p class="note">Сейчас на сайте: вкладка и заголовок уже «Журнал». Вид с колонками мастеров — по этому макету, если скажете «внедряй журнал».</p>
+</div>
+</body>
+</html>

@@ -247,3 +247,94 @@
 @media(min-width:1025px){
   .dz-live{max-width:none;padding-left:24px;padding-right:24px}
 }
+
+/* ——— Compact Ops home (ChatGPT layout) ——— */
+.dz-compact{
+  --z-bg:#f5f5f7;--z-card:#fff;--z-text:#111113;--z-muted:#6e6e73;
+  --z-border:#e5e5ea;--z-green:#0a7d4f;--z-green-soft:#e8f6ef;
+  background:var(--z-bg);color:var(--z-text);
+}
+.dzc-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:4px 0 14px;
+}
+.dzc-head h2{margin:0;font-size:15px;font-weight:600;color:var(--z-muted)}
+.dzc-head strong{
+  display:block;margin-top:2px;font-size:24px;font-weight:800;letter-spacing:-.04em;color:var(--z-text);
+}
+.dzc-av{
+  width:36px;height:36px;border-radius:50%;background:#111;color:#fff;
+  display:grid;place-items:center;font-size:12px;font-weight:800;text-decoration:none;
+}
+.dzc-summary{
+  background:var(--z-card);border:1px solid var(--z-border);border-radius:20px;
+  padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.dzc-summary-label{
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--z-muted);
+}
+.dzc-money{margin-top:6px;font-size:28px;font-weight:800;letter-spacing:-.05em}
+.dzc-money span{font-size:16px;font-weight:700;color:var(--z-muted);margin-left:2px}
+.dzc-summary-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--z-border);
+}
+.dzc-summary-row small{display:block;font-size:11px;color:var(--z-muted);font-weight:600}
+.dzc-summary-row b{display:block;margin-top:3px;font-size:15px;font-weight:750}
+.dzc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.dzc-act{
+  display:flex;align-items:center;gap:10px;padding:12px;border-radius:16px;
+  background:var(--z-card);border:1px solid var(--z-border);font-size:13px;font-weight:700;
+  color:var(--z-text);text-decoration:none;
+}
+.dzc-act i{
+  width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;
+  background:#f2f2f7;color:#111;font-style:normal;font-weight:800;
+}
+.dzc-act.primary i{background:var(--z-green-soft);color:var(--z-green)}
+.dzc-act svg{display:block}
+.dz-compact .dz-seg{
+  background:#e8e8ed;margin-bottom:14px;
+}
+.dz-compact .dz-seg-nav a.on{background:#fff;color:#111}
+.dzc-sec{
+  display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  margin:2px 2px 8px;
+}
+.dzc-sec b{font-size:15px;font-weight:800;letter-spacing:-.02em}
+.dzc-sec a{font-size:12px;font-weight:700;color:var(--z-green);text-decoration:none}
+.dzc-muted{font-size:12px;font-weight:700;color:var(--z-muted)}
+.dzc-cards{display:grid;gap:8px;margin-bottom:14px}
+.dzc-appt{
+  display:grid;grid-template-columns:auto 52px 1fr auto;gap:8px;align-items:center;
+  background:var(--z-card);border:1px solid var(--z-border);border-radius:16px;
+  padding:12px 12px 12px 0;overflow:hidden;text-decoration:none;color:inherit;
+}
+.dzc-stripe{width:4px;align-self:stretch;border-radius:0 4px 4px 0}
+.dzc-stripe.work{background:#0071e3}
+.dzc-stripe.wait{background:#c77d00}
+.dzc-stripe.next{background:var(--z-green)}
+.dzc-when strong{display:block;font-size:14px;font-weight:800}
+.dzc-when span{display:block;margin-top:2px;font-size:10px;color:var(--z-muted);font-weight:600}
+.dzc-who{min-width:0}
+.dzc-who b{display:block;font-size:13px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dzc-who span{display:block;margin-top:2px;font-size:11px;color:var(--z-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dzc-side{text-align:right}
+.dzc-side em{
+  display:inline-block;font-style:normal;font-size:10px;font-weight:750;padding:3px 7px;border-radius:7px;
+}
+.dzc-side em.work{background:#e8f0ff;color:#0071e3}
+.dzc-side em.wait{background:#fff4e0;color:#c77d00}
+.dzc-side em.next{background:var(--z-green-soft);color:var(--z-green)}
+.dzc-side strong{display:block;margin-top:5px;font-size:12px;font-weight:750}
+.dzc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.dzc-stat{
+  background:var(--z-card);border:1px solid var(--z-border);border-radius:14px;
+  padding:11px 8px;text-align:center;
+}
+.dzc-stat small{display:block;font-size:10px;font-weight:650;color:var(--z-muted)}
+.dzc-stat b{display:block;margin-top:4px;font-size:13px;font-weight:800;letter-spacing:-.02em}
+.dz-compact .dz-list{background:var(--z-card);border-color:var(--z-border)}
+.dz-compact .dz-empty{
+  background:var(--z-card);border:1px solid var(--z-border);border-radius:16px;margin:0;
+}
