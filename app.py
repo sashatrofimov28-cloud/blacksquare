@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v76'
+BUILD_VERSION = 'client-v77'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -836,6 +836,116 @@ def week_title(selected):
     if days[0].year == days[-1].year:
         return f"{days[0].day} {MONTHS_RU_GEN[days[0].month]} — {days[-1].day} {MONTHS_RU_GEN[days[-1].month]} {days[0].year}"
     return f"{days[0].day} {MONTHS_RU_GEN[days[0].month]} {days[0].year} — {days[-1].day} {MONTHS_RU_GEN[days[-1].month]} {days[-1].year}"
+
+
+def format_date_journal_short(day_s=None):
+    d = date.fromisoformat(day_s or today())
+    return f"{d.day} {MONTHS_RU_SHORT[d.month]}, {WEEKDAYS_LONG[d.weekday()]}"
+
+
+def build_date_strip(selected):
+    today_s = today()
+    out = []
+    for wd in week_dates(selected):
+        ds = wd.isoformat()
+        out.append({
+            'date': ds,
+            'day': wd.day,
+            'weekday': WEEKDAYS[wd.weekday()],
+            'is_today': ds == today_s,
+            'is_selected': ds == selected,
+        })
+    return out
+
+
+def _master_display_name(full_name):
+    raw = (full_name or '').strip()
+    if not raw:
+        return 'Мастер', '?'
+    parts = [p for p in raw.split() if p]
+    first = parts[0]
+    if len(parts) == 1:
+        initials = parts[0][:1].upper()
+    else:
+        initials = (parts[0][:1] + parts[1][:1]).upper()
+    return first, initials
+
+
+def layout_master_board(rows, masters, px_per_hour=56):
+    """День: общая ось времени + колонка на каждого мастера (по primary employee_id)."""
+    base = layout_day_timeline(rows, px_per_hour=px_per_hour)
+    by_master = {}
+    for r in rows:
+        if r['status'] == 'Отменен':
+            continue
+        by_master.setdefault(r['employee_id'] or 0, []).append(r)
+
+    columns = []
+    master_ids = set()
+    for m in masters:
+        mid = m['id']
+        master_ids.add(mid)
+        first, initials = _master_display_name(m['full_name'])
+        tl = layout_day_timeline(
+            by_master.get(mid, []),
+            day_start=base['day_start'],
+            day_end=base['day_end'],
+            px_per_hour=px_per_hour,
+        )
+        columns.append({
+            'id': mid,
+            'name': first,
+            'full_name': m['full_name'] or first,
+            'initials': initials,
+            'tone': employee_tone(mid),
+            'events': tl['events'],
+        })
+
+    orphans = []
+    for eid, m_rows in by_master.items():
+        if eid not in master_ids:
+            orphans.extend(m_rows)
+    if orphans:
+        tl = layout_day_timeline(
+            orphans,
+            day_start=base['day_start'],
+            day_end=base['day_end'],
+            px_per_hour=px_per_hour,
+        )
+        columns.append({
+            'id': 0,
+            'name': 'Без мастера',
+            'full_name': 'Без мастера',
+            'initials': '?',
+            'tone': 'tone-orange',
+            'events': tl['events'],
+        })
+
+    return {
+        'hours': base['hours'],
+        'slots': base['slots'],
+        'height_px': base['height_px'],
+        'px_per_hour': px_per_hour,
+        'day_start': base['day_start'],
+        'day_end': base['day_end'],
+        'columns': columns,
+    }
+
+
+def journal_now_marker(day_s, board):
+    if not board or day_s != today():
+        return None
+    now_dt = app_now()
+    now_m = now_dt.hour * 60 + now_dt.minute
+    start_m = hm2m(board['day_start'])
+    end_m = hm2m(board['day_end'])
+    if now_m < start_m or now_m > end_m:
+        return None
+    return {
+        'top': round((now_m - start_m) / 60 * board['px_per_hour'], 1),
+        'label': now_dt.strftime('%H:%M'),
+    }
+
 
 def assign_overlap_columns(events):
     events = sorted(events, key=lambda e: (e['start_m'], e['end_m']))
@@ -5093,11 +5203,20 @@ def calendar_view():
         rows = fetch_rows(selected)
         timeline = layout_day_timeline(rows)
         week_columns = None
-        date_title = format_date_calendar_ru(selected)
+        date_title = format_date_journal_short(selected)
 
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     employees = list_masters(con)
+    if u['role'] == 'master':
+        employees = [e for e in employees if e['id'] == u['id']]
+    master_board = None
+    now_marker = None
+    date_strip = None
+    if view == 'day':
+        date_strip = build_date_strip(selected)
+        master_board = layout_master_board(rows, employees)
+        now_marker = journal_now_marker(selected, master_board)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     con.close()
@@ -5136,6 +5255,9 @@ def calendar_view():
         date_title=date_title,
         timeline=timeline,
         week_columns=week_columns,
+        date_strip=date_strip,
+        master_board=master_board,
+        now_marker=now_marker,
         format_date_calendar_ru=format_date_calendar_ru,
     )
 
