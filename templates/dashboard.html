@@ -93,10 +93,8 @@
     {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}">Все ›</a>{% endif %}
   </div>
   <div class="dzc-cards">
-    {% set ns = namespace(n=0) %}
     {% for r in in_work_list %}
     {% set meta = appt_status_meta(r.status) %}
-    {% set ns.n = ns.n + 1 %}
     <a class="dzc-appt" href="{% if has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% else %}#{% endif %}">
       <span class="dzc-stripe work" aria-hidden="true"></span>
       <div class="dzc-when">
@@ -113,10 +111,9 @@
       </div>
     </a>
     {% endfor %}
-    {% for r in upcoming %}
-      {% if (r.status or '') not in ['В работе', 'Начат'] and ns.n < 6 %}
+    {% for r in upcoming[:6] %}
+      {% if (r.status or '') not in ['В работе', 'Начат'] %}
       {% set meta = appt_status_meta(r.status) %}
-      {% set ns.n = ns.n + 1 %}
       <a class="dzc-appt" href="{% if r.status not in ['Закрыт','Отменен'] and has_perm('calendar') %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' and has_perm('edit_closed_appointments') %}{{ url_for('edit_appointment', aid=r.id) }}{% else %}#{% endif %}">
         <span class="dzc-stripe wait" aria-hidden="true"></span>
         <div class="dzc-when">
@@ -134,7 +131,7 @@
       </a>
       {% endif %}
     {% endfor %}
-    {% if ns.n == 0 %}
+    {% if not in_work_list and not upcoming %}
     <p class="dz-empty">Нет записей на сегодня</p>
     {% endif %}
   </div>
