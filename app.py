@@ -4063,6 +4063,10 @@ def design_dashboard():
 def design_dashboard_solid():
     return app.send_static_file('mockups/dashboard-pinterest-variants.html')
 
+@app.route('/design/dashboard-gpt')
+def design_dashboard_gpt():
+    return app.send_static_file('mockups/dashboard-gpt-compact.html')
+
 @app.route('/design/booking')
 def design_booking_variants():
     return render_template('design_booking.html')
