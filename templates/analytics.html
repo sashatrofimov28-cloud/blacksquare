@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="an-page">
+<div class="an-page staff-light">
   <header class="an-header">
     <div>
       <p class="an-kicker">Отчёты</p>
-      <h1>Аналитика</h1>
+      <h1>Статистика</h1>
       <p class="an-sub">{{ start }}{% if start != end %} — {{ end }}{% endif %}</p>
     </div>
-    <a href="{{ url_for('analytics', period=period) }}" class="an-cal-btn" title="Обновить">📅</a>
+    <a href="{{ url_for('analytics', period=period) }}" class="an-cal-btn" title="Обновить" aria-label="Обновить">↻</a>
   </header>
 
   <nav class="an-periods scrollable-x" aria-label="Период">
@@ -22,7 +22,7 @@
     <div class="an-insight-list">
       {% for tip in insights %}
       <article class="an-insight an-insight-{{ tip.kind }}">
-        <span class="an-insight-icon">{% if tip.kind == 'warn' %}⚠️{% elif tip.kind == 'good' %}✅{% else %}💡{% endif %}</span>
+        <span class="an-insight-icon" aria-hidden="true">{% if tip.kind == 'warn' %}!{% elif tip.kind == 'good' %}✓{% else %}i{% endif %}</span>
         <div class="an-insight-body">
           <b>{{ tip.title }}</b>
           <p>{{ tip.text }}</p>

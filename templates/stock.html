@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="stock-page staff-light">
 <header class="top">
   <h1>Склад</h1>
-  <p>Плёнка — себестоимость за погонный метр или за рулон. Фото и шкала остатка для каждой позиции.</p>
+  <p>Остатки, фото и списание материалов</p>
 </header>
 
 <div class="panel">
@@ -57,7 +58,7 @@
         {% if r.photo_path %}
         <img src="{{ url_for('static', filename=r.photo_path) }}" alt="{{ r.name }}">
         {% else %}
-        <div class="stock-card-placeholder">🎞</div>
+        <div class="stock-card-placeholder">Пл</div>
         {% endif %}
       </div>
       <div class="stock-card-body">
@@ -106,7 +107,7 @@
         {% if r.photo_path %}
         <img src="{{ url_for('static', filename=r.photo_path) }}" alt="{{ r.name }}">
         {% else %}
-        <div class="stock-card-placeholder">🔧</div>
+        <div class="stock-card-placeholder">Ин</div>
         {% endif %}
       </div>
       <div class="stock-card-body">
@@ -183,4 +184,5 @@ document.querySelectorAll('.stock-photo-form input[type=file]').forEach(inp => {
   if (btn) btn.addEventListener('click', () => inp.click());
 });
 </script>
+</div>
 {% endblock %}
