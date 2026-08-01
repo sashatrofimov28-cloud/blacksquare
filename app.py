@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v79'
+BUILD_VERSION = 'client-v80'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -4830,6 +4830,40 @@ def api_slots():
     out = available_slots_for_duration(con, uid, bundle['duration_min'], d) if bundle else []
     con.close()
     return jsonify(out)
+
+
+@app.route('/api/journal-slots')
+@login_required
+@perm_required('calendar')
+def api_journal_slots():
+    """Свободные слоты для ручной записи в журнале (без online-only фильтра)."""
+    con = db()
+    uid = request.args.get('employee_id', type=int)
+    d = request.args.get('date') or today()
+    service_ids = parse_service_ids_from_request(request.args)
+    duration = int(request.args.get('duration') or 60)
+    if service_ids:
+        ok, _ = validate_service_ids(con, service_ids, online_only=False)
+        if not ok:
+            con.close()
+            return jsonify([])
+        bundle = resolve_services_bundle(con, service_ids)
+        if bundle:
+            duration = int(bundle['duration_min'] or duration)
+    if uid:
+        out = available_slots_for_duration(con, uid, duration, d)
+    else:
+        open_t, close_t = studio_hours()
+        t = hm2m(open_t)
+        end_day = hm2m(close_t)
+        out = []
+        while t + duration <= end_day:
+            a = m2hm(t)
+            out.append({'start': a, 'end': m2hm(t + duration)})
+            t += 30
+    con.close()
+    return jsonify(out)
+
 
 _CAR_CATALOG = None
 
