@@ -2902,8 +2902,13 @@ body.theme-dark.body-z-light .sidebar-z{
   background:#fff!important;color:var(--z-text)!important;border-right:1px solid var(--z-line)!important;
 }
 body.theme-dark.body-z-light .sidebar .wordmark{color:#111}
+body.theme-dark.body-z-light .sidebar .brand{border-bottom-color:var(--z-line)!important}
 body.theme-dark.body-z-light .sidebar .brand span,
 body.theme-dark.body-z-light .sidebar .profile{color:var(--z-mute)!important}
+body.theme-dark.body-z-light .flash,
+body.theme-dark.body-z-light .main-z-light .flash{
+  background:#fff!important;border:1px solid var(--z-line)!important;color:#1c1c1e!important;
+}
 body.theme-dark.body-z-light .sidebar nav a{
   border-color:var(--z-line)!important;color:#3a3a3c!important;background:#f2f2f7!important;
   box-shadow:none!important;
