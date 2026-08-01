@@ -958,13 +958,36 @@ body.jr-sheet-open{overflow:hidden}
 .jr-block-h b{font-size:13px;font-weight:800;color:#111!important}
 .jr-block-h span{font-size:11px;color:#8e8e93!important;font-weight:600}
 .jr-sheet .master-picker-label{display:none}
-.jr-sheet .master-add-row{display:flex;gap:8px;margin-bottom:8px}
-.jr-sheet .master-add-row .ghost,
-.theme-dark .jr-sheet .master-add-row .ghost{
-  background:#f2f2f7!important;color:#111!important;border:1px solid #e5e5ea!important;
-  border-radius:12px;padding:10px 12px;font-weight:700;min-height:44px;white-space:nowrap
+.jr-svc-chips{display:flex;flex-wrap:wrap;gap:8px}
+.jr-svc-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border-radius:999px;
+  border:1px solid #e5e5ea;background:#f7f7f8;font-size:12px;font-weight:700;color:#111;
+  cursor:pointer;font-family:inherit
 }
-.jr-sheet .master-chips{margin-top:8px}
+.jr-svc-chip small{opacity:.7;font-weight:600}
+.jr-svc-chip.on,
+.theme-dark .jr-sheet .jr-svc-chip.on{
+  background:#e8f6ef!important;border-color:#9dd9bb!important;color:#0a7d4f!important
+}
+.jr-masters{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px
+}
+.jr-mcard{
+  border:1px solid #e5e5ea;background:#fafafa;border-radius:14px;padding:10px 6px;
+  text-align:center;cursor:pointer;font-family:inherit;color:#111
+}
+.jr-mcard.on,
+.theme-dark .jr-sheet .jr-mcard.on{
+  background:#e8f6ef!important;border-color:#9dd9bb!important
+}
+.jr-mav{
+  width:36px;height:36px;border-radius:50%;margin:0 auto 6px;display:grid;place-items:center;
+  font-size:12px;font-weight:800;color:#fff
+}
+.jr-mcard b{display:block;font-size:12px;font-weight:800}
+.jr-mcard small{display:block;font-size:10px;color:#8e8e93;margin-top:2px}
+.jr-sheet .master-add-row{display:none!important}
+.jr-sheet .master-chips[hidden],.jr-sheet select[hidden],.jr-sheet #addServiceBtn[hidden],.jr-sheet #addMasterBtn[hidden]{display:none!important}
 .jr-sheet .master-chip,
 .theme-dark .jr-sheet .master-chip{
   background:#e8f6ef!important;color:#0a7d4f!important;border:1px solid #9dd9bb!important
@@ -979,6 +1002,9 @@ body.jr-sheet-open{overflow:hidden}
 .jr-sheet .jr-block-h,
 .jr-sheet .jr-field>span,
 .jr-sheet label{color:inherit}
+@media(max-width:360px){
+  .jr-masters{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 .jr-time-row{
   display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch
 }

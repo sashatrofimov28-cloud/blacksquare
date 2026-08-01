@@ -357,18 +357,22 @@
     const select = document.getElementById('serviceSelect');
     const addBtn = document.getElementById('addServiceBtn');
     const chips = document.getElementById('serviceChips');
+    const chipGrid = document.getElementById('serviceChipGrid');
     const hidden = document.getElementById('serviceHiddenInputs');
     const emptyHint = document.getElementById('serviceEmptyHint');
     const formId = picker.dataset.formId;
     const form = formId ? document.getElementById(formId) : picker.closest('form');
     const selected = new Set();
+    const uiChips = picker.dataset.ui === 'chips' && chipGrid;
 
-    services.forEach(function (s) {
-      const opt = document.createElement('option');
-      opt.value = String(s.id);
-      opt.textContent = s.name + (s.price ? ' — ' + s.price + ' ₽' : '');
-      select.appendChild(opt);
-    });
+    if (select && !uiChips) {
+      services.forEach(function (s) {
+        const opt = document.createElement('option');
+        opt.value = String(s.id);
+        opt.textContent = s.name + (s.price ? ' — ' + s.price + ' ₽' : '');
+        select.appendChild(opt);
+      });
+    }
 
     function syncEmptyHint() {
       if (emptyHint) emptyHint.hidden = selected.size > 0;
@@ -380,12 +384,68 @@
       if (hint) hint.hidden = !show;
     }
 
+    function syncPriceFromServices() {
+      const priceInput = document.querySelector('#manualBookingForm input[name="price"]');
+      if (!priceInput || priceInput.dataset.manual === '1') return;
+      let sum = 0;
+      selected.forEach(function (id) {
+        const service = services.find(function (s) { return String(s.id) === String(id); });
+        if (service) sum += parseFloat(service.price || 0) || 0;
+      });
+      priceInput.value = sum > 0 ? String(Math.round(sum * 100) / 100) : '';
+    }
+
+    function syncHidden() {
+      if (!hidden) return;
+      hidden.innerHTML = '';
+      selected.forEach(function (sid) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'service_ids';
+        input.value = sid;
+        input.dataset.id = sid;
+        hidden.appendChild(input);
+      });
+    }
+
+    function renderChipGrid() {
+      if (!chipGrid) return;
+      chipGrid.innerHTML = '';
+      services.forEach(function (s) {
+        const sid = String(s.id);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'jr-svc-chip' + (selected.has(sid) ? ' on' : '');
+        btn.dataset.id = sid;
+        const price = s.price != null && s.price !== '' ? String(Math.round(s.price)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '';
+        btn.innerHTML = (s.name || 'Услуга') + (price ? ' <small>' + price + '</small>' : '');
+        btn.addEventListener('click', function () {
+          if (selected.has(sid)) selected.delete(sid);
+          else selected.add(sid);
+          renderChipGrid();
+          syncHidden();
+          syncEmptyHint();
+          showServiceError(false);
+          syncPriceFromServices();
+        });
+        chipGrid.appendChild(btn);
+      });
+    }
+
     function addService(id) {
       const sid = String(id);
       if (!sid || selected.has(sid)) return;
       const service = services.find(function (s) { return String(s.id) === sid; });
       if (!service) return;
       selected.add(sid);
+      if (uiChips) {
+        renderChipGrid();
+        syncHidden();
+        syncEmptyHint();
+        showServiceError(false);
+        syncPriceFromServices();
+        return;
+      }
       const chip = document.createElement('span');
       chip.className = 'master-chip';
       chip.dataset.id = sid;
@@ -405,12 +465,21 @@
       input.value = sid;
       input.dataset.id = sid;
       hidden.appendChild(input);
-      select.value = '';
+      if (select) select.value = '';
       syncEmptyHint();
       showServiceError(false);
     }
 
-    if (addBtn) {
+    if (uiChips) {
+      initial.forEach(function (id) { selected.add(String(id)); });
+      renderChipGrid();
+      syncHidden();
+      syncPriceFromServices();
+      const priceInput = document.querySelector('#manualBookingForm input[name="price"]');
+      if (priceInput) {
+        priceInput.addEventListener('input', function () { priceInput.dataset.manual = '1'; });
+      }
+    } else if (addBtn) {
       addBtn.addEventListener('click', function () {
         if (!select.value) {
           showServiceError(true);
@@ -419,9 +488,10 @@
         }
         addService(select.value);
       });
+      initial.forEach(addService);
+    } else {
+      initial.forEach(addService);
     }
-
-    initial.forEach(addService);
 
     if (form) {
       form.addEventListener('submit', function (e) {
@@ -502,18 +572,23 @@
     const select = document.getElementById('masterSelect');
     const addBtn = document.getElementById('addMasterBtn');
     const chips = document.getElementById('masterChips');
+    const cardGrid = document.getElementById('masterCardGrid');
     const hidden = document.getElementById('masterHiddenInputs');
     const emptyHint = document.getElementById('masterEmptyHint');
     const formId = picker.dataset.formId;
     const form = formId ? document.getElementById(formId) : picker.closest('form');
     const selected = new Set();
+    const uiCards = picker.dataset.ui === 'cards' && cardGrid;
+    const tones = ['#2979ff', '#00b368', '#ff9500', '#9b51e0', '#ff3b30'];
 
-    masters.forEach(function (m) {
-      const opt = document.createElement('option');
-      opt.value = String(m.id);
-      opt.textContent = m.name;
-      select.appendChild(opt);
-    });
+    if (select && !uiCards) {
+      masters.forEach(function (m) {
+        const opt = document.createElement('option');
+        opt.value = String(m.id);
+        opt.textContent = m.name;
+        select.appendChild(opt);
+      });
+    }
 
     function syncEmptyHint() {
       if (emptyHint) emptyHint.hidden = selected.size > 0;
@@ -525,11 +600,90 @@
       if (hint) hint.hidden = !show;
     }
 
+    function syncHidden() {
+      if (!hidden) return;
+      hidden.innerHTML = '';
+      selected.forEach(function (sid) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'employee_ids';
+        input.value = sid;
+        input.dataset.id = sid;
+        hidden.appendChild(input);
+      });
+    }
+
+    function firstName(name) {
+      return ((name || '').trim().split(/\s+/)[0]) || 'Мастер';
+    }
+
+    function initials(name) {
+      const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return '?';
+      if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+      return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+    }
+
+    function renderCards() {
+      if (!cardGrid) return;
+      cardGrid.innerHTML = '';
+      masters.forEach(function (m, idx) {
+        const sid = String(m.id);
+        const on = selected.has(sid);
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'jr-mcard' + (on ? ' on' : '');
+        card.dataset.id = sid;
+        const av = document.createElement('div');
+        av.className = 'jr-mav';
+        av.style.background = tones[idx % tones.length];
+        av.textContent = initials(m.name);
+        const b = document.createElement('b');
+        b.textContent = firstName(m.name);
+        const small = document.createElement('small');
+        small.textContent = on ? 'выбран' : 'свободен';
+        card.appendChild(av);
+        card.appendChild(b);
+        card.appendChild(small);
+        card.addEventListener('click', function () {
+          if (selected.has(sid)) {
+            selected.delete(sid);
+          } else {
+            // journal sheet: one primary master by default (tap another replaces)
+            selected.clear();
+            selected.add(sid);
+          }
+          renderCards();
+          syncHidden();
+          syncEmptyHint();
+          showMasterError(false);
+          syncSalaryMasterGrid();
+        });
+        cardGrid.appendChild(card);
+      });
+    }
+
     function addMaster(id) {
       const sid = String(id);
-      if (!sid || selected.has(sid)) return;
+      if (!sid || selected.has(sid)) {
+        if (uiCards) {
+          renderCards();
+          syncHidden();
+        }
+        return;
+      }
       const master = masters.find(function (m) { return String(m.id) === sid; });
       if (!master) return;
+      if (uiCards) {
+        selected.clear();
+        selected.add(sid);
+        renderCards();
+        syncHidden();
+        syncEmptyHint();
+        showMasterError(false);
+        syncSalaryMasterGrid();
+        return;
+      }
       selected.add(sid);
       const chip = document.createElement('span');
       chip.className = 'master-chip';
@@ -551,7 +705,7 @@
       input.value = sid;
       input.dataset.id = sid;
       hidden.appendChild(input);
-      select.value = '';
+      if (select) select.value = '';
       syncEmptyHint();
       showMasterError(false);
       syncSalaryMasterGrid();
@@ -559,8 +713,13 @@
 
     function clearMasters() {
       selected.clear();
-      if (chips) chips.innerHTML = '';
-      if (hidden) hidden.innerHTML = '';
+      if (uiCards) {
+        renderCards();
+        syncHidden();
+      } else {
+        if (chips) chips.innerHTML = '';
+        if (hidden) hidden.innerHTML = '';
+      }
       syncEmptyHint();
       syncSalaryMasterGrid();
     }
@@ -572,19 +731,31 @@
       });
     };
 
-    if (addBtn) {
-      addBtn.addEventListener('click', function () {
-        if (!select.value) {
-          showMasterError(true);
-          select.focus();
-          return;
-        }
-        addMaster(select.value);
-      });
+    if (uiCards) {
+      initial.forEach(function (id) { if (id) selected.add(String(id)); });
+      // keep only first for card UI if multiple initial
+      if (selected.size > 1) {
+        const first = initial.find(Boolean);
+        selected.clear();
+        if (first) selected.add(String(first));
+      }
+      renderCards();
+      syncHidden();
+      syncSalaryMasterGrid();
+    } else {
+      if (addBtn) {
+        addBtn.addEventListener('click', function () {
+          if (!select.value) {
+            showMasterError(true);
+            select.focus();
+            return;
+          }
+          addMaster(select.value);
+        });
+      }
+      initial.forEach(addMaster);
+      syncSalaryMasterGrid();
     }
-
-    initial.forEach(addMaster);
-    syncSalaryMasterGrid();
 
     if (form) {
       form.addEventListener('submit', function (e) {
