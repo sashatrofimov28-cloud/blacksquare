@@ -1,34 +1,58 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="top"><h1>Моя зарплата</h1></header>
+<div class="sal-page staff-light">
+  <header class="sal-header">
+    <div>
+      <p class="sal-kicker">Выплаты</p>
+      <h1>Моя зарплата</h1>
+    </div>
+  </header>
 
-<section class="cards simple">
-  <div class="card"><span>Всего</span><strong>{{ "%.0f"|format(total) }} ₽</strong></div>
-</section>
-
-<div class="panel">
-  {% for r in rows %}
-  <div class="employee-card" style="margin-bottom:14px">
-    <h3>{{ "%.0f"|format(r.amount) }} ₽ · {{ r.period }}</h3>
-    <div class="meta">Записано: {{ r.created_at }}{% if r.closed_at %} · Закрыто: {{ r.closed_at }}{% endif %}</div>
-    {% if r.appointment_date %}
-    <p><b>{{ r.appointment_date }}</b> {{ r.start_time }}–{{ r.end_time }}<br>{{ r.client_name }} · {{ r.plate_number }}<br>{{ r.service_name }}</p>
-    {% endif %}
-    {% set d = details.get(r.id, {}) %}
-    <div class="salary-detail">
-      <dl>
-        <dt>Комментарий</dt><dd>{{ r.visit_comment or r.comment or '—' }}</dd>
-        <dt>Материалы</dt>
-        <dd>
-          {% if d.materials %}
-            {% for m in d.materials %}{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}<br>{% endfor %}
-          {% elif r.material_m2 %}{{ "%.2f"|format(r.material_m2) }} м²{% else %}—{% endif %}
-        </dd>
-        <dt>Допуслуги</dt>
-        <dd>{% if d.extras %}{% for e in d.extras %}{{ e.name }} — {{ "%.0f"|format(e.price) }} ₽<br>{% endfor %}{% else %}—{% endif %}</dd>
-      </dl>
+  <div class="sal-totals">
+    <div class="sal-total-card card-surface active">
+      <span>Всего</span>
+      <strong>{{ "%.0f"|format(total) }} ₽</strong>
     </div>
   </div>
-  {% endfor %}
+
+  <div class="sal-list">
+    {% for r in rows %}
+    {% set d = details.get(r.id, {}) %}
+    <details class="sal-card card-surface">
+      <summary class="sal-card-summary">
+        <div class="sal-card-main">
+          <b>{{ "%.0f"|format(r.amount) }} ₽ · {{ r.period }}</b>
+          {% if r.appointment_date %}
+          <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}</span>
+          <span>{{ r.client_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+          <span class="sal-service">{{ r.service_name or '—' }}</span>
+          {% endif %}
+          <span>Записано: {{ r.created_at }}{% if r.closed_at %} · Закрыто: {{ r.closed_at }}{% endif %}</span>
+        </div>
+      </summary>
+      <div class="sal-card-details">
+        <div><span>Комментарий</span><b>{{ r.visit_comment or r.comment or '—' }}</b></div>
+        <div class="sal-materials">
+          <span>Материалы</span>
+          <b>
+            {% if d.materials %}
+              {% for m in d.materials %}{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+            {% elif r.material_m2 %}{{ "%.2f"|format(r.material_m2) }} м²{% else %}—{% endif %}
+          </b>
+        </div>
+        <div class="sal-comment">
+          <span>Допуслуги</span>
+          <b>
+            {% if d.extras %}
+              {% for e in d.extras %}{{ e.name }} — {{ "%.0f"|format(e.price) }} ₽{% if not loop.last %}<br>{% endif %}{% endfor %}
+            {% else %}—{% endif %}
+          </b>
+        </div>
+      </div>
+    </details>
+    {% else %}
+    <p class="sal-empty">Пока нет начислений</p>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

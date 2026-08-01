@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="profile-page staff-light">
 <header class="top"><h1>Профиль</h1><p>{{ user.full_name }} · {{ user.username }}</p></header>
 
 <div class="panel profile-card" id="pushPanel">
@@ -119,5 +120,6 @@
     <input type="password" name="confirm_password" placeholder="Повторите новый пароль" required autocomplete="new-password">
     <button>Сохранить пароль</button>
   </form>
+</div>
 </div>
 {% endblock %}

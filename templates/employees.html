@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="emp-page">
+<div class="emp-page staff-light">
   <header class="emp-header">
     <div>
       <p class="emp-kicker">Команда</p>
@@ -58,7 +58,7 @@
         {% endif %}
         {% if r.id != user.id %}
         <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" onsubmit="return confirm('Удалить {{ r.full_name }}?')">
-          <button type="submit" class="emp-del" aria-label="Удалить">🗑</button>
+          <button type="submit" class="emp-del" aria-label="Удалить">×</button>
         </form>
         {% endif %}
       </div>

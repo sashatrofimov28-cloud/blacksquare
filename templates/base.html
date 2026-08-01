@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>BlackSquare</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="{% block theme_color %}#050505{% endblock %}">
+  <meta name="theme-color" content="{% block theme_color %}{{ '#f2f2f7' if user else '#050505' }}{% endblock %}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="{% block status_bar_style %}black-translucent{% endblock %}">
   <link rel="manifest" href="{{ url_for('manifest') }}">
@@ -51,10 +51,10 @@
     }
   </style>
 </head>
-<body class="{% if user %}theme-dark{% endif %}{% block body_class %}{% endblock %}">
+<body class="{% if user %}theme-dark body-z-light{% endif %}{% block body_class %}{% endblock %}">
 {% if user %}
 <div class="app-shell">
-  <aside class="sidebar" id="sidebar" aria-label="Меню">
+  <aside class="sidebar sidebar-z" id="sidebar" aria-label="Меню">
     <div class="brand">
       <div class="wordmark">BlackSquare</div>
       <span>{{ 'директор' if user.role=='director' else ('администратор' if user.role=='admin' else 'мастер') }}</span>
@@ -81,7 +81,7 @@
       <button type="button" class="menu-btn" id="menuBtn" aria-label="Меню">☰</button>
       <div class="wordmark">BlackSquare</div>
     </header>
-    <main class="main scrollable has-bottom-nav{% block main_class %}{% endblock %}">
+    <main class="main scrollable has-bottom-nav main-z-light{% block main_class %}{% endblock %}">
 {% else %}
 <main class="auth-main">
 {% endif %}
@@ -94,7 +94,7 @@
 {% if user %}
     </main>
     {% from "macros/nav_icons.html" import nav_icon %}
-    <nav class="bottom-nav{% block nav_class %}{% endblock %}" aria-label="Навигация">
+    <nav class="bottom-nav bottom-nav-z{% block nav_class %}{% endblock %}" aria-label="Навигация">
       <a href="{{ url_for('dashboard') }}" class="bottom-nav-item{% if request.endpoint=='dashboard' %} active{% endif %}"><span class="bottom-nav-icon">{{ nav_icon('home') }}</span><span>Главная</span></a>
       {% for slot in bottom_nav_slots %}
       <a href="{{ slot.href }}" class="bottom-nav-item{% if slot.active %} active{% endif %}"><span class="bottom-nav-icon">{{ nav_icon(slot.icon) }}</span><span>{{ slot.label }}</span></a>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set r = item.user %}
-<div class="emp-detail">
+<div class="emp-detail staff-light">
   <header class="emp-detail-head">
     <a href="{{ url_for('employees', filter=emp_filter, q=q) }}" class="emp-detail-back" aria-label="Назад">‹</a>
     <div class="emp-detail-title">
@@ -10,7 +10,7 @@
     </div>
     {% if r.id != user.id %}
     <form method="post" action="{{ url_for('employee_delete', uid=r.id) }}" onsubmit="return confirm('Удалить {{ r.full_name }}?')">
-      <button type="submit" class="emp-del" aria-label="Удалить">🗑</button>
+      <button type="submit" class="emp-del" aria-label="Удалить">×</button>
     </form>
     {% endif %}
   </header>
