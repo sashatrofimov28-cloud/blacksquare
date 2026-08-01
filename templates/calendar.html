@@ -220,32 +220,30 @@
             </label>
           </div>
 
-          <div class="jr-block master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
+          <div class="jr-block master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm" data-ui="chips">
             <div class="jr-block-h">
               <b>Услуги</b>
               <span>можно несколько</span>
             </div>
             <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
-            <div class="master-add-row">
-              <select id="serviceSelect" class="master-select"><option value="">— Услуга —</option></select>
-              <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
-            </div>
-            <div id="serviceChips" class="master-chips"></div>
+            <div class="jr-svc-chips" id="serviceChipGrid"></div>
             <div id="serviceHiddenInputs"></div>
+            <select id="serviceSelect" hidden aria-hidden="true" tabindex="-1"><option value="">—</option></select>
+            <button type="button" class="ghost" id="addServiceBtn" hidden tabindex="-1">Добавить</button>
+            <div id="serviceChips" class="master-chips" hidden></div>
           </div>
 
-          <div class="jr-block master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
+          <div class="jr-block master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm" data-ui="cards">
             <div class="jr-block-h">
-              <b>Мастера</b>
+              <b>Мастер</b>
               <span>из журнала</span>
             </div>
             <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
-            <div class="master-add-row">
-              <select id="masterSelect" class="master-select"><option value="">— Мастер —</option></select>
-              <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
-            </div>
-            <div id="masterChips" class="master-chips"></div>
+            <div class="jr-masters" id="masterCardGrid"></div>
             <div id="masterHiddenInputs"></div>
+            <select id="masterSelect" hidden aria-hidden="true" tabindex="-1"><option value="">—</option></select>
+            <button type="button" class="ghost" id="addMasterBtn" hidden tabindex="-1">Добавить</button>
+            <div id="masterChips" class="master-chips" hidden></div>
           </div>
 
           <div class="jr-field">
