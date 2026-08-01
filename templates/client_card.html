@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
 {% block content %}
-<div class="client-page client-page-a close-page-b">
+<div class="client-page client-page-a close-page-b client-page-z">
   <header class="client-topbar">
     <a href="{{ url_for('crm') }}" class="close-back" aria-label="Назад">‹</a>
     <span>Клиент</span>
@@ -19,31 +24,27 @@
   </div>
 
   <div class="client-actions">
-    <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}"><span class="client-act-icon" aria-hidden="true">📞</span>Позвонить</a>
-    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone, car=booking_car, plate_number=booking_plate) }}"><span class="client-act-icon" aria-hidden="true">📅</span>Записать</a>
+    <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}">Позвонить</a>
+    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=client.name, phone=client.phone, car=booking_car, plate_number=booking_plate) }}">Записать</a>
     {% if client.bonus_code %}
-    <button type="button" class="client-act" id="clientQrOpen"><span class="client-act-icon" aria-hidden="true">▦</span>QR карты</button>
+    <button type="button" class="client-act" id="clientQrOpen">QR карты</button>
     {% endif %}
   </div>
 
   <div class="client-stats">
     <div class="client-stat card-surface">
-      <span class="client-stat-icon" aria-hidden="true">★</span>
       <span class="client-stat-label">Бонусы</span>
       <strong>{{ format_money(client.bonus_balance or 0) }} ₽</strong>
     </div>
     <div class="client-stat card-surface">
-      <span class="client-stat-icon" aria-hidden="true">📅</span>
       <span class="client-stat-label">Визитов</span>
       <strong>{{ closed_visits }}</strong>
     </div>
     <div class="client-stat card-surface">
-      <span class="client-stat-icon" aria-hidden="true">%</span>
       <span class="client-stat-label">Начисление</span>
       <strong>{% if client.bonus_percent is not none and client.bonus_percent != '' %}{{ client.bonus_percent }}%{% else %}{{ global_bonus_percent }}%{% endif %}</strong>
     </div>
     <div class="client-stat card-surface">
-      <span class="client-stat-icon" aria-hidden="true">₽</span>
       <span class="client-stat-label">Всего</span>
       <strong>{{ format_money(ltv_total) }} ₽</strong>
     </div>
@@ -51,7 +52,6 @@
 
   {% if client.comment %}
   <div class="client-comment-pin">
-    <span aria-hidden="true">💬</span>
     <p>{{ client.comment }}</p>
   </div>
   {% endif %}
