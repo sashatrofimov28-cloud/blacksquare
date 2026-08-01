@@ -184,45 +184,105 @@
   </details>
   {% endif %}
 
-  <details class="jr-fold cal-booking-fold" id="calBookingFold">
-    <summary id="calBookingSummary">+ Записать клиента</summary>
-    <div class="panel cal-booking-panel">
-      <p class="cal-booking-note" id="calBookingHint">Нажмите свободный слот в колонке мастера или кнопку «+».</p>
-      <p class="cal-booking-link"><b>Ссылка клиенту:</b> <a href="{{ booking_url }}" target="_blank" rel="noopener">{{ booking_url }}</a></p>
-      <form method="post" class="form-grid cal-booking-form" id="manualBookingForm" autocomplete="off">
-        <input name="client_name" id="calClientName" placeholder="Клиент" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
-        <input name="phone" id="calClientPhone" placeholder="Телефон" value="{{ form_data.get('phone', '') if form_data else '' }}" required inputmode="tel" autocomplete="tel">
-        <p class="cal-client-hint" id="calClientHint" hidden></p>
-        <input name="car" id="calClientCar" class="js-car-ac" placeholder="Авто" value="{{ form_data.get('car', '') if form_data else '' }}">
-        <input name="plate_number" id="calClientPlate" placeholder="Госномер" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
-        <div class="span4 master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
-          <label class="master-picker-label">Услуги *</label>
-          <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
-          <div class="master-add-row">
-            <select id="serviceSelect" class="master-select"><option value="">— Услуга —</option></select>
-            <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+  <div class="jr-sheet-root{% if master_error or service_error or form_data %} open{% endif %}" id="jrSheetRoot" aria-hidden="{{ 'false' if (master_error or service_error or form_data) else 'true' }}">
+    <button type="button" class="jr-sheet-scrim" id="jrSheetScrim" aria-label="Закрыть"></button>
+    <div class="jr-sheet" role="dialog" aria-modal="true" aria-labelledby="jrSheetTitle">
+      <div class="jr-sheet-handle" aria-hidden="true"></div>
+      <div class="jr-sheet-head">
+        <button type="button" class="jr-sheet-x" id="jrSheetClose" aria-label="Закрыть">×</button>
+        <h2 id="jrSheetTitle">Новая запись</h2>
+        <span class="jr-sheet-x-spacer" aria-hidden="true"></span>
+      </div>
+      <div class="jr-sheet-meta" id="jrSheetMeta">
+        <div><span>Дата</span><b id="jrSheetDateLabel">{{ date_title }}</b></div>
+        <div class="jr-sheet-meta-right"><span>Время · мастер</span><b id="jrSheetTimeMaster">—</b></div>
+      </div>
+      <div class="jr-sheet-scroll">
+        <p class="jr-sheet-hint" id="calBookingHint">Нажмите свободный слот в колонке мастера или кнопку «+».</p>
+        <form method="post" class="jr-sheet-form" id="manualBookingForm" autocomplete="off">
+          <label class="jr-field">
+            <span>Клиент</span>
+            <input name="client_name" id="calClientName" placeholder="Имя" value="{{ form_data.get('client_name', '') if form_data else '' }}" required>
+          </label>
+          <label class="jr-field">
+            <span>Телефон</span>
+            <input name="phone" id="calClientPhone" placeholder="+7 …" value="{{ form_data.get('phone', '') if form_data else '' }}" required inputmode="tel" autocomplete="tel">
+          </label>
+          <p class="cal-client-hint" id="calClientHint" hidden></p>
+          <div class="jr-row2">
+            <label class="jr-field">
+              <span>Авто</span>
+              <input name="car" id="calClientCar" class="js-car-ac" placeholder="Марка / модель" value="{{ form_data.get('car', '') if form_data else '' }}">
+            </label>
+            <label class="jr-field">
+              <span>Госномер</span>
+              <input name="plate_number" id="calClientPlate" placeholder="А000АА 72" value="{{ form_data.get('plate_number', '') if form_data else '' }}">
+            </label>
           </div>
-          <div id="serviceChips" class="master-chips"></div>
-          <div id="serviceHiddenInputs"></div>
-        </div>
-        <div class="span4 master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
-          <label class="master-picker-label">Мастера *</label>
-          <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
-          <div class="master-add-row">
-            <select id="masterSelect" class="master-select"><option value="">— Мастер —</option></select>
-            <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+
+          <div class="jr-block master-picker {% if service_error %}field-error{% endif %}" id="servicePicker" data-form-id="manualBookingForm">
+            <div class="jr-block-h">
+              <b>Услуги</b>
+              <span>можно несколько</span>
+            </div>
+            <span class="field-hint service-required-hint" {% if not service_error %}hidden{% endif %}>Выберите хотя бы одну услугу</span>
+            <div class="master-add-row">
+              <select id="serviceSelect" class="master-select"><option value="">— Услуга —</option></select>
+              <button type="button" class="ghost" id="addServiceBtn">Добавить</button>
+            </div>
+            <div id="serviceChips" class="master-chips"></div>
+            <div id="serviceHiddenInputs"></div>
           </div>
-          <div id="masterChips" class="master-chips"></div>
-          <div id="masterHiddenInputs"></div>
-        </div>
-        <input type="date" name="appointment_date" id="calApptDate" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
-        <input type="time" name="start_time" id="calStartTime" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
-        <input name="price" type="number" step="0.01" placeholder="Цена ₽" value="{{ form_data.get('price', '') if form_data else '' }}">
-        <input name="comment" placeholder="Комментарий" value="{{ form_data.get('comment', '') if form_data else '' }}">
-        <button class="span4">Добавить запись</button>
-      </form>
+
+          <div class="jr-block master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm">
+            <div class="jr-block-h">
+              <b>Мастера</b>
+              <span>из журнала</span>
+            </div>
+            <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
+            <div class="master-add-row">
+              <select id="masterSelect" class="master-select"><option value="">— Мастер —</option></select>
+              <button type="button" class="ghost" id="addMasterBtn">Добавить</button>
+            </div>
+            <div id="masterChips" class="master-chips"></div>
+            <div id="masterHiddenInputs"></div>
+          </div>
+
+          <div class="jr-field">
+            <span>Ближайшие слоты</span>
+            <div class="jr-time-row" id="jrNearSlots" aria-label="Ближайшие слоты"></div>
+            <p class="jr-slots-empty" id="jrSlotsEmpty" hidden>Нет свободных слотов на эту дату</p>
+          </div>
+
+          <div class="jr-row2">
+            <label class="jr-field">
+              <span>Дата</span>
+              <input type="date" name="appointment_date" id="calApptDate" value="{{ form_data.get('appointment_date', selected) if form_data else selected }}">
+            </label>
+            <label class="jr-field">
+              <span>Время</span>
+              <input type="time" name="start_time" id="calStartTime" value="{{ form_data.get('start_time', '') if form_data else '' }}" required>
+            </label>
+          </div>
+          <div class="jr-row2">
+            <label class="jr-field">
+              <span>Цена, ₽</span>
+              <input name="price" type="number" step="0.01" placeholder="0" value="{{ form_data.get('price', '') if form_data else '' }}">
+            </label>
+            <label class="jr-field">
+              <span>Комментарий</span>
+              <input name="comment" placeholder="Необязательно" value="{{ form_data.get('comment', '') if form_data else '' }}">
+            </label>
+          </div>
+          <p class="jr-sheet-link"><a href="{{ booking_url }}" target="_blank" rel="noopener">Ссылка клиенту на онлайн-запись →</a></p>
+          <button type="submit" class="jr-sheet-submit-mobile">Сохранить запись</button>
+        </form>
+      </div>
+      <div class="jr-sheet-foot">
+        <button type="submit" form="manualBookingForm" class="jr-sheet-save">Сохранить запись</button>
+      </div>
     </div>
-  </details>
+  </div>
 
   <button type="button" class="jr-fab" id="jrFab" aria-label="Новая запись">+</button>
 </div>
@@ -231,9 +291,13 @@ window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ (form_data.getlist('employee_ids') if form_data else [])|tojson }};
 window.BS_SERVICES = {{ services_json|safe }};
 window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data else [])|tojson }};
+window.BS_STUDIO_OPEN = {{ studio_open_time()|tojson }};
+window.BS_STUDIO_CLOSE = {{ studio_close_time()|tojson }};
+window.BS_DATE_TITLE = {{ date_title|tojson }};
 (function () {
-  const fold = document.getElementById('calBookingFold');
-  const summary = document.getElementById('calBookingSummary');
+  const sheetRoot = document.getElementById('jrSheetRoot');
+  const sheetClose = document.getElementById('jrSheetClose');
+  const sheetScrim = document.getElementById('jrSheetScrim');
   const hint = document.getElementById('calBookingHint');
   const dateInput = document.getElementById('calApptDate');
   const timeInput = document.getElementById('calStartTime');
@@ -246,10 +310,118 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
   const searchToggle = document.getElementById('jrSearchToggle');
   const searchForm = document.getElementById('jrSearch');
   const searchInput = document.getElementById('jrSearchInput');
+  const nearSlots = document.getElementById('jrNearSlots');
+  const slotsEmpty = document.getElementById('jrSlotsEmpty');
+  const metaTimeMaster = document.getElementById('jrSheetTimeMaster');
+  const metaDateLabel = document.getElementById('jrSheetDateLabel');
   const grids = document.querySelectorAll('.jr-grid');
   let lookupTimer = null;
   let lookupToken = 0;
-  let activeMarker = null;
+  let slotsTimer = null;
+
+  function openSheet() {
+    if (!sheetRoot) return;
+    sheetRoot.classList.add('open');
+    sheetRoot.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('jr-sheet-open');
+    refreshNearSlots();
+    updateMeta();
+  }
+
+  function closeSheet() {
+    if (!sheetRoot) return;
+    sheetRoot.classList.remove('open');
+    sheetRoot.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('jr-sheet-open');
+  }
+
+  function selectedMasterIds() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#masterHiddenInputs input[name="employee_ids"]'),
+      function (el) { return el.value; }
+    );
+  }
+
+  function selectedServiceIds() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#serviceHiddenInputs input[name="service_ids"]'),
+      function (el) { return el.value; }
+    );
+  }
+
+  function masterNameById(id) {
+    const m = (window.BS_MASTERS || []).find(function (x) { return String(x.id) === String(id); });
+    return m ? (m.name || '').split(/\s+/)[0] : '';
+  }
+
+  function updateMeta() {
+    const time = (timeInput && timeInput.value) || '—';
+    const mid = selectedMasterIds()[0];
+    const mname = mid ? masterNameById(mid) : '';
+    if (metaTimeMaster) metaTimeMaster.textContent = mname ? (time + ' · ' + mname) : time;
+    if (metaDateLabel && dateInput && dateInput.value && window.BS_DATE_TITLE) {
+      // keep server title for selected journal day; update only if date matches selected page day
+    }
+  }
+
+  function normalizeHm(t) {
+    if (!t) return '';
+    const p = String(t).split(':');
+    if (p.length < 2) return '';
+    return String(parseInt(p[0], 10)).padStart(2, '0') + ':' + String(parseInt(p[1], 10)).padStart(2, '0');
+  }
+
+  function renderNearSlots(slots, active) {
+    if (!nearSlots) return;
+    nearSlots.innerHTML = '';
+    const act = normalizeHm(active);
+    if (!slots || !slots.length) {
+      if (slotsEmpty) slotsEmpty.hidden = false;
+      return;
+    }
+    if (slotsEmpty) slotsEmpty.hidden = true;
+    // Prefer slots around active time: take up to 8 nearest
+    let list = slots.slice();
+    if (act) {
+      const actM = parseInt(act.split(':')[0], 10) * 60 + parseInt(act.split(':')[1], 10);
+      list = list.slice().sort(function (a, b) {
+        const am = parseInt(a.start.split(':')[0], 10) * 60 + parseInt(a.start.split(':')[1], 10);
+        const bm = parseInt(b.start.split(':')[0], 10) * 60 + parseInt(b.start.split(':')[1], 10);
+        return Math.abs(am - actM) - Math.abs(bm - actM);
+      }).slice(0, 8).sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    } else {
+      list = list.slice(0, 8);
+    }
+    list.forEach(function (s) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'jr-tchip' + (normalizeHm(s.start) === act ? ' on' : '');
+      btn.textContent = s.start;
+      btn.addEventListener('click', function () {
+        if (timeInput) timeInput.value = s.start;
+        nearSlots.querySelectorAll('.jr-tchip').forEach(function (el) { el.classList.remove('on'); });
+        btn.classList.add('on');
+        updateMeta();
+      });
+      nearSlots.appendChild(btn);
+    });
+  }
+
+  function refreshNearSlots() {
+    if (!nearSlots || !dateInput) return;
+    clearTimeout(slotsTimer);
+    slotsTimer = setTimeout(function () {
+      const params = new URLSearchParams();
+      params.set('date', dateInput.value || '');
+      const mid = selectedMasterIds()[0];
+      if (mid) params.set('employee_id', mid);
+      selectedServiceIds().forEach(function (sid) { params.append('service_ids', sid); });
+      fetch('/api/journal-slots?' + params.toString(), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { renderNearSlots(data || [], timeInput && timeInput.value); })
+        .catch(function () { renderNearSlots([], timeInput && timeInput.value); });
+    }, 120);
+  }
 
   function setClientHint(text, tone) {
     if (!clientHint) return;
@@ -318,10 +490,30 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     });
   }
 
+  if (sheetClose) sheetClose.addEventListener('click', closeSheet);
+  if (sheetScrim) sheetScrim.addEventListener('click', closeSheet);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sheetRoot && sheetRoot.classList.contains('open')) closeSheet();
+  });
+
+  if (dateInput) dateInput.addEventListener('change', function () { refreshNearSlots(); updateMeta(); });
+  if (timeInput) timeInput.addEventListener('change', function () { updateMeta(); refreshNearSlots(); });
+
+  // Refresh slots when masters/services chips change
+  const masterHidden = document.getElementById('masterHiddenInputs');
+  const serviceHidden = document.getElementById('serviceHiddenInputs');
+  if (masterHidden) {
+    const mo = new MutationObserver(function () { refreshNearSlots(); updateMeta(); });
+    mo.observe(masterHidden, { childList: true });
+  }
+  if (serviceHidden) {
+    const so = new MutationObserver(function () { refreshNearSlots(); });
+    so.observe(serviceHidden, { childList: true });
+  }
+
   var bookParams = new URLSearchParams(window.location.search);
-  if (bookParams.get('book') === '1' && fold) {
-    fold.open = true;
-    fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (bookParams.get('book') === '1') {
+    openSheet();
     if (bookParams.get('client_name') && nameInput) nameInput.value = bookParams.get('client_name');
     if (bookParams.get('car') && carInput) carInput.value = bookParams.get('car');
     if (bookParams.get('plate_number') && plateInput) plateInput.value = bookParams.get('plate_number');
@@ -331,9 +523,13 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
     }
     if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 300);
   }
+  if (sheetRoot && sheetRoot.classList.contains('open')) {
+    refreshNearSlots();
+    updateMeta();
+  }
 
   function openBookingAt(time, top, height, masterId, markerEl, dayDate) {
-    if (!fold || !dateInput || !timeInput) return;
+    if (!dateInput || !timeInput) return;
     dateInput.value = dayDate;
     timeInput.value = time;
     document.querySelectorAll('.jr-marker').forEach(function (m) { m.hidden = true; });
@@ -341,30 +537,26 @@ window.BS_INITIAL_SERVICES = {{ (form_data.getlist('service_ids') if form_data e
       markerEl.hidden = false;
       markerEl.style.top = top + 'px';
       markerEl.style.height = (height || 28) + 'px';
-      activeMarker = markerEl;
     }
     if (masterId && window.BS_setAppointmentMasters) {
       window.BS_setAppointmentMasters([masterId]);
     }
-    if (summary) summary.textContent = 'Запись на ' + time;
-    if (hint) hint.textContent = 'Новая запись на ' + dayDate + ' в ' + time + '. Заполните данные клиента ниже.';
-    fold.open = true;
-    fold.classList.add('slot-active');
-    fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (hint) hint.textContent = 'Слот и мастер подставлены из журнала. Можно поменять.';
+    openSheet();
     if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 200);
   }
 
-  if (fab && fold) {
+  if (fab) {
     fab.addEventListener('click', function () {
-      fold.open = true;
-      fold.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      if (summary) summary.textContent = '+ Записать клиента';
+      if (hint) hint.textContent = 'Заполните клиента, услугу и мастера. Слот можно выбрать ниже.';
+      openSheet();
       if (phoneInput) setTimeout(function () { phoneInput.focus(); }, 200);
     });
   }
 
   grids.forEach(function (grid) {
-    const pxPerHour = parseFloat(getComputedStyle(document.querySelector('.jr-board')).getPropertyValue('--jr-hour')) || 56;
+    const board = document.querySelector('.jr-board');
+    const pxPerHour = board ? (parseFloat(getComputedStyle(board).getPropertyValue('--jr-hour')) || 56) : 56;
     const dayDate = grid.dataset.selectedDate;
     const masterId = grid.dataset.masterId;
     const marker = grid.querySelector('.jr-marker');
