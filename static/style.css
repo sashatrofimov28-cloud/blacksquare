@@ -940,24 +940,45 @@ body.jr-sheet-open{overflow:hidden}
   min-height:44px;box-sizing:border-box
 }
 .jr-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.jr-block{
-  margin:2px 0;padding:12px;border-radius:16px;background:#fff;border:1px solid #e5e5ea
+.jr-block,
+.jr-sheet .master-picker,
+.theme-dark .jr-sheet .master-picker,
+.theme-dark .jr-sheet .jr-block.master-picker{
+  margin:2px 0;padding:12px;border-radius:16px;
+  background:#fff!important;border:1px solid #e5e5ea!important;color:#111!important;
+  box-shadow:none
 }
-.jr-block.field-error{border-color:#c62828;background:#fff5f5;box-shadow:0 0 0 2px rgba(198,40,40,.12)}
+.jr-block.field-error,
+.jr-sheet .master-picker.field-error,
+.theme-dark .jr-sheet .master-picker.field-error{
+  border-color:#c62828!important;background:#fff5f5!important;
+  box-shadow:0 0 0 2px rgba(198,40,40,.12)
+}
 .jr-block-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.jr-block-h b{font-size:13px;font-weight:800;color:#111}
-.jr-block-h span{font-size:11px;color:#8e8e93;font-weight:600}
+.jr-block-h b{font-size:13px;font-weight:800;color:#111!important}
+.jr-block-h span{font-size:11px;color:#8e8e93!important;font-weight:600}
 .jr-sheet .master-picker-label{display:none}
 .jr-sheet .master-add-row{display:flex;gap:8px;margin-bottom:8px}
-.jr-sheet .master-add-row .ghost{
+.jr-sheet .master-add-row .ghost,
+.theme-dark .jr-sheet .master-add-row .ghost{
   background:#f2f2f7!important;color:#111!important;border:1px solid #e5e5ea!important;
   border-radius:12px;padding:10px 12px;font-weight:700;min-height:44px;white-space:nowrap
 }
-.jr-sheet .master-chip{
+.jr-sheet .master-chips{margin-top:8px}
+.jr-sheet .master-chip,
+.theme-dark .jr-sheet .master-chip{
   background:#e8f6ef!important;color:#0a7d4f!important;border:1px solid #9dd9bb!important
 }
-.jr-sheet .master-chip-remove{color:#0a7d4f!important}
-.jr-sheet .field-hint{color:#c62828;font-size:12px;font-weight:700;margin:0 0 6px;display:block}
+.jr-sheet .master-chip-remove,
+.theme-dark .jr-sheet .master-chip-remove{color:#0a7d4f!important}
+.jr-sheet .field-hint,
+.jr-sheet .service-required-hint,
+.jr-sheet .master-required-hint{color:#c62828!important;font-size:12px;font-weight:700;margin:0 0 6px;display:block}
+.jr-sheet,
+.theme-dark .jr-sheet{color:#111}
+.jr-sheet .jr-block-h,
+.jr-sheet .jr-field>span,
+.jr-sheet label{color:inherit}
 .jr-time-row{
   display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch
 }
