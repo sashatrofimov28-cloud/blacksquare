@@ -310,6 +310,7 @@
   background:var(--z-card);border:1px solid var(--z-border);border-radius:16px;
   padding:12px 12px 12px 0;overflow:hidden;text-decoration:none;color:inherit;
 }
+.dzc-appt-static{cursor:default}
 .dzc-stripe{width:4px;align-self:stretch;border-radius:0 4px 4px 0}
 .dzc-stripe.work{background:#0071e3}
 .dzc-stripe.wait{background:#c77d00}
