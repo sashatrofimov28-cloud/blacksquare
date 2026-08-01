@@ -1,78 +1,85 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
 {% block content %}
-<div class="crm-page">
-  <header class="crm-header">
-    <div>
-      <p class="crm-kicker">CRM</p>
+<div class="crm-page crm-page-z">
+  <header class="crm-z-top">
+    <div class="crm-z-top-row">
       <h1>Клиенты</h1>
+      <a href="#crmAdd" class="crm-z-add" aria-label="Добавить клиента">+</a>
     </div>
-    <a href="#crmAdd" class="crm-add-btn" aria-label="Добавить клиента">+</a>
+    <div class="crm-z-stats">
+      <div class="crm-z-stat">
+        <small>Всего</small>
+        <b>{{ crm_stats.total }}</b>
+      </div>
+      <div class="crm-z-stat">
+        <small>Новых</small>
+        <b>{{ crm_stats.new }}</b>
+      </div>
+    </div>
   </header>
 
-  <div class="crm-stats">
-    <div class="crm-stat tone-purple">
-      <span class="crm-stat-icon">👥</span>
-      <div><strong>{{ crm_stats.total }}</strong><span>клиентов</span></div>
-    </div>
-    <div class="crm-stat tone-blue">
-      <span class="crm-stat-icon">✦</span>
-      <div><strong>{{ crm_stats.new }}</strong><span>новых</span></div>
-    </div>
-  </div>
-
-  <form method="get" class="crm-search">
+  <form method="get" class="crm-z-search">
     <input type="hidden" name="filter" value="{{ crm_filter }}">
-    <input name="q" value="{{ q }}" placeholder="Поиск клиентов…">
-    {% if q %}<a class="crm-search-clear" href="{{ url_for('crm', filter=crm_filter) }}">×</a>{% endif %}
+    <input name="q" value="{{ q }}" placeholder="Имя, телефон, авто…">
+    {% if q %}<a class="crm-z-search-clear" href="{{ url_for('crm', filter=crm_filter) }}">×</a>{% endif %}
   </form>
 
-  <nav class="crm-filters scrollable-x" aria-label="Фильтр">
+  <nav class="crm-z-filters" aria-label="Фильтр">
     {% for key, label in crm_filters %}
-    <a href="{{ url_for('crm', filter=key, q=q) }}" class="crm-filter{% if crm_filter == key %} active{% endif %} {{ crm_status_tone(key) if key != 'all' else '' }}">
+    <a href="{{ url_for('crm', filter=key, q=q) }}" class="crm-z-filter{% if crm_filter == key %} on{% endif %}">
       {{ label }}{% if crm_counts.get(key, 0) %} <em>{{ crm_counts.get(key, 0) }}</em>{% endif %}
     </a>
     {% endfor %}
   </nav>
 
-  <div class="crm-list">
+  <div class="crm-z-list">
     {% for item in rows %}
     {% set c = item.client %}
-    <a class="crm-card {{ item.status_tone }}" href="{{ url_for('client_card', cid=c.id) }}">
-      <div class="crm-card-avatar">{{ item.initials }}</div>
-      <div class="crm-card-body">
-        <div class="crm-card-top">
+    <a class="crm-z-card {{ item.status_tone }}" href="{{ url_for('client_card', cid=c.id) }}">
+      <div class="crm-z-av">{{ item.initials }}</div>
+      <div class="crm-z-body">
+        <div class="crm-z-row">
           <b>{{ c.name }}</b>
-          {% if item.visit_at %}<span class="crm-card-date">{{ item.visit_at[:16] }}</span>{% endif %}
+          {% if item.visit_at %}<span class="crm-z-date">{{ item.visit_at[:16] }}</span>{% endif %}
         </div>
-        <span class="crm-card-phone">{{ c.phone or '—' }}</span>
-        <span class="crm-card-car">{{ item.car_label }}</span>
-        <span class="crm-pill {{ item.status_tone }}">{{ item.status_label }}</span>
+        <span class="crm-z-meta">{{ c.phone or '—' }}</span>
+        <span class="crm-z-meta">{{ item.car_label }}</span>
+        <span class="crm-z-pill {{ item.status_tone }}">{{ item.status_label }}</span>
       </div>
-      {% if item.last_price %}<strong class="crm-card-price">{{ format_money(item.last_price) }} ₽</strong>{% endif %}
+      {% if item.last_price %}<strong class="crm-z-price">{{ format_money(item.last_price) }} ₽</strong>{% endif %}
     </a>
     {% else %}
-    <p class="crm-empty">Клиенты не найдены</p>
+    <p class="crm-z-empty">Клиенты не найдены</p>
     {% endfor %}
   </div>
 
-  <details class="crm-add-fold" id="crmAdd">
+  <details class="crm-z-fold" id="crmAdd">
     <summary>＋ Добавить клиента</summary>
-    <form method="post" class="form-grid crm-add-form">
+    <form method="post" class="crm-z-form">
       <input name="name" placeholder="Имя" required>
-      <input name="phone" placeholder="Телефон">
-      <input name="car" class="js-car-ac" placeholder="Авто">
-      <input name="plate_number" placeholder="Госномер">
-      <select name="stage">
-        <option>Новый</option>
-        <option>Думает</option>
-        <option>Дорого</option>
-        <option>Вернуться позже</option>
-        <option>Записан</option>
-        <option>Отказ</option>
-      </select>
-      <input name="source" placeholder="Источник">
-      <input name="comment" placeholder="Комментарий" class="span4">
-      <button class="span4">Добавить</button>
+      <input name="phone" placeholder="Телефон" inputmode="tel">
+      <div class="crm-z-row2">
+        <input name="car" class="js-car-ac" placeholder="Авто">
+        <input name="plate_number" placeholder="Госномер">
+      </div>
+      <div class="crm-z-row2">
+        <select name="stage">
+          <option>Новый</option>
+          <option>Думает</option>
+          <option>Дорого</option>
+          <option>Вернуться позже</option>
+          <option>Записан</option>
+          <option>Отказ</option>
+        </select>
+        <input name="source" placeholder="Источник">
+      </div>
+      <input name="comment" placeholder="Комментарий">
+      <button type="submit">Добавить</button>
     </form>
   </details>
 </div>
