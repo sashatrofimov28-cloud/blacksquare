@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v82'
+BUILD_VERSION = 'client-v83'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -4441,16 +4441,70 @@ def dashboard():
     if u['role'] == 'master':
         mf = master_appointment_filter_sql()
         day = today()
-        upcoming = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status NOT IN ('Закрыт','Отменен') ORDER BY appointment_date ASC,start_time ASC LIMIT 12", (u['id'], u['id'])).fetchall()
+        upcoming = con.execute(
+            f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+            f"WHERE {mf} AND status NOT IN ('Закрыт','Отменен') "
+            f"ORDER BY appointment_date ASC,start_time ASC LIMIT 20",
+            (u['id'], u['id']),
+        ).fetchall()
         closed_today = con.execute(
             f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
             f"WHERE {mf} AND {closed_today_sql('a')} "
             f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
             (u['id'], u['id'], day, day),
         ).fetchall()
-        completed = con.execute(f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id WHERE {mf} AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12", (u['id'], u['id'])).fetchall()
-        total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
-        con.close(); return render_template('master_dashboard.html', upcoming=upcoming, closed_today=closed_today, completed=completed, total=total)
+        completed = con.execute(
+            f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
+            f"WHERE {mf} AND status='Закрыт' ORDER BY appointment_date DESC,start_time DESC LIMIT 12",
+            (u['id'], u['id']),
+        ).fetchall()
+        total = con.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?",
+            (u['id'],),
+        ).fetchone()['s']
+        salary_today = con.execute(
+            "SELECT COALESCE(SUM(s.amount),0) s FROM salary s "
+            "JOIN appointments a ON a.id=s.appointment_id "
+            "WHERE s.employee_id=? AND a.status='Закрыт' "
+            "AND date(COALESCE(substr(a.closed_at,1,10), a.appointment_date))=?",
+            (u['id'], day),
+        ).fetchone()['s']
+        day_clients = con.execute(
+            f"SELECT COUNT(DISTINCT a.phone) c FROM appointments a "
+            f"WHERE {mf} AND a.appointment_date=? AND a.status!='Отменен' "
+            f"AND a.phone IS NOT NULL AND TRIM(a.phone)!=''",
+            (u['id'], u['id'], day),
+        ).fetchone()['c']
+        day_remaining = con.execute(
+            f"SELECT COUNT(*) c FROM appointments a "
+            f"WHERE {mf} AND a.appointment_date=? AND a.status NOT IN ('Закрыт','Отменен','В работе','Начат')",
+            (u['id'], u['id'], day),
+        ).fetchone()['c']
+        day_status = {
+            'in_work': sum(1 for r in upcoming if (r['status'] or '') in ('В работе', 'Начат') and r['appointment_date'] == day),
+            'waiting': int(day_remaining or 0),
+            'closed': len(closed_today),
+        }
+        in_work_list = [r for r in upcoming if (r['status'] or '') in ('В работе', 'Начат')]
+        closed_today_sum = sum(float(r['price'] or 0) for r in closed_today)
+        con.close()
+        return render_template(
+            'master_dashboard.html',
+            upcoming=upcoming,
+            closed_today=closed_today,
+            completed=completed,
+            total=total,
+            salary_today=float(salary_today or 0),
+            closed_today_sum=closed_today_sum,
+            day_status=day_status,
+            in_work_list=in_work_list,
+            greet_line=greeting_by_hour(),
+            greet_name=user_first_name(u),
+            greet_initials=user_initials(u),
+            day_clients=int(day_clients or 0),
+            day_remaining=int(day_remaining or 0),
+            period='today',
+        )
 
     period = request.args.get('period', 'today')
     if period not in ('today', 'yesterday', 'week', 'month', 'year'):
