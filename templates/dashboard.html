@@ -28,9 +28,14 @@
       <div><small>Клиентов</small><b>{{ day_clients if period == 'today' else closed_n }}</b></div>
       <div><small>{% if period == 'today' %}Осталось записей{% else %}Закрыто{% endif %}</small><b>{% if period == 'today' %}{{ day_remaining }}{% else %}{{ closed_n }}{% endif %}</b></div>
     </div>
+    <div class="dzc-pay-break" aria-label="Разбивка оплаты">
+      <div><small>Наличные</small><b>{{ format_money(stats.paid_cash or 0) }}</b></div>
+      <div><small>Перевод</small><b>{{ format_money(stats.paid_transfer or 0) }}</b></div>
+      <div><small>Карта</small><b>{{ format_money(stats.paid_card or 0) }}</b></div>
+    </div>
   </section>
 
-  {% if has_perm('calendar') or has_perm('crm') or has_perm('finance') %}
+  {% if has_perm('calendar') or has_perm('crm') or has_perm('analytics') %}
   <div class="dzc-actions">
     {% if has_perm('calendar') %}
     <a class="dzc-act primary" href="{{ url_for('calendar_view') }}#calBookingFold">
@@ -49,13 +54,7 @@
       </i>Клиенты
     </a>
     {% endif %}
-    {% if has_perm('finance') %}
-    <a class="dzc-act" href="{{ url_for('finance') }}">
-      <i aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/></svg>
-      </i>Касса
-    </a>
-    {% elif has_perm('analytics') %}
+    {% if has_perm('analytics') %}
     <a class="dzc-act" href="{{ url_for('analytics') }}">
       <i aria-hidden="true">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9l8-5 8 5v10"/></svg>

@@ -281,6 +281,15 @@
 }
 .dzc-summary-row small{display:block;font-size:11px;color:var(--z-muted);font-weight:600}
 .dzc-summary-row b{display:block;margin-top:3px;font-size:15px;font-weight:750}
+.dzc-pay-break{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:12px;padding-top:12px;border-top:1px solid var(--z-border);
+}
+.dzc-pay-break div{
+  background:#f5f5f7;border-radius:12px;padding:10px 8px;text-align:center;
+}
+.dzc-pay-break small{display:block;font-size:11px;color:var(--z-muted);margin-bottom:2px;font-weight:600}
+.dzc-pay-break b{display:block;font-size:14px;font-weight:800;color:var(--z-text);letter-spacing:-.02em}
 .dzc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .dzc-act{
   display:flex;align-items:center;gap:10px;padding:12px;border-radius:16px;
