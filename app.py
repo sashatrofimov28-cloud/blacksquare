@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v91'
+BUILD_VERSION = 'client-v92'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -535,12 +535,38 @@ def employee_tenure_label(user):
         d = date.fromisoformat(str(ref)[:10])
     except ValueError:
         return '—'
-    days = (app_today() - d).days
+    days = max(0, (app_today() - d).days)
     years = days // 365
+    months = (days % 365) // 30
     if years >= 1:
+        if months:
+            return f'Стаж {years} г. {months} мес.'
         return f'Стаж {years} г.'
-    months = max(1, days // 30)
-    return f'Стаж {months} мес.'
+    if months >= 1:
+        return f'Стаж {months} мес.'
+    if days >= 1:
+        return f'Стаж {days} дн.'
+    return 'Стаж сегодня'
+
+def employee_tenure_parts(user):
+    ref = user['hired_at'] or user['created_at']
+    hired = ''
+    try:
+        hired = str(ref)[:10] if ref else ''
+        d = date.fromisoformat(hired) if hired else None
+    except ValueError:
+        d = None
+        hired = ''
+    if not d:
+        return {'hired_at': hired, 'days': 0, 'months': 0, 'years': 0, 'label': '—'}
+    days = max(0, (app_today() - d).days)
+    return {
+        'hired_at': hired,
+        'days': days,
+        'months': days // 30,
+        'years': days // 365,
+        'label': employee_tenure_label(user),
+    }
 
 def enrich_employee(con, user, user_services_map, service_names):
     role_label, role_tone, filter_key = employee_role_meta(user['role'])
@@ -551,16 +577,19 @@ def enrich_employee(con, user, user_services_map, service_names):
         "(employee_id=? OR EXISTS (SELECT 1 FROM appointment_employees ae WHERE ae.appointment_id=appointments.id AND ae.employee_id=?))",
         (user['id'], user['id']),
     ).fetchone()['c']
+    tenure = employee_tenure_parts(user)
     return {
         'user': user,
         'role_label': role_label,
         'role_tone': role_tone,
         'filter_key': filter_key,
         'initials': client_initials(user['full_name']),
-        'tenure': employee_tenure_label(user),
+        'tenure': tenure['label'],
+        'tenure_parts': tenure,
         'closed_cnt': closed,
         'services': services,
         'online': user['online_booking'] is None or int(user['online_booking'] or 0) == 1,
+        'salary_percent': float(user['salary_percent'] if user['salary_percent'] is not None else 30),
     }
 
 def analytics_period_bounds(period):
@@ -1316,13 +1345,66 @@ def get_appointment_salaries(con, aid):
     }
 
 def master_salary_percent():
+    """Fallback % если у мастера не задан свой (настройки → сотрудники)."""
     try:
-        return float(get_setting('master_salary_percent', '15') or 15)
+        return float(get_setting('master_salary_percent', '30') or 30)
     except (TypeError, ValueError):
-        return 15.0
+        return 30.0
 
-def suggest_master_salaries(employee_ids, price, percent=None):
-    """Равномерно делит % от суммы визита между мастерами."""
+def get_employee_salary_percent(con, employee_id):
+    row = con.execute("SELECT salary_percent FROM users WHERE id=?", (employee_id,)).fetchone()
+    if row and row['salary_percent'] is not None and str(row['salary_percent']).strip() != '':
+        try:
+            return float(row['salary_percent'])
+        except (TypeError, ValueError):
+            pass
+    return master_salary_percent()
+
+def get_employee_service_rates(con, employee_id):
+    return {
+        int(r['service_id']): float(r['amount'] or 0)
+        for r in con.execute(
+            "SELECT service_id, amount FROM employee_service_rates WHERE user_id=?",
+            (employee_id,),
+        ).fetchall()
+    }
+
+def get_masters_salary_config(con, employee_ids=None):
+    """Конфиг ЗП для JS: percent + фикс. ставки по услугам."""
+    if employee_ids:
+        ids = [int(x) for x in employee_ids if x]
+        if not ids:
+            rows = []
+        else:
+            ph = ','.join('?' * len(ids))
+            rows = con.execute(
+                f"SELECT id, salary_percent FROM users WHERE id IN ({ph})",
+                ids,
+            ).fetchall()
+    else:
+        rows = con.execute(
+            "SELECT id, salary_percent FROM users WHERE role='master' AND active=1"
+        ).fetchall()
+    out = {}
+    for r in rows:
+        eid = int(r['id'])
+        pct = r['salary_percent']
+        try:
+            pct = float(pct) if pct is not None and str(pct).strip() != '' else master_salary_percent()
+        except (TypeError, ValueError):
+            pct = master_salary_percent()
+        rates = get_employee_service_rates(con, eid)
+        out[str(eid)] = {
+            'percent': pct,
+            'services': {str(sid): amt for sid, amt in rates.items() if amt > 0},
+        }
+    return out
+
+def suggest_master_salaries(con, employee_ids, price, service_ids=None):
+    """
+    ЗП каждого мастера = его % (или фикс за услугу) / число мастеров на визите.
+    Пример: Артём 30%, Александр 20%, вдвоём → 15% и 10%.
+    """
     ids = [int(eid) for eid in (employee_ids or []) if eid]
     if not ids:
         return {}
@@ -1330,25 +1412,27 @@ def suggest_master_salaries(employee_ids, price, percent=None):
         price = float(price or 0)
     except (TypeError, ValueError):
         price = 0.0
-    if percent is None:
-        percent = master_salary_percent()
-    try:
-        percent = float(percent or 0)
-    except (TypeError, ValueError):
-        percent = 0.0
-    if price <= 0 or percent <= 0:
-        return {eid: 0.0 for eid in ids}
-    total = round(price * percent / 100.0, 2)
-    if total <= 0:
-        return {eid: 0.0 for eid in ids}
     n = len(ids)
-    base = round(total / n, 2)
-    salaries = {eid: base for eid in ids}
-    # остаток копеек — первому мастеру
-    salaries[ids[0]] = round(total - base * (n - 1), 2)
+    svc_ids = [int(s) for s in (service_ids or []) if s]
+    salaries = {}
+    for eid in ids:
+        rates = get_employee_service_rates(con, eid) if con is not None else {}
+        fixed = None
+        for sid in svc_ids:
+            if sid in rates and rates[sid] > 0:
+                fixed = float(rates[sid])
+                break
+        if fixed is not None:
+            salaries[eid] = round(fixed / n, 2)
+        else:
+            pct = get_employee_salary_percent(con, eid) if con is not None else master_salary_percent()
+            if price <= 0 or pct <= 0:
+                salaries[eid] = 0.0
+            else:
+                salaries[eid] = round(price * pct / 100.0 / n, 2)
     return salaries
 
-def parse_salaries_from_form(form, employee_ids, price=None):
+def parse_salaries_from_form(form, employee_ids, price=None, con=None, service_ids=None):
     salaries = {}
     for eid in employee_ids:
         raw = form.get(f'salary_{eid}', '').strip()
@@ -1358,10 +1442,10 @@ def parse_salaries_from_form(form, employee_ids, price=None):
         single = float(form.get('salary_amount') or 0)
         if single > 0 and employee_ids:
             salaries[int(employee_ids[0])] = single
-    # Если ЗП не указали — считаем автоматически % от суммы
-    if not salaries and employee_ids:
+    # Если ЗП не указали — считаем по правилам мастера / N
+    if not salaries and employee_ids and con is not None:
         salaries = {
-            eid: amt for eid, amt in suggest_master_salaries(employee_ids, price).items()
+            eid: amt for eid, amt in suggest_master_salaries(con, employee_ids, price, service_ids).items()
             if amt > 0
         }
     return salaries, sum(salaries.values())
@@ -1632,7 +1716,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_percent','3')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
-    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('master_salary_percent','15')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('master_salary_percent','30')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('openai_api_key','')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_name','ИП ТРОФИМОВ АЛЕКСАНДР ВАЛЕРЬЕВИЧ')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_inn','723018468397')")
@@ -1732,6 +1816,16 @@ def migrate_db(c):
     if 'online_booking' not in user_cols:
         c.execute("ALTER TABLE users ADD COLUMN online_booking INTEGER DEFAULT 1")
         c.execute("UPDATE users SET online_booking=1 WHERE role='master'")
+    user_cols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+    if 'salary_percent' not in user_cols:
+        c.execute("ALTER TABLE users ADD COLUMN salary_percent REAL DEFAULT 30")
+        c.execute("UPDATE users SET salary_percent=30 WHERE role='master' AND (salary_percent IS NULL)")
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS employee_service_rates("
+        "user_id INTEGER NOT NULL, service_id INTEGER NOT NULL, amount REAL DEFAULT 0, "
+        "UNIQUE(user_id, service_id))"
+    )
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('master_salary_percent','30')")
     if c.execute("SELECT COUNT(*) c FROM service_categories").fetchone()['c'] == 0:
         c.execute("INSERT INTO service_categories(name,sort_order,created_at) VALUES(?,?,?)", ('Тонировка', 1, now()))
         tint_id = c.execute("SELECT id FROM service_categories WHERE name='Тонировка'").fetchone()['id']
@@ -5587,7 +5681,8 @@ def edit_appointment(aid):
             if not ok:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
             price = float(request.form.get('price') or 0)
-            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price)
+            service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price, con, service_ids)
             mat, err = process_materials_from_form(con, aid, u['id'], request.form)
             if err:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
@@ -5653,8 +5748,10 @@ def edit_appointment(aid):
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
+    appointment_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+    masters_salary_config = get_masters_salary_config(con)
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']), master_salary_percent=master_salary_percent())
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']), master_salary_percent=master_salary_percent(), appointment_service_ids=appointment_service_ids, masters_salary_config=masters_salary_config)
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -5704,7 +5801,10 @@ def close_appointment(aid):
             friend_discount_amount = round(float(price) * percent / 100.0, 2)
             price = round(float(price) - friend_discount_amount, 2)
             friend_discount_applied = True
-        salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price)
+        salaries, salary_amount = parse_salaries_from_form(
+            request.form, employee_ids, price, con,
+            get_appointment_service_ids(con, aid, ap['service_id']),
+        )
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
         due_live = round(max(0.0, float(price) - float(cert_amount or 0) - float(bonus_spent or 0)), 2)
         pay, pay_err = parse_payment_from_form(request.form, due_live)
@@ -5750,6 +5850,8 @@ def close_appointment(aid):
         eid for eid in get_appointment_employee_ids(con, aid, ap['employee_id'])
         if eid in master_id_set
     ]
+    appointment_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+    masters_salary_config = get_masters_salary_config(con)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     low_stock = list_low_stock_items(con)
     con.close()
@@ -5767,6 +5869,8 @@ def close_appointment(aid):
         masters_json=masters_json,
         employees=employees,
         selected_employee_ids=selected_employee_ids,
+        appointment_service_ids=appointment_service_ids,
+        masters_salary_config=masters_salary_config,
         master_error=request.args.get('master_error') == '1',
         low_stock=low_stock,
         appt_date_label=format_date_calendar_ru(ap['appointment_date']),
@@ -6688,9 +6792,10 @@ def employees():
             return redirect(url_for('employees'))
         try:
             online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
+            salary_percent = 30.0 if role == 'master' else 0.0
             con.execute(
-                "INSERT INTO users(username,password_hash,role,full_name,active,online_booking,hired_at,created_at) VALUES(?,?,?,?,1,?,?,?)",
-                (request.form['username'].strip(), generate_password_hash(password), role, request.form['full_name'], online_booking, today(), now()),
+                "INSERT INTO users(username,password_hash,role,full_name,active,online_booking,salary_percent,hired_at,created_at) VALUES(?,?,?,?,1,?,?,?,?,?)",
+                (request.form['username'].strip(), generate_password_hash(password), role, request.form['full_name'], online_booking, salary_percent, today(), now()),
             )
             uid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
             for p in PERMS:
@@ -6812,6 +6917,12 @@ def employee_detail(uid):
         (uid, today()),
     ).fetchall()
     item = enrich_employee(con, target, {uid: user_services}, service_names)
+    service_rates = con.execute(
+        "SELECT esr.service_id, esr.amount, s.name service_name "
+        "FROM employee_service_rates esr LEFT JOIN services s ON s.id=esr.service_id "
+        "WHERE esr.user_id=? ORDER BY s.name",
+        (uid,),
+    ).fetchall()
     con.close()
     return render_template(
         'employee_detail.html',
@@ -6819,6 +6930,7 @@ def employee_detail(uid):
         services=services,
         user_perms=perms,
         user_services=user_services,
+        service_rates=service_rates,
         weekly=weekly,
         date_schedules=date_schedules,
         weekdays_long=WEEKDAYS_LONG,
@@ -6845,12 +6957,47 @@ def employee_update(uid):
             return employee_redirect_after(uid)
         con.execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_password), uid))
     online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
-    con.execute("UPDATE users SET full_name=?,role=?,active=?,online_booking=?,fired_at=? WHERE id=?", (full_name, role, active, online_booking, None if active else today(), uid))
+    hired_raw = (request.form.get('hired_at') or '').strip()
+    hired_at = hired_raw[:10] if hired_raw else None
+    if hired_at:
+        try:
+            date.fromisoformat(hired_at)
+        except ValueError:
+            hired_at = None
+    try:
+        salary_percent = float((request.form.get('salary_percent') or '30').replace(',', '.'))
+    except ValueError:
+        salary_percent = 30.0
+    salary_percent = max(0.0, min(100.0, salary_percent))
+    con.execute(
+        "UPDATE users SET full_name=?,role=?,active=?,online_booking=?,fired_at=?,hired_at=COALESCE(?,hired_at),salary_percent=? WHERE id=?",
+        (full_name, role, active, online_booking, None if active else today(), hired_at, salary_percent, uid),
+    )
     for p in PERMS:
         con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))
     for sid in request.form.getlist('service_ids'):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
+    # Фикс. ЗП по услугам
+    con.execute("DELETE FROM employee_service_rates WHERE user_id=?", (uid,))
+    rate_sids = request.form.getlist('rate_service_id')
+    rate_amts = request.form.getlist('rate_amount')
+    seen = set()
+    for i, sid in enumerate(rate_sids):
+        if not sid:
+            continue
+        try:
+            sid_i = int(sid)
+            amt = float((rate_amts[i] if i < len(rate_amts) else '0') or 0)
+        except (TypeError, ValueError):
+            continue
+        if sid_i in seen or amt <= 0:
+            continue
+        seen.add(sid_i)
+        con.execute(
+            "INSERT INTO employee_service_rates(user_id,service_id,amount) VALUES(?,?,?)",
+            (uid, sid_i, amt),
+        )
     con.commit(); con.close(); flash('Сотрудник обновлен'); return employee_redirect_after(uid)
 
 @app.route('/employees/<int:uid>/online', methods=['POST'])
@@ -7028,6 +7175,8 @@ def salary():
     if employee_id:
         sql += " AND s.employee_id=?"
         params.append(employee_id)
+    else:
+        sql += " AND u.role='master'"
     sql += " ORDER BY s.id DESC"
     rows = con.execute(sql, params).fetchall()
     details = {}
@@ -7040,8 +7189,15 @@ def salary():
                 ).fetchall(),
                 'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
             }
-    totals = con.execute("SELECT u.id,u.full_name,COALESCE(SUM(s.amount),0) total FROM users u LEFT JOIN salary s ON s.employee_id=u.id GROUP BY u.id").fetchall()
-    employees = con.execute("SELECT id,full_name FROM users WHERE active=1 ORDER BY full_name").fetchall()
+    totals = con.execute(
+        "SELECT u.id,u.full_name,COALESCE(SUM(s.amount),0) total FROM users u "
+        "LEFT JOIN salary s ON s.employee_id=u.id "
+        "WHERE u.role='master' AND u.active=1 "
+        "GROUP BY u.id ORDER BY u.full_name"
+    ).fetchall()
+    employees = con.execute(
+        "SELECT id,full_name FROM users WHERE active=1 AND role='master' ORDER BY full_name"
+    ).fetchall()
     con.close()
     return render_template('salary.html', rows=rows, totals=totals, details=details, employees=employees, employee_id=employee_id)
 
@@ -7530,15 +7686,6 @@ def settings():
             set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
             set_setting('bonus_from_visit', request.form.get('bonus_from_visit', '2').strip() or '2')
             flash('Настройки бонусной программы сохранены')
-        elif action == 'salary_percent_save':
-            raw = (request.form.get('master_salary_percent', '15') or '15').strip().replace(',', '.')
-            try:
-                pct = float(raw)
-            except ValueError:
-                pct = 15.0
-            pct = max(0.0, min(100.0, pct))
-            set_setting('master_salary_percent', ('%g' % pct))
-            flash(f'ЗП мастеров: {pct:g}% от суммы визита')
         elif action == 'friend_save':
             set_setting('friend_discount_percent', request.form.get('friend_discount_percent', '10').strip() or '10')
             flash('Настройки карт для друзей сохранены')
@@ -7677,7 +7824,6 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
-    master_salary_pct = get_setting('master_salary_percent', '15')
     legal_seller_name = get_setting('legal_seller_name', '')
     legal_seller_inn = get_setting('legal_seller_inn', '')
     legal_seller_kpp = get_setting('legal_seller_kpp', '')
@@ -7715,7 +7861,6 @@ def settings():
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,
-        master_salary_percent=master_salary_pct,
         legal_seller_name=legal_seller_name,
         legal_seller_inn=legal_seller_inn,
         legal_seller_kpp=legal_seller_kpp,

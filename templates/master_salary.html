@@ -1,6 +1,15 @@
 {% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+{% endblock %}
 {% block content %}
-<div class="sal-page staff-light">
+<div class="sal-page staff-light sal-page-soft">
   <header class="sal-header">
     <div>
       <p class="sal-kicker">Выплаты</p>
@@ -11,7 +20,7 @@
   <div class="sal-totals">
     <div class="sal-total-card card-surface active">
       <span>Всего</span>
-      <strong>{{ "%.0f"|format(total) }} ₽</strong>
+      <strong>{{ format_money(total) }} ₽</strong>
     </div>
   </div>
 
@@ -21,7 +30,7 @@
     <details class="sal-card card-surface">
       <summary class="sal-card-summary">
         <div class="sal-card-main">
-          <b>{{ "%.0f"|format(r.amount) }} ₽ · {{ r.period }}</b>
+          <b>{{ format_money(r.amount) }} ₽ · {{ r.period }}</b>
           {% if r.appointment_date %}
           <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}</span>
           <span>{{ r.client_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
@@ -40,18 +49,16 @@
             {% elif r.material_m2 %}{{ "%.2f"|format(r.material_m2) }} м²{% else %}—{% endif %}
           </b>
         </div>
-        <div class="sal-comment">
-          <span>Допуслуги</span>
-          <b>
-            {% if d.extras %}
-              {% for e in d.extras %}{{ e.name }} — {{ "%.0f"|format(e.price) }} ₽{% if not loop.last %}<br>{% endif %}{% endfor %}
-            {% else %}—{% endif %}
-          </b>
+        {% if d.extras %}
+        <div class="sal-materials">
+          <span>Допы</span>
+          <b>{% for e in d.extras %}{{ e.name }}: {{ format_money(e.price) }} ₽{% if not loop.last %}<br>{% endif %}{% endfor %}</b>
         </div>
+        {% endif %}
       </div>
     </details>
     {% else %}
-    <p class="sal-empty">Пока нет начислений</p>
+    <p class="sal-empty">Начислений пока нет</p>
     {% endfor %}
   </div>
 </div>

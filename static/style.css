@@ -3262,3 +3262,53 @@ body.theme-dark.body-z-light .main-z-light .emp-pill.tone-purple{
 }
 body.theme-dark.body-z-light .main-z-light .emp-avatar.tone-purple{--tone:#8e8e93}
 body.theme-dark.body-z-light .main-z-light .an-hero-card.tone-purple{border-color:#e5e5ea}
+
+/* Employee tenure + salary rates */
+.emp-tenure-counter{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;margin-bottom:12px;text-align:center
+}
+.emp-tenure-item{display:grid;gap:2px}
+.emp-tenure-item b{font-size:18px;font-weight:800;line-height:1.1;color:#111}
+.emp-tenure-item span{font-size:11px;font-weight:650;color:#8e8e93}
+.emp-tenure-label b{font-size:13px;font-weight:750}
+.emp-rate-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 6px}
+.emp-rate-head h3{margin:0;font-size:13px;font-weight:750}
+.emp-rate-add{min-height:auto!important;padding:6px 10px!important;font-size:12px}
+.emp-rate-list{display:grid;gap:8px;margin-bottom:8px}
+.emp-rate-row{display:grid;grid-template-columns:1fr 90px 36px;gap:8px;align-items:center}
+.emp-rate-row select,.emp-rate-row input{
+  width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:1px solid #e5e5ea;
+  background:#fff;color:#111;font-size:14px
+}
+.emp-rate-del{
+  width:36px;height:36px;border-radius:10px;border:1px solid #ffc9c9;background:#fff5f5;color:#ff3b30;
+  font-size:18px;cursor:pointer
+}
+body.theme-dark.body-z-light .main-z-light .emp-tenure-counter{background:#fff;border:1px solid #e5e5ea;border-radius:16px}
+body.theme-dark.body-z-light .main-z-light .emp-tenure-item b{color:#111}
+body.theme-dark.body-z-light .main-z-light .emp-block h3{color:#111}
+
+/* Soft rounded salary page */
+.sal-page-soft,.sal-page-soft *{font-family:'Nunito',system-ui,sans-serif}
+.sal-page-soft .sal-header h1{font-weight:800;letter-spacing:-.2px;font-size:30px}
+.sal-page-soft .sal-kicker{font-weight:700;letter-spacing:.04em}
+.sal-page-soft .sal-total-card{border-radius:18px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.sal-page-soft .sal-total-card span{font-weight:700}
+.sal-page-soft .sal-total-card strong{font-weight:800}
+.sal-page-soft .sal-card{border-radius:18px}
+.sal-page-soft .sal-card-main b{font-weight:800}
+.sal-page-soft .sal-amount{font-weight:800}
+.sal-page-soft .sal-filter select{border-radius:14px;font-weight:700}
+
+/* Master salary rows: clearer spacing */
+.close-page-z .salary-master-row{
+  display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #e5e5ea
+}
+.close-page-z .salary-master-row:last-child{border-bottom:0}
+.close-page-z .salary-master-row span{font-size:13px;font-weight:700;color:#111}
+.close-page-z .salary-master-row input{
+  width:100%!important;max-width:none;text-align:left;padding:12px 14px;border-radius:12px;
+  border:1px solid #e5e5ea;background:#f2f2f7;font-size:16px;font-weight:700
+}
+.close-page-z .salary-by-master{margin-top:10px}
+.close-page-z .salary-total-hint{margin-top:8px;padding:10px 12px;border-radius:12px;background:#f2f2f7;font-weight:700}

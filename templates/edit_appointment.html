@@ -242,7 +242,9 @@ recalcEditTotals();
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
-window.BS_MASTER_SALARY_PERCENT = {{ master_salary_percent|default(15) }};
+window.BS_MASTER_RATES = {{ masters_salary_config|default({})|tojson }};
+window.BS_APPOINTMENT_SERVICE_IDS = {{ appointment_service_ids|default([])|tojson }};
+window.BS_SALARY_FORCE_SUGGEST = {{ 'false' if existing_salaries else 'true' }};
 </script>
 
 {% else %}
@@ -320,7 +322,8 @@ window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_SERVICES = {{ services_json|safe }};
 window.BS_INITIAL_SERVICES = {{ selected_service_ids|tojson }};
-window.BS_MASTER_SALARY_PERCENT = {{ master_salary_percent|default(15) }};
+window.BS_MASTER_RATES = {{ masters_salary_config|default({})|tojson }};
+window.BS_APPOINTMENT_SERVICE_IDS = {{ selected_service_ids|default([])|tojson }};
 </script>
 {% endif %}
 {% endblock %}
