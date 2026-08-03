@@ -504,6 +504,24 @@
     }
   }
 
+  function suggestedSalaryForMasters(ids) {
+    const pct = Number(window.BS_MASTER_SALARY_PERCENT || 15) || 0;
+    const priceEl = document.querySelector('input[name="price"], #closePriceInput');
+    const price = parseFloat(priceEl && priceEl.value ? priceEl.value : 0) || 0;
+    if (!ids.length || pct <= 0 || price <= 0) return {};
+    const total = Math.round(price * pct) / 100;
+    if (total <= 0) return {};
+    const n = ids.length;
+    const base = Math.round((total / n) * 100) / 100;
+    const out = {};
+    ids.forEach(function (id, idx) {
+      out[id] = idx === 0
+        ? Math.round((total - base * (n - 1)) * 100) / 100
+        : base;
+    });
+    return out;
+  }
+
   function recalcSalaryTotal() {
     const totalEl = document.getElementById('salaryTotal');
     if (!totalEl) return;
@@ -529,13 +547,23 @@
     const ids = hidden
       ? Array.from(hidden.querySelectorAll('input[name="employee_ids"]')).map(function (i) { return i.value; })
       : [];
+    const suggested = suggestedSalaryForMasters(ids);
     grid.innerHTML = '';
     ids.forEach(function (id) {
       const master = masters.find(function (m) { return String(m.id) === String(id); });
       if (!master) return;
       const label = document.createElement('label');
       label.className = 'salary-master-row';
-      const val = values[id] !== undefined ? values[id] : (existing[id] !== undefined ? existing[id] : '');
+      let val = values[id];
+      if (val === undefined || val === '') {
+        if (existing[id] !== undefined && existing[id] !== null && existing[id] !== '') {
+          val = existing[id];
+        } else if (suggested[id] !== undefined) {
+          val = suggested[id];
+        } else {
+          val = '';
+        }
+      }
       const span = document.createElement('span');
       span.textContent = master.name;
       const input = document.createElement('input');
@@ -560,8 +588,30 @@
     if (totalWrap) totalWrap.hidden = !multi;
     recalcSalaryTotal();
     grid.querySelectorAll('.salary-master-input').forEach(function (el) {
-      el.addEventListener('input', recalcSalaryTotal);
+      el.addEventListener('input', function () {
+        el.dataset.manual = '1';
+        recalcSalaryTotal();
+        if (typeof window.BS_onSalaryChanged === 'function') window.BS_onSalaryChanged();
+      });
     });
+    if (typeof window.BS_onSalaryChanged === 'function') window.BS_onSalaryChanged();
+  }
+
+  function refreshSuggestedSalariesFromPrice() {
+    const grid = document.getElementById('salaryMasterGrid');
+    if (!grid) return;
+    const hidden = document.getElementById('masterHiddenInputs');
+    const ids = hidden
+      ? Array.from(hidden.querySelectorAll('input[name="employee_ids"]')).map(function (i) { return i.value; })
+      : [];
+    const suggested = suggestedSalaryForMasters(ids);
+    grid.querySelectorAll('.salary-master-input').forEach(function (el) {
+      if (el.dataset.manual === '1') return;
+      const id = el.dataset.masterId;
+      if (suggested[id] !== undefined) el.value = suggested[id];
+    });
+    recalcSalaryTotal();
+    if (typeof window.BS_onSalaryChanged === 'function') window.BS_onSalaryChanged();
   }
 
   function initMasterPicker() {
@@ -798,6 +848,11 @@
       refreshPushStatus();
       initMasterPicker();
       initServicePicker();
+      const priceForSalary = document.querySelector('input[name="price"], #closePriceInput');
+      if (priceForSalary) {
+        priceForSalary.addEventListener('input', refreshSuggestedSalariesFromPrice);
+        priceForSalary.addEventListener('change', refreshSuggestedSalariesFromPrice);
+      }
       pollIncomingCall();
       setInterval(pollIncomingCall, 2500);
       initPullToRefresh();

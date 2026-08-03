@@ -1,6 +1,7 @@
 <div class="salary-by-master span4" id="salaryByMasterPanel">
   <h3 style="margin:0 0 8px;font-size:15px">Зарплата <span id="salaryMultiHint" style="font-weight:400;color:#666" hidden>по мастерам</span></h3>
   <p class="hint" id="salaryMultiNote" style="margin-top:0" hidden>Укажите ЗП каждому мастеру на этот заказ.</p>
+  <p class="hint" id="salaryAutoHint" style="margin-top:0">Считается автоматически ({{ master_salary_percent|default(15) }}% от суммы). Можно поправить.</p>
   <div class="salary-master-grid" id="salaryMasterGrid"></div>
   <p class="hint salary-total-hint" id="salaryTotalWrap" hidden>Итого ЗП: <b id="salaryTotal">0</b> ₽</p>
 </div>

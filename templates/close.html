@@ -330,15 +330,24 @@ function syncCloseZMasterLabel() {
   const chips = document.querySelectorAll('#masterChips .master-chip');
   const btn = document.getElementById('closeZMasterOpen');
   if (!label) return;
+  let salarySum = 0;
+  document.querySelectorAll('.salary-master-input').forEach(function (el) {
+    const v = parseFloat(el.value);
+    if (!isNaN(v) && v > 0) salarySum += v;
+  });
   if (!chips.length) {
     label.textContent = 'Выбрать';
     if (btn) btn.classList.add('is-empty');
   } else {
     const names = Array.from(chips).map(c => c.childNodes[0].textContent.trim());
-    label.textContent = names.length === 1 ? names[0] : names.join(', ');
+    const namePart = names.length === 1 ? names[0] : names.join(', ');
+    label.textContent = salarySum > 0
+      ? (namePart + ' · ' + Math.round(salarySum).toLocaleString('ru-RU') + ' ₽')
+      : namePart;
     if (btn) btn.classList.remove('is-empty');
   }
 }
+window.BS_onSalaryChanged = syncCloseZMasterLabel;
 
 function wireCloseModal(modal, openBtn, closeBtn) {
   if (!modal) return null;
@@ -478,6 +487,25 @@ document.getElementById('closeForm').addEventListener('submit', function (e) {
     document.getElementById('masterModal')?.showModal();
     return;
   }
+  // ЗП в dialog надёжно уходит с формой: дублируем в скрытые поля вне modal
+  let mirror = document.getElementById('salaryMirrorInputs');
+  if (!mirror) {
+    mirror = document.createElement('div');
+    mirror.id = 'salaryMirrorInputs';
+    mirror.hidden = true;
+    this.appendChild(mirror);
+  }
+  mirror.innerHTML = '';
+  document.querySelectorAll('.salary-master-input').forEach(function (el) {
+    if (!el.name) return;
+    el.removeAttribute('name'); // избегаем дублей
+    const copy = document.createElement('input');
+    copy.type = 'hidden';
+    copy.name = el.dataset.masterId ? ('salary_' + el.dataset.masterId) : el.name;
+    // restore name on visible for UI if submit cancelled — but we're submitting
+    copy.value = el.value || '';
+    mirror.appendChild(copy);
+  });
   document.querySelectorAll('#materialRows .material-row').forEach(row => {
     const id = row.querySelector('.mat-select').value;
     if (!id) {
@@ -546,6 +574,7 @@ if (friendInput && friendHint) {
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
+window.BS_MASTER_SALARY_PERCENT = {{ master_salary_percent|default(15) }};
 window.BS_CLOSE_SKIP_MASTER_REQUIRED = true;
 if (priceInput) priceInput.addEventListener('input', recalcCloseTotals);
 window.addEventListener('load', function () {
