@@ -167,19 +167,7 @@
           <input name="bonus_from_visit" type="number" step="1" min="1" value="{{ bonus_from_visit }}" placeholder="С какого визита">
           <button>Сохранить</button>
         </form>
-        <p class="settings-hint">Карты и баланс — в карточке клиента CRM.</p>
-      </div>
-    </details>
-
-    <details class="settings-fold" open>
-      <summary>Зарплата мастеров</summary>
-      <div class="settings-fold-body">
-        <form method="post" class="form-grid">
-          <input type="hidden" name="action" value="salary_percent_save">
-          <input name="master_salary_percent" type="number" step="0.1" min="0" max="100" value="{{ master_salary_percent }}" placeholder="% от суммы визита">
-          <button>Сохранить %</button>
-        </form>
-        <p class="settings-hint">При закрытии визита ЗП считается автоматически: этот % от суммы, поровну между выбранными мастерами. Можно поправить вручную в окне «Мастер».</p>
+        <p class="settings-hint">Карты и баланс — в карточке клиента CRM. ЗП мастеров настраивается в разделе «Сотрудники».</p>
       </div>
     </details>
 

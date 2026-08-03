@@ -505,19 +505,32 @@
   }
 
   function suggestedSalaryForMasters(ids) {
-    const pct = Number(window.BS_MASTER_SALARY_PERCENT || 15) || 0;
+    const n = ids.length;
+    if (!n) return {};
     const priceEl = document.querySelector('input[name="price"], #closePriceInput');
     const price = parseFloat(priceEl && priceEl.value ? priceEl.value : 0) || 0;
-    if (!ids.length || pct <= 0 || price <= 0) return {};
-    const total = Math.round(price * pct) / 100;
-    if (total <= 0) return {};
-    const n = ids.length;
-    const base = Math.round((total / n) * 100) / 100;
+    const rates = window.BS_MASTER_RATES || {};
+    const serviceIds = (window.BS_APPOINTMENT_SERVICE_IDS || []).map(String);
     const out = {};
-    ids.forEach(function (id, idx) {
-      out[id] = idx === 0
-        ? Math.round((total - base * (n - 1)) * 100) / 100
-        : base;
+    ids.forEach(function (id) {
+      const cfg = rates[String(id)] || {};
+      const services = cfg.services || {};
+      let fixed = null;
+      for (let i = 0; i < serviceIds.length; i++) {
+        const sid = serviceIds[i];
+        if (services[sid] != null && Number(services[sid]) > 0) {
+          fixed = Number(services[sid]);
+          break;
+        }
+      }
+      let amount = 0;
+      if (fixed != null) {
+        amount = fixed / n;
+      } else {
+        const pct = Number(cfg.percent || 0) || 0;
+        amount = price > 0 && pct > 0 ? (price * pct / 100) / n : 0;
+      }
+      out[id] = Math.round(amount * 100) / 100;
     });
     return out;
   }
@@ -538,10 +551,10 @@
     if (!grid) return;
     const masters = window.BS_MASTERS || [];
     const existing = window.BS_EXISTING_SALARIES || {};
-    const values = {};
+    const manualValues = {};
     grid.querySelectorAll('.salary-master-input').forEach(function (el) {
       const id = el.dataset.masterId;
-      if (id) values[id] = el.value;
+      if (id && el.dataset.manual === '1') manualValues[id] = el.value;
     });
     const hidden = document.getElementById('masterHiddenInputs');
     const ids = hidden
@@ -554,18 +567,20 @@
       if (!master) return;
       const label = document.createElement('label');
       label.className = 'salary-master-row';
-      let val = values[id];
-      if (val === undefined || val === '') {
-        if (existing[id] !== undefined && existing[id] !== null && existing[id] !== '') {
-          val = existing[id];
-        } else if (suggested[id] !== undefined) {
-          val = suggested[id];
-        } else {
-          val = '';
-        }
+      let val = '';
+      let isManual = false;
+      if (manualValues[id] !== undefined) {
+        val = manualValues[id];
+        isManual = true;
+      } else if (existing[id] !== undefined && existing[id] !== null && existing[id] !== '' && !window.BS_SALARY_FORCE_SUGGEST) {
+        val = existing[id];
+      } else if (suggested[id] !== undefined) {
+        val = suggested[id];
       }
       const span = document.createElement('span');
-      span.textContent = master.name;
+      const cfg = (window.BS_MASTER_RATES || {})[String(id)] || {};
+      const pct = cfg.percent != null ? cfg.percent : '';
+      span.textContent = pct !== '' ? (master.name + ' · ' + pct + '%') : master.name;
       const input = document.createElement('input');
       input.name = 'salary_' + id;
       input.type = 'number';
@@ -574,6 +589,7 @@
       input.className = 'salary-master-input';
       input.dataset.masterId = id;
       input.placeholder = 'ЗП ₽';
+      if (isManual) input.dataset.manual = '1';
       if (val !== '' && val !== null && val !== undefined) input.value = val;
       label.appendChild(span);
       label.appendChild(input);
@@ -583,9 +599,15 @@
     const hint = document.getElementById('salaryMultiHint');
     const note = document.getElementById('salaryMultiNote');
     const totalWrap = document.getElementById('salaryTotalWrap');
+    const autoHint = document.getElementById('salaryAutoHint');
     if (hint) hint.hidden = !multi;
     if (note) note.hidden = !multi;
     if (totalWrap) totalWrap.hidden = !multi;
+    if (autoHint) {
+      autoHint.textContent = multi
+        ? 'Вместе: % каждого делится на ' + ids.length + ' мастеров. Можно поправить.'
+        : 'Считается по % мастера от суммы. Можно поправить.';
+    }
     recalcSalaryTotal();
     grid.querySelectorAll('.salary-master-input').forEach(function (el) {
       el.addEventListener('input', function () {
