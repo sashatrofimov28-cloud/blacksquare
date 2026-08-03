@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v89'
+BUILD_VERSION = 'client-v90'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -2319,12 +2319,6 @@ def handle_novofon_incoming_call(data):
         body = f'{phone_disp} — новый клиент'
     for uid in get_incoming_call_notify_user_ids(con):
         send_push_to_user(uid, title, body, book_url)
-    if get_setting('telegram_enabled', '0') == '1':
-        base = os.environ.get('PUBLIC_BASE_URL', '').strip().rstrip('/')
-        tg = f'📞 <b>{title}</b>\n{body}'
-        if client and base:
-            tg += f'\n<a href="{base}{card_url}">Карточка</a> · <a href="{base}{book_url}">Записать</a>'
-        send_telegram_message(tg)
     con.close()
     return {'ok': True, 'id': call_id, 'client_id': client['id'] if client else None}
 
@@ -3827,7 +3821,8 @@ def telegram_poll_loop():
         time.sleep(2)
 
 def notify_telegram_new_appointment(ap_date, start_time, client_name, service_name, masters_str, car='', source=''):
-    if source == 'Telegram /z':
+    # В Telegram — только новые записи (не перенос, не /z).
+    if source == 'Telegram /z' or (source or '').startswith('Перенос'):
         return
     # Не зовём autoconfigure на каждое уведомление — getUpdates на Timeweb таймаутится надолго
     if not telegram_enabled():
@@ -3864,30 +3859,12 @@ def appointment_master_names(con, ap):
     return ', '.join(r['full_name'] for r in rows) or '—'
 
 def notify_telegram_appointment_closed(con, ap, price=None):
-    if not telegram_enabled() or not telegram_chat_id():
-        return
-    master = appointment_master_names(con, ap)
-    car = (ap['car'] or ap['plate_number'] or '').strip()
-    bits = [ap['client_name']]
-    if master and master != '—':
-        bits.append(f'мастер {master}')
-    if car:
-        bits.append(car)
-    text = f"<b>Запись закрыта</b>\n{' · '.join(bits)}"
-    send_telegram_message(text)
+    # Telegram: только новые записи — закрытия не шлём.
+    return
 
 def notify_telegram_daily_report(report_date, stats):
-    if not telegram_enabled():
-        return
-    lines = [f'<b>Отчёт за {report_date}</b>', f'💰 Касса: {stats["revenue"]:.0f} ₽', f'📋 Закрыто: {stats["appointments"]}']
-    cash = float(stats.get('paid_cash') or 0)
-    card = float(stats.get('paid_card') or 0)
-    transfer = float(stats.get('paid_transfer') or 0)
-    if cash or card or transfer:
-        lines.append(f'💳 Карта {card:.0f} · 💵 Нал {cash:.0f} · ↔️ Перевод {transfer:.0f}')
-    for e in stats.get('by_employee', []):
-        lines.append(f'{e["name"]}: {e["revenue"]:.0f} ₽')
-    send_telegram_message('\n'.join(lines))
+    # Telegram: только новые записи — дневной отчёт не шлём.
+    return
 
 def notify_employee_appointment(employee_ids, ap_date, start_time, client_name, service_name, car='', source=''):
     if not isinstance(employee_ids, (list, tuple)):
