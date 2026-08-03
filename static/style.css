@@ -890,10 +890,11 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 }
 body.jr-sheet-open .jr-fab{display:none}
 body.jr-sheet-open{overflow:hidden}
+body.jr-sheet-open .bottom-nav{visibility:hidden;pointer-events:none}
 
 /* Booking sheet (YClients A) */
 .jr-sheet-root{
-  position:fixed;inset:0;z-index:80;display:none;pointer-events:none
+  position:fixed;inset:0;z-index:200;display:none;pointer-events:none
 }
 .jr-sheet-root.open{display:block;pointer-events:auto}
 .jr-sheet-scrim{
@@ -904,10 +905,14 @@ body.jr-sheet-open{overflow:hidden}
   position:absolute;left:0;right:0;bottom:0;top:8%;
   background:#f2f2f7;border-radius:22px 22px 0 0;
   display:flex;flex-direction:column;box-shadow:0 16px 40px rgba(0,0,0,.2);
-  animation:jrSheetUp .28s ease;max-width:560px;margin:0 auto
+  animation:jrSheetUp .28s ease;max-width:560px;margin:0 auto;
+  transform:translateY(0);touch-action:pan-y
 }
+.jr-sheet.is-dragging{animation:none;transition:none}
+.jr-sheet.is-closing{transition:transform .22s ease,opacity .22s ease;opacity:.5}
 @keyframes jrSheetUp{from{transform:translateY(28px);opacity:.7}to{transform:none;opacity:1}}
 .jr-sheet-handle{width:36px;height:4px;border-radius:999px;background:#d1d1d6;margin:8px auto 0;flex-shrink:0}
+.jr-sheet-grab{flex-shrink:0;touch-action:none;cursor:grab}
 .jr-sheet-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:10px 14px 8px;flex-shrink:0
@@ -926,7 +931,7 @@ body.jr-sheet-open{overflow:hidden}
 .jr-sheet-meta b{display:block;margin-top:2px;font-size:13px;font-weight:800;color:#111}
 .jr-sheet-meta-right{text-align:right}
 .jr-sheet-scroll{
-  flex:1;overflow:auto;padding:0 14px 16px;-webkit-overflow-scrolling:touch;min-height:0
+  flex:1;overflow:auto;padding:0 14px 16px;-webkit-overflow-scrolling:touch;min-height:0;overscroll-behavior:contain
 }
 .jr-sheet-hint{margin:0 0 10px;font-size:12px;color:#8e8e93;line-height:1.4}
 .jr-sheet-form{display:grid;gap:10px}
@@ -959,24 +964,30 @@ body.jr-sheet-open{overflow:hidden}
 .jr-block-h span{font-size:11px;color:#8e8e93!important;font-weight:600}
 .jr-sheet .master-picker-label{display:none}
 .jr-svc-chips{display:flex;flex-wrap:wrap;gap:8px}
-.jr-svc-chip{
+.jr-svc-chip,
+body.theme-dark.body-z-light .main-z-light .jr-svc-chip,
+.theme-dark .jr-sheet .jr-svc-chip{
   display:inline-flex;align-items:center;gap:6px;padding:9px 12px;border-radius:999px;
-  border:1px solid #e5e5ea;background:#f7f7f8;font-size:12px;font-weight:700;color:#111;
-  cursor:pointer;font-family:inherit
+  border:1px solid #e5e5ea!important;background:#f7f7f8!important;font-size:12px;font-weight:700;color:#111!important;
+  cursor:pointer;font-family:inherit;box-shadow:none!important
 }
-.jr-svc-chip small{opacity:.7;font-weight:600}
+.jr-svc-chip small{opacity:.7;font-weight:600;color:inherit}
 .jr-svc-chip.on,
+body.theme-dark.body-z-light .main-z-light .jr-svc-chip.on,
 .theme-dark .jr-sheet .jr-svc-chip.on{
   background:#e8f6ef!important;border-color:#9dd9bb!important;color:#0a7d4f!important
 }
 .jr-masters{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px
 }
-.jr-mcard{
-  border:1px solid #e5e5ea;background:#fafafa;border-radius:14px;padding:10px 6px;
-  text-align:center;cursor:pointer;font-family:inherit;color:#111
+.jr-mcard,
+body.theme-dark.body-z-light .main-z-light .jr-mcard,
+.theme-dark .jr-sheet .jr-mcard{
+  border:1px solid #e5e5ea!important;background:#fafafa!important;border-radius:14px;padding:10px 6px;
+  text-align:center;cursor:pointer;font-family:inherit;color:#111!important;box-shadow:none!important
 }
 .jr-mcard.on,
+body.theme-dark.body-z-light .main-z-light .jr-mcard.on,
 .theme-dark .jr-sheet .jr-mcard.on{
   background:#e8f6ef!important;border-color:#9dd9bb!important
 }
@@ -1009,22 +1020,30 @@ body.jr-sheet-open{overflow:hidden}
   display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch
 }
 .jr-time-row::-webkit-scrollbar{display:none}
-.jr-tchip{
-  flex:0 0 auto;padding:9px 12px;border-radius:12px;border:1px solid #e5e5ea;
-  background:#fff;font-size:12px;font-weight:750;color:#111;cursor:pointer;font-family:inherit
+.jr-tchip,
+body.theme-dark.body-z-light .main-z-light .jr-tchip{
+  flex:0 0 auto;padding:9px 12px;border-radius:12px;border:1px solid #e5e5ea!important;
+  background:#fff!important;font-size:12px;font-weight:750;color:#111!important;cursor:pointer;font-family:inherit;
+  box-shadow:none!important
 }
-.jr-tchip.on{background:#111;color:#fff;border-color:#111}
+.jr-tchip.on,
+body.theme-dark.body-z-light .main-z-light .jr-tchip.on{background:#111!important;color:#fff!important;border-color:#111!important}
 .jr-slots-empty{margin:4px 0 0;font-size:12px;color:#8e8e93}
 .jr-sheet-link{margin:2px 0 0}
 .jr-sheet-link a{color:#00b368;font-weight:700;font-size:12px;text-decoration:none}
-.jr-sheet-submit-mobile{display:none}
+.jr-sheet-submit-mobile{
+  display:block;width:100%;border:0;border-radius:16px;padding:14px 16px;margin-top:8px;
+  background:#111!important;color:#fff!important;font-size:15px;font-weight:800;font-family:inherit;
+  cursor:pointer;min-height:48px;box-shadow:none!important
+}
 .jr-sheet-foot{
   flex-shrink:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
-  background:rgba(242,242,247,.94);border-top:1px solid #e5e5ea;backdrop-filter:blur(12px)
+  background:rgba(242,242,247,.96);border-top:1px solid #e5e5ea;backdrop-filter:blur(12px);
+  position:relative;z-index:2
 }
 .jr-sheet-save{
-  width:100%;border:0;border-radius:16px;padding:14px 16px;background:#111;color:#fff;
-  font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;min-height:48px
+  width:100%;border:0;border-radius:16px;padding:14px 16px;background:#111!important;color:#fff!important;
+  font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;min-height:48px;box-shadow:none!important
 }
 .jr-page .cal-client-hint{font-size:12px;margin:0;color:#8e8e93}
 .jr-page .cal-client-hint.found{color:#0a7d4f}
@@ -1050,6 +1069,8 @@ body.jr-sheet-open{overflow:hidden}
 .jr-page .cal-week-event.tone-orange{background:#ffe0b8;border-color:#ffd090}
 @media(min-width:1025px){
   .jr-sheet{top:6%;border-radius:22px;bottom:4%;max-height:none}
+  body.jr-sheet-open .bottom-nav{visibility:visible;pointer-events:auto}
+  .jr-sheet-submit-mobile{display:none}
 }
 @media(max-width:600px){
   .jr-top h1{font-size:22px}
@@ -2975,7 +2996,7 @@ body.theme-dark.body-z-light .main-z-light .hint,
 body.theme-dark.body-z-light .main-z-light .check{
   background:#f2f2f7!important;border-color:var(--z-line,#e5e5ea)!important;color:var(--z-mute,#8e8e93)!important;
 }
-body.theme-dark.body-z-light .main-z-light button:not(.ghost):not(.danger):not(.mini-btn):not(.emp-del):not(.svc-del-btn):not(.svc-del-cat):not(.close-link-btn):not(.after-close-reopen),
+body.theme-dark.body-z-light .main-z-light button:not(.ghost):not(.danger):not(.mini-btn):not(.emp-del):not(.svc-del-btn):not(.svc-del-cat):not(.close-link-btn):not(.after-close-reopen):not(.jr-svc-chip):not(.jr-mcard):not(.jr-tchip):not(.jr-sheet-x):not(.jr-fab):not(.jr-sheet-scrim),
 body.theme-dark.body-z-light .main-z-light .btn:not(.ghost):not(.danger){
   background:#111!important;color:#fff!important;border:0!important;box-shadow:none!important;
 }

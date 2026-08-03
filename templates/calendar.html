@@ -186,12 +186,14 @@
 
   <div class="jr-sheet-root{% if master_error or service_error or form_data %} open{% endif %}" id="jrSheetRoot" aria-hidden="{{ 'false' if (master_error or service_error or form_data) else 'true' }}">
     <button type="button" class="jr-sheet-scrim" id="jrSheetScrim" aria-label="Закрыть"></button>
-    <div class="jr-sheet" role="dialog" aria-modal="true" aria-labelledby="jrSheetTitle">
-      <div class="jr-sheet-handle" aria-hidden="true"></div>
-      <div class="jr-sheet-head">
-        <button type="button" class="jr-sheet-x" id="jrSheetClose" aria-label="Закрыть">×</button>
-        <h2 id="jrSheetTitle">Новая запись</h2>
-        <span class="jr-sheet-x-spacer" aria-hidden="true"></span>
+    <div class="jr-sheet" role="dialog" aria-modal="true" aria-labelledby="jrSheetTitle" id="jrSheetPanel">
+      <div class="jr-sheet-grab" id="jrSheetGrab">
+        <div class="jr-sheet-handle" aria-hidden="true"></div>
+        <div class="jr-sheet-head">
+          <button type="button" class="jr-sheet-x" id="jrSheetClose" aria-label="Закрыть">×</button>
+          <h2 id="jrSheetTitle">Новая запись</h2>
+          <span class="jr-sheet-x-spacer" aria-hidden="true"></span>
+        </div>
       </div>
       <div class="jr-sheet-meta" id="jrSheetMeta">
         <div><span>Дата</span><b id="jrSheetDateLabel">{{ date_title }}</b></div>
@@ -273,11 +275,11 @@
             </label>
           </div>
           <p class="jr-sheet-link"><a href="{{ booking_url }}" target="_blank" rel="noopener">Ссылка клиенту на онлайн-запись →</a></p>
-          <button type="submit" class="jr-sheet-submit-mobile">Сохранить запись</button>
+          <button type="submit" class="jr-sheet-submit-mobile">Записать</button>
         </form>
       </div>
       <div class="jr-sheet-foot">
-        <button type="submit" form="manualBookingForm" class="jr-sheet-save">Сохранить запись</button>
+        <button type="submit" form="manualBookingForm" class="jr-sheet-save">Записать</button>
       </div>
     </div>
   </div>
@@ -493,6 +495,61 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && sheetRoot && sheetRoot.classList.contains('open')) closeSheet();
   });
+
+  // Drag-to-dismiss only from handle/header, downward, with a high threshold
+  (function initSheetDrag() {
+    const panel = document.getElementById('jrSheetPanel');
+    const grab = document.getElementById('jrSheetGrab');
+    if (!panel || !grab) return;
+    let startY = 0;
+    let dy = 0;
+    let dragging = false;
+    const CLOSE_AT = 140;
+
+    function onStart(y) {
+      startY = y;
+      dy = 0;
+      dragging = true;
+      panel.classList.add('is-dragging');
+      panel.classList.remove('is-closing');
+    }
+    function onMove(y, e) {
+      if (!dragging) return;
+      dy = y - startY;
+      if (dy < 0) dy = 0; // ignore upward — only dismiss by pulling down
+      if (dy > 0 && e && e.cancelable) e.preventDefault();
+      panel.style.transform = 'translateY(' + dy + 'px)';
+    }
+    function onEnd() {
+      if (!dragging) return;
+      dragging = false;
+      panel.classList.remove('is-dragging');
+      if (dy >= CLOSE_AT) {
+        panel.classList.add('is-closing');
+        panel.style.transform = 'translateY(110%)';
+        setTimeout(function () {
+          panel.style.transform = '';
+          panel.classList.remove('is-closing');
+          closeSheet();
+        }, 200);
+      } else {
+        panel.style.transform = '';
+      }
+      dy = 0;
+    }
+
+    grab.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      if (e.target && e.target.closest && e.target.closest('.jr-sheet-x')) return;
+      onStart(e.touches[0].clientY);
+    }, { passive: true });
+    grab.addEventListener('touchmove', function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      onMove(e.touches[0].clientY, e);
+    }, { passive: false });
+    grab.addEventListener('touchend', onEnd);
+    grab.addEventListener('touchcancel', onEnd);
+  })();
 
   if (dateInput) dateInput.addEventListener('change', function () { refreshNearSlots(); updateMeta(); });
   if (timeInput) timeInput.addEventListener('change', function () { updateMeta(); refreshNearSlots(); });
