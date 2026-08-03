@@ -34,7 +34,7 @@
         <label class="close-z-row close-z-row-price">
           <span class="close-z-row-label">{{ ap.service_name }}</span>
           <span class="close-z-row-input-wrap">
-            <input name="price" type="number" step="0.01" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
+            <input name="price" type="number" step="1" id="closePriceInput" value="{{ ((ap.price or 0)|float)|round|int }}" required inputmode="decimal">
             <i>₽</i>
           </span>
         </label>
@@ -49,7 +49,7 @@
 
     <div class="close-z-group">
       <div class="close-z-cap">Визит</div>
-      <div class="close-z-list">
+      <div class="close-z-taps">
         <button type="button" class="close-z-row close-z-tap{% if master_error %} is-error{% endif %}" id="closeZMasterOpen">
           <span>Мастер</span>
           <span class="close-z-val" id="closeZMasterLabel">Выбрать</span>
