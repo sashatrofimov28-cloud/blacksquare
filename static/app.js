@@ -833,6 +833,7 @@
     }
 
     scroller.addEventListener('touchstart', function (e) {
+      if (document.body.classList.contains('jr-sheet-open')) return;
       if (scroller.scrollTop > 2) return;
       if (e.touches.length !== 1) return;
       startY = e.touches[0].clientY;
@@ -841,6 +842,7 @@
     }, { passive: true });
 
     scroller.addEventListener('touchmove', function (e) {
+      if (document.body.classList.contains('jr-sheet-open')) { reset(); return; }
       if (!pulling) return;
       if (scroller.scrollTop > 2) { reset(); return; }
       const dy = e.touches[0].clientY - startY;
