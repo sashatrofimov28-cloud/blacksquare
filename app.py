@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v90'
+BUILD_VERSION = 'client-v91'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1315,7 +1315,40 @@ def get_appointment_salaries(con, aid):
         for r in con.execute("SELECT employee_id, amount FROM salary WHERE appointment_id=?", (aid,)).fetchall()
     }
 
-def parse_salaries_from_form(form, employee_ids):
+def master_salary_percent():
+    try:
+        return float(get_setting('master_salary_percent', '15') or 15)
+    except (TypeError, ValueError):
+        return 15.0
+
+def suggest_master_salaries(employee_ids, price, percent=None):
+    """Равномерно делит % от суммы визита между мастерами."""
+    ids = [int(eid) for eid in (employee_ids or []) if eid]
+    if not ids:
+        return {}
+    try:
+        price = float(price or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    if percent is None:
+        percent = master_salary_percent()
+    try:
+        percent = float(percent or 0)
+    except (TypeError, ValueError):
+        percent = 0.0
+    if price <= 0 or percent <= 0:
+        return {eid: 0.0 for eid in ids}
+    total = round(price * percent / 100.0, 2)
+    if total <= 0:
+        return {eid: 0.0 for eid in ids}
+    n = len(ids)
+    base = round(total / n, 2)
+    salaries = {eid: base for eid in ids}
+    # остаток копеек — первому мастеру
+    salaries[ids[0]] = round(total - base * (n - 1), 2)
+    return salaries
+
+def parse_salaries_from_form(form, employee_ids, price=None):
     salaries = {}
     for eid in employee_ids:
         raw = form.get(f'salary_{eid}', '').strip()
@@ -1325,6 +1358,12 @@ def parse_salaries_from_form(form, employee_ids):
         single = float(form.get('salary_amount') or 0)
         if single > 0 and employee_ids:
             salaries[int(employee_ids[0])] = single
+    # Если ЗП не указали — считаем автоматически % от суммы
+    if not salaries and employee_ids:
+        salaries = {
+            eid: amt for eid, amt in suggest_master_salaries(employee_ids, price).items()
+            if amt > 0
+        }
     return salaries, sum(salaries.values())
 
 def apply_appointment_masters_from_form(con, aid, form, fallback_primary_id=None):
@@ -1593,6 +1632,7 @@ def migrate_db(c):
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_percent','3')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('bonus_from_visit','2')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('friend_discount_percent','10')")
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('master_salary_percent','15')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('openai_api_key','')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_name','ИП ТРОФИМОВ АЛЕКСАНДР ВАЛЕРЬЕВИЧ')")
     c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('legal_seller_inn','723018468397')")
@@ -5547,7 +5587,7 @@ def edit_appointment(aid):
             if not ok:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
             price = float(request.form.get('price') or 0)
-            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
+            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price)
             mat, err = process_materials_from_form(con, aid, u['id'], request.form)
             if err:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
@@ -5614,7 +5654,7 @@ def edit_appointment(aid):
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']))
+    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']), master_salary_percent=master_salary_percent())
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -5631,7 +5671,6 @@ def close_appointment(aid):
         if not ok:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid, master_error=1))
         price = float(request.form.get('price') or 0)
-        salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids)
         mat, err = process_materials_from_form(con, aid, u['id'], request.form)
         if err:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid))
@@ -5665,6 +5704,7 @@ def close_appointment(aid):
             friend_discount_amount = round(float(price) * percent / 100.0, 2)
             price = round(float(price) - friend_discount_amount, 2)
             friend_discount_applied = True
+        salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price)
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
         due_live = round(max(0.0, float(price) - float(cert_amount or 0) - float(bonus_spent or 0)), 2)
         pay, pay_err = parse_payment_from_form(request.form, due_live)
@@ -5730,6 +5770,7 @@ def close_appointment(aid):
         master_error=request.args.get('master_error') == '1',
         low_stock=low_stock,
         appt_date_label=format_date_calendar_ru(ap['appointment_date']),
+        master_salary_percent=master_salary_percent(),
     )
 
 @app.route('/appointment/<int:aid>/after-close')
@@ -7489,6 +7530,15 @@ def settings():
             set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
             set_setting('bonus_from_visit', request.form.get('bonus_from_visit', '2').strip() or '2')
             flash('Настройки бонусной программы сохранены')
+        elif action == 'salary_percent_save':
+            raw = (request.form.get('master_salary_percent', '15') or '15').strip().replace(',', '.')
+            try:
+                pct = float(raw)
+            except ValueError:
+                pct = 15.0
+            pct = max(0.0, min(100.0, pct))
+            set_setting('master_salary_percent', ('%g' % pct))
+            flash(f'ЗП мастеров: {pct:g}% от суммы визита')
         elif action == 'friend_save':
             set_setting('friend_discount_percent', request.form.get('friend_discount_percent', '10').strip() or '10')
             flash('Настройки карт для друзей сохранены')
@@ -7627,6 +7677,7 @@ def settings():
     bonus_on = get_setting('bonus_enabled', '1') == '1'
     bonus_percent = get_setting('bonus_percent', '3')
     bonus_from_visit = get_setting('bonus_from_visit', '2')
+    master_salary_pct = get_setting('master_salary_percent', '15')
     legal_seller_name = get_setting('legal_seller_name', '')
     legal_seller_inn = get_setting('legal_seller_inn', '')
     legal_seller_kpp = get_setting('legal_seller_kpp', '')
@@ -7664,6 +7715,7 @@ def settings():
         bonus_on=bonus_on,
         bonus_percent=bonus_percent,
         bonus_from_visit=bonus_from_visit,
+        master_salary_percent=master_salary_pct,
         legal_seller_name=legal_seller_name,
         legal_seller_inn=legal_seller_inn,
         legal_seller_kpp=legal_seller_kpp,
