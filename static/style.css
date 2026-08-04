@@ -3264,6 +3264,16 @@ body.theme-dark.body-z-light .main-z-light .emp-pill.tone-purple{
 body.theme-dark.body-z-light .main-z-light .emp-avatar.tone-purple{--tone:#8e8e93}
 body.theme-dark.body-z-light .main-z-light .an-hero-card.tone-purple{border-color:#e5e5ea}
 
+/* Journal search icon — square outline, not filled circle */
+body.theme-dark.body-z-light .main-z-light .jr-ic{
+  width:34px!important;height:34px!important;min-height:34px!important;
+  border-radius:10px!important;border:1.5px solid #111!important;
+  background:#fff!important;color:#111!important;box-shadow:none!important
+}
+body.theme-dark.body-z-light .main-z-light .jr-ic[aria-expanded="true"]{
+  background:#111!important;color:#fff!important
+}
+
 /* Employee tenure + salary rates */
 .emp-tenure-counter{
   display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;margin-bottom:12px;text-align:center
