@@ -765,9 +765,10 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .jr-top h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.04em;color:var(--jr-text)}
 .jr-top-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .jr-ic{
-  width:34px;height:34px;border-radius:50%;border:1px solid var(--jr-line);background:var(--jr-card);
-  display:grid;place-items:center;color:var(--jr-text);cursor:pointer;padding:0
+  width:34px;height:34px;border-radius:10px;border:1.5px solid #111;background:#fff;
+  display:grid;place-items:center;color:#111;cursor:pointer;padding:0;box-shadow:none
 }
+.jr-ic[aria-expanded="true"]{background:#111;color:#fff}
 .jr-views{
   display:flex;padding:3px;border-radius:10px;background:#e5e5ea;gap:2px
 }
@@ -3010,7 +3011,7 @@ body.theme-dark.body-z-light .main-z-light .hint,
 body.theme-dark.body-z-light .main-z-light .check{
   background:#f2f2f7!important;border-color:var(--z-line,#e5e5ea)!important;color:var(--z-mute,#8e8e93)!important;
 }
-body.theme-dark.body-z-light .main-z-light button:not(.ghost):not(.danger):not(.mini-btn):not(.emp-del):not(.svc-del-btn):not(.svc-del-cat):not(.close-link-btn):not(.after-close-reopen):not(.jr-svc-chip):not(.jr-mcard):not(.jr-tchip):not(.jr-sheet-x):not(.jr-fab):not(.jr-sheet-scrim):not(.close-z-tap):not(.close-z-pay-method):not(.close-z-btn-main):not(.close-z-btn):not(.close-back):not(.close-menu-btn):not(.close-menu-item),
+body.theme-dark.body-z-light .main-z-light button:not(.ghost):not(.danger):not(.mini-btn):not(.emp-del):not(.svc-del-btn):not(.svc-del-cat):not(.close-link-btn):not(.after-close-reopen):not(.jr-svc-chip):not(.jr-mcard):not(.jr-tchip):not(.jr-sheet-x):not(.jr-fab):not(.jr-sheet-scrim):not(.jr-ic):not(.close-z-tap):not(.close-z-pay-method):not(.close-z-btn-main):not(.close-z-btn):not(.close-back):not(.close-menu-btn):not(.close-menu-item),
 body.theme-dark.body-z-light .main-z-light .btn:not(.ghost):not(.danger){
   background:#111!important;color:#fff!important;border:0!important;box-shadow:none!important;
 }
@@ -3262,6 +3263,16 @@ body.theme-dark.body-z-light .main-z-light .emp-pill.tone-purple{
 }
 body.theme-dark.body-z-light .main-z-light .emp-avatar.tone-purple{--tone:#8e8e93}
 body.theme-dark.body-z-light .main-z-light .an-hero-card.tone-purple{border-color:#e5e5ea}
+
+/* Journal search icon — square outline, not filled circle */
+body.theme-dark.body-z-light .main-z-light .jr-ic{
+  width:34px!important;height:34px!important;min-height:34px!important;
+  border-radius:10px!important;border:1.5px solid #111!important;
+  background:#fff!important;color:#111!important;box-shadow:none!important
+}
+body.theme-dark.body-z-light .main-z-light .jr-ic[aria-expanded="true"]{
+  background:#111!important;color:#fff!important
+}
 
 /* Employee tenure + salary rates */
 .emp-tenure-counter{
