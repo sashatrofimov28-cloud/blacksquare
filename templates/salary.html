@@ -9,19 +9,49 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
 {% endblock %}
 {% block content %}
+{% macro sal_qs(p=None, eid='keep', s=None, e=None) -%}
+  {%- set _p = p if p is not none else period -%}
+  {%- set _eid = employee_id if eid == 'keep' else eid -%}
+  {%- set _s = s if s is not none else start -%}
+  {%- set _e = e if e is not none else end -%}
+  {{- url_for('salary', period=_p, employee_id=_eid or None, start=_s if _p == 'custom' else None, end=_e if _p == 'custom' else None) -}}
+{%- endmacro %}
 <div class="sal-page staff-light sal-page-soft">
   <header class="sal-header">
     <div>
       <p class="sal-kicker">Выплаты</p>
       <h1>Зарплаты</h1>
+      <p class="sal-sub">
+        {% if period == 'all' %}За всё время
+        {% elif start and end and start != end %}{{ start }} — {{ end }}
+        {% elif start %}{{ start }}
+        {% else %}Период{% endif %}
+        · {{ visits_count }} авто · {{ format_money(period_total) }} ₽
+      </p>
     </div>
   </header>
 
+  <nav class="sal-periods scrollable-x" aria-label="Период">
+    <a href="{{ sal_qs('today') }}" class="sal-period{% if period == 'today' %} active{% endif %}">Сегодня</a>
+    <a href="{{ sal_qs('week') }}" class="sal-period{% if period == 'week' %} active{% endif %}">Неделя</a>
+    <a href="{{ sal_qs('month') }}" class="sal-period{% if period == 'month' %} active{% endif %}">Месяц</a>
+    <a href="{{ sal_qs('all') }}" class="sal-period{% if period == 'all' %} active{% endif %}">Всё</a>
+  </nav>
+
+  <form method="get" class="sal-range card-surface">
+    <input type="hidden" name="period" value="custom">
+    {% if employee_id %}<input type="hidden" name="employee_id" value="{{ employee_id }}">{% endif %}
+    <label>С <input type="date" name="start" value="{{ start or '' }}" required></label>
+    <label>По <input type="date" name="end" value="{{ end or '' }}" required></label>
+    <button type="submit">Показать</button>
+  </form>
+
   <div class="sal-totals scrollable-x">
     {% for t in totals %}
-    <a href="{{ url_for('salary', employee_id=t.id) }}" class="sal-total-card card-surface{% if employee_id==t.id %} active{% endif %}">
+    <a href="{{ sal_qs(period, t.id) }}" class="sal-total-card card-surface{% if employee_id==t.id %} active{% endif %}">
       <span>{{ t.full_name }}</span>
       <strong>{{ format_money(t.total) }} ₽</strong>
+      <em>{{ t.cnt or 0 }} начисл.</em>
     </a>
     {% else %}
     <div class="sal-total-card card-surface">
@@ -32,13 +62,16 @@
   </div>
 
   <form method="get" class="sal-filter">
+    <input type="hidden" name="period" value="{{ period }}">
+    {% if period == 'custom' and start %}<input type="hidden" name="start" value="{{ start }}">{% endif %}
+    {% if period == 'custom' and end %}<input type="hidden" name="end" value="{{ end }}">{% endif %}
     <select name="employee_id" onchange="this.form.submit()">
       <option value="">Все мастера</option>
       {% for e in employees %}
       <option value="{{ e.id }}" {% if employee_id==e.id %}selected{% endif %}>{{ e.full_name }}</option>
       {% endfor %}
     </select>
-    {% if employee_id %}<a class="sal-filter-clear" href="{{ url_for('salary') }}">×</a>{% endif %}
+    {% if employee_id %}<a class="sal-filter-clear" href="{{ sal_qs(period, None) }}">×</a>{% endif %}
   </form>
 
   <div class="sal-list">
@@ -49,8 +82,9 @@
         <div class="sal-card-main">
           <b>{{ r.employee_name }}</b>
           {% if r.appointment_date %}
-          <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}</span>
-          <span>{{ r.client_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+          <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}</span>
+          <span class="sal-car">{{ r.car or 'Авто не указано' }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+          <span>{{ r.client_name or '—' }}</span>
           <span class="sal-service">{{ r.service_name or '—' }}</span>
           {% else %}
           <span>{{ r.period or 'Начисление' }}</span>
@@ -59,25 +93,43 @@
         <strong class="sal-amount">{{ format_money(r.amount) }} ₽</strong>
       </summary>
       <div class="sal-card-details">
+        <div class="sal-car-block">
+          <span>Автомобиль</span>
+          <b>{{ r.car or '—' }}</b>
+          {% if r.plate_number %}<b class="sal-plate">{{ r.plate_number }}</b>{% endif %}
+        </div>
+        <div><span>Клиент</span><b>{{ r.client_name or '—' }}</b></div>
+        {% if r.phone %}<div><span>Телефон</span><b>{{ r.phone }}</b></div>{% endif %}
+        <div><span>Услуга</span><b>{{ r.service_name or '—' }}</b></div>
+        <div><span>Дата визита</span><b>{% if r.appointment_date %}{{ r.appointment_date }} {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}{% else %}—{% endif %}</b></div>
         <div><span>Записано</span><b>{{ r.created_at[:16] if r.created_at else '—' }}</b></div>
         <div><span>Закрыто</span><b>{{ r.closed_at[:16] if r.closed_at else '—' }}</b></div>
         <div><span>Сумма заказа</span><b>{{ format_money(r.price or 0) }} ₽</b></div>
         <div><span>Допуслуги</span><b>{{ format_money(r.extras_total or 0) }} ₽</b></div>
         <div><span>Сертификат</span><b>{{ format_money(r.certificate_paid or 0) }} ₽</b></div>
+        <div><span>Материалы (сумма)</span><b>{{ format_money(r.material_cost or 0) }} ₽</b></div>
         {% if d.materials %}
         <div class="sal-materials"><span>Материалы</span>
-          {% for m in d.materials %}<b>{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}</b>{% endfor %}
+          {% for m in d.materials %}<b>{{ m.name }}: {{ "%.2f"|format(m.qty) }} {{ m.unit }}{% if m.length_m %} · {{ "%.2f"|format(m.length_m) }} м{% endif %}</b>{% endfor %}
         </div>
         {% elif r.material_m2 %}
         <div><span>Материалы</span><b>{{ format_money(r.material_m2, 1) }} м²</b></div>
         {% endif %}
+        {% if d.extras %}
+        <div class="sal-materials"><span>Допы</span>
+          {% for e in d.extras %}<b>{{ e.name }}: {{ format_money(e.price) }} ₽</b>{% endfor %}
+        </div>
+        {% endif %}
         {% if r.visit_comment or r.comment %}
         <div class="sal-comment"><span>Комментарий</span><b>{{ r.visit_comment or r.comment }}</b></div>
+        {% endif %}
+        {% if r.appointment_id %}
+        <a class="sal-open" href="{{ url_for('after_close_documents', aid=r.appointment_id, date=r.appointment_date or '') }}">Открыть визит</a>
         {% endif %}
       </div>
     </details>
     {% else %}
-    <p class="sal-empty">Начислений пока нет</p>
+    <p class="sal-empty">За выбранный период начислений нет</p>
     {% endfor %}
   </div>
 </div>

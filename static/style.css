@@ -2300,6 +2300,26 @@ body.close-z-sheet-open{overflow:hidden}
 .sal-total-card.active{border-color:var(--accent-green,#2ecc71)}
 .sal-total-card span{display:block;font-size:12px;color:var(--muted,#888);margin-bottom:4px}
 .sal-total-card strong{font-size:18px}
+.sal-total-card em{display:block;margin-top:4px;font-style:normal;font-size:11px;color:var(--muted,#888);font-weight:700}
+.sal-sub{margin:4px 0 0;font-size:13px;color:var(--muted,#8e8e93);font-weight:700}
+.sal-periods{display:flex;gap:8px;margin:0 0 12px;overflow-x:auto;padding-bottom:2px}
+.sal-period{
+  flex-shrink:0;padding:8px 14px;border-radius:999px;border:1px solid #e5e5ea;background:#fff;
+  color:#111;text-decoration:none;font-size:13px;font-weight:800
+}
+.sal-period.active{background:#111;color:#fff;border-color:#111}
+.sal-range{
+  display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;
+  padding:12px;border-radius:16px;margin-bottom:14px
+}
+.sal-range label{display:grid;gap:4px;font-size:11px;font-weight:800;color:#8e8e93}
+.sal-range input[type=date]{
+  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #e5e5ea;background:#f2f2f7;
+  color:#111;font:inherit;font-weight:700
+}
+.sal-range button{
+  padding:10px 14px;border:0;border-radius:12px;background:#111;color:#fff;font:inherit;font-weight:800;cursor:pointer
+}
 .sal-filter{display:flex;gap:8px;align-items:center;margin-bottom:14px}
 .sal-filter select{flex:1;padding:12px 14px;border-radius:12px;border:1px solid var(--border,#2a2a2a);background:var(--surface-2,#161616);color:inherit;font:inherit}
 .sal-filter-clear{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2,#161616);border:1px solid var(--border,#2a2a2a);text-decoration:none;color:inherit;font-size:18px}
@@ -2310,14 +2330,23 @@ body.close-z-sheet-open{overflow:hidden}
 .sal-card-main{min-width:0;display:grid;gap:3px}
 .sal-card-main b{font-size:14px}
 .sal-card-main span{font-size:12px;color:var(--muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sal-car{color:#111!important;font-weight:800!important}
 .sal-service{color:var(--text,#fff)!important;font-weight:600}
 .sal-amount{font-size:16px;white-space:nowrap;color:var(--accent-green,#2ecc71)}
-.sal-card-details{padding:0 14px 14px;display:grid;gap:8px;border-top:1px solid var(--border,#2a2a2a)}
+.sal-card-details{padding:0 14px 14px;display:grid;gap:8px;border-top:1px solid var(--border,#2a2a2a);padding-top:12px}
 .sal-card-details>div{display:flex;justify-content:space-between;gap:10px;font-size:13px}
 .sal-card-details span{color:var(--muted,#888)}
 .sal-card-details b{text-align:right;font-weight:600}
+.sal-car-block{flex-direction:column;align-items:flex-start!important;gap:4px;padding:10px 12px;border-radius:12px;background:#f2f2f7}
+.sal-car-block b{text-align:left;font-size:15px;font-weight:800}
+.sal-plate{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em}
 .sal-materials,.sal-comment{flex-direction:column;align-items:flex-start!important}
 .sal-materials b,.sal-comment b{text-align:left;margin-top:4px}
+.sal-open{
+  display:inline-flex;justify-content:center;margin-top:4px;padding:10px 12px;border-radius:12px;
+  background:#111;color:#fff;text-decoration:none;font-size:13px;font-weight:800
+}
+.sal-empty{padding:24px 8px;text-align:center;color:#8e8e93;font-weight:700}
 
 /* Client card — variant A (profile) */
 .client-page-a .client-topbar{
@@ -3329,6 +3358,13 @@ body.theme-dark.body-z-light .main-z-light .emp-block h3{color:#111}
 .sal-page-soft .sal-card-main b{font-weight:800}
 .sal-page-soft .sal-amount{font-weight:800}
 .sal-page-soft .sal-filter select{border-radius:14px;font-weight:700}
+.sal-page-soft .sal-car{color:#111!important}
+.sal-page-soft .sal-service{color:#3a3a3c!important}
+body.theme-dark.body-z-light .main-z-light .sal-period{background:#fff;border-color:#e5e5ea;color:#111}
+body.theme-dark.body-z-light .main-z-light .sal-period.active{background:#111;color:#fff;border-color:#111}
+body.theme-dark.body-z-light .main-z-light .sal-range{background:#fff;border:1px solid #e5e5ea}
+body.theme-dark.body-z-light .main-z-light .sal-car-block{background:#f2f2f7}
+body.theme-dark.body-z-light .main-z-light .sal-open{background:#111;color:#fff}
 
 /* Master salary rows: clearer spacing */
 .close-page-z .salary-master-row{

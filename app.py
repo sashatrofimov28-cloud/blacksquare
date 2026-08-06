@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v96'
+BUILD_VERSION = 'client-v97'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -7237,44 +7237,45 @@ def salary():
     employee_id = request.args.get('employee_id', type=int)
     if u['role'] == 'master':
         employee_id = u['id']
-    if u['role'] == 'master':
-        rows = con.execute(
-            """SELECT s.*, a.client_name, a.plate_number, a.car, a.service_name, a.appointment_date,
-                      a.start_time, a.end_time, a.comment visit_comment, a.closed_at, a.price, a.material_m2,
-                      a.material_cost, a.extras_total, a.certificate_paid
-               FROM salary s
-               LEFT JOIN appointments a ON a.id=s.appointment_id
-               WHERE s.employee_id=? ORDER BY s.id DESC""",
-            (u['id'],)
-        ).fetchall()
-        details = {}
-        for r in rows:
-            if r['appointment_id']:
-                details[r['id']] = {
-                    'materials': con.execute(
-                        "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
-                        (r['appointment_id'],)
-                    ).fetchall(),
-                    'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
-                }
-        total = con.execute("SELECT COALESCE(SUM(amount),0) s FROM salary WHERE employee_id=?", (u['id'],)).fetchone()['s']
-        con.close()
-        return render_template('master_salary.html', rows=rows, total=total, details=details, employees=[], employee_id=u['id'])
-    sql = """SELECT s.*, u.full_name employee_name, a.client_name, a.plate_number, a.car, a.service_name,
-                  a.appointment_date, a.start_time, a.end_time, a.comment visit_comment, a.closed_at,
-                  a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid
-           FROM salary s
-           LEFT JOIN users u ON u.id=s.employee_id
-           LEFT JOIN appointments a ON a.id=s.appointment_id
-           WHERE 1=1"""
+
+    period = (request.args.get('period') or 'month').strip()
+    start_q = (request.args.get('start') or '').strip()
+    end_q = (request.args.get('end') or '').strip()
+    date_re = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    if start_q and end_q and date_re.match(start_q) and date_re.match(end_q):
+        if start_q > end_q:
+            start_q, end_q = end_q, start_q
+        start, end, period = start_q, end_q, 'custom'
+    elif period == 'all':
+        start = end = None
+    else:
+        if period not in ('today', 'week', 'month'):
+            period = 'month'
+        start, end = analytics_period_bounds(period)
+
+    date_expr = "COALESCE(a.appointment_date, date(s.created_at))"
+    where = ["1=1"]
     params = []
     if employee_id:
-        sql += " AND s.employee_id=?"
+        where.append("s.employee_id=?")
         params.append(employee_id)
     else:
-        sql += " AND u.role='master'"
-    sql += " ORDER BY s.id DESC"
+        where.append("u.role='master'")
+    if start and end:
+        where.append(f"{date_expr} BETWEEN ? AND ?")
+        params.extend([start, end])
+
+    sql = f"""SELECT s.*, u.full_name employee_name, a.client_name, a.phone, a.plate_number, a.car,
+                     a.service_name, a.appointment_date, a.start_time, a.end_time, a.comment visit_comment,
+                     a.closed_at, a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid,
+                     a.status ap_status
+              FROM salary s
+              LEFT JOIN users u ON u.id=s.employee_id
+              LEFT JOIN appointments a ON a.id=s.appointment_id
+              WHERE {' AND '.join(where)}
+              ORDER BY {date_expr} DESC, s.id DESC"""
     rows = con.execute(sql, params).fetchall()
+
     details = {}
     for r in rows:
         if r['appointment_id']:
@@ -7283,19 +7284,59 @@ def salary():
                     "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
                     (r['appointment_id'],)
                 ).fetchall(),
-                'extras': con.execute("SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id", (r['appointment_id'],)).fetchall(),
+                'extras': con.execute(
+                    "SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id",
+                    (r['appointment_id'],)
+                ).fetchall(),
             }
-    totals = con.execute(
-        "SELECT u.id,u.full_name,COALESCE(SUM(s.amount),0) total FROM users u "
-        "LEFT JOIN salary s ON s.employee_id=u.id "
-        "WHERE u.role='master' AND u.active=1 "
-        "GROUP BY u.id ORDER BY u.full_name"
-    ).fetchall()
+
+    period_total = sum(float(r['amount'] or 0) for r in rows)
+    visits_count = len({r['appointment_id'] for r in rows if r['appointment_id']})
+
+    if start and end:
+        totals = con.execute(
+            f"""SELECT u.id, u.full_name,
+                       COALESCE(SUM(CASE WHEN {date_expr} BETWEEN ? AND ? THEN s.amount ELSE 0 END), 0) total,
+                       COUNT(CASE WHEN {date_expr} BETWEEN ? AND ? THEN s.id END) cnt
+                FROM users u
+                LEFT JOIN salary s ON s.employee_id=u.id
+                LEFT JOIN appointments a ON a.id=s.appointment_id
+                WHERE u.role='master' AND u.active=1
+                GROUP BY u.id
+                ORDER BY u.full_name""",
+            (start, end, start, end),
+        ).fetchall()
+    else:
+        totals = con.execute(
+            """SELECT u.id, u.full_name, COALESCE(SUM(s.amount),0) total, COUNT(s.id) cnt
+               FROM users u
+               LEFT JOIN salary s ON s.employee_id=u.id
+               WHERE u.role='master' AND u.active=1
+               GROUP BY u.id
+               ORDER BY u.full_name"""
+        ).fetchall()
+
     employees = con.execute(
         "SELECT id,full_name FROM users WHERE active=1 AND role='master' ORDER BY full_name"
     ).fetchall()
     con.close()
-    return render_template('salary.html', rows=rows, totals=totals, details=details, employees=employees, employee_id=employee_id)
+
+    ctx = dict(
+        rows=rows,
+        totals=totals,
+        details=details,
+        employees=employees,
+        employee_id=employee_id,
+        period=period,
+        start=start,
+        end=end,
+        period_total=period_total,
+        visits_count=visits_count,
+    )
+    if u['role'] == 'master':
+        return render_template('master_salary.html', total=period_total, **ctx)
+    return render_template('salary.html', **ctx)
+
 
 @app.route('/analytics')
 @login_required
