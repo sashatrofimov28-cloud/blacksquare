@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v94'
+BUILD_VERSION = 'client-v95'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -6537,6 +6537,97 @@ def reschedule_appointment(aid):
     defer_notify_new_appointment(employee_ids, d, start, ap['client_name'], ap['service_name'], ap['car'] or ap['plate_number'], source='Перенос')
     defer_client_appointment_notify(aid, 'confirm')
     flash('Запись перенесена'); return redirect(url_for('calendar_view', date=d))
+
+
+@app.route('/api/appointment/<int:aid>/move', methods=['POST'])
+@login_required
+@perm_required('calendar')
+def api_appointment_move(aid):
+    """Перенос записи по времени и/или мастеру (drag-and-drop в журнале)."""
+    data = request.get_json(silent=True) or {}
+    d = (data.get('date') or data.get('appointment_date') or '').strip()
+    start = (data.get('start_time') or '').strip()
+    try:
+        employee_id = int(data.get('employee_id'))
+    except (TypeError, ValueError):
+        employee_id = 0
+
+    if not d or not re.match(r'^\d{4}-\d{2}-\d{2}$', d):
+        return jsonify(ok=False, message='Некорректная дата'), 400
+    if not start or not re.match(r'^\d{1,2}:\d{2}$', start):
+        return jsonify(ok=False, message='Некорректное время'), 400
+    try:
+        start_m = hm2m(start)
+        start = m2hm(start_m)  # normalize HH:MM
+    except Exception:
+        return jsonify(ok=False, message='Некорректное время'), 400
+    if employee_id <= 0:
+        return jsonify(ok=False, message='Укажите мастера'), 400
+
+    con = db()
+    u = current_user()
+    ap = con.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+    if not ap:
+        con.close()
+        return jsonify(ok=False, message='Запись не найдена'), 404
+    if not can_manage_open_appointment(u, con, ap):
+        con.close()
+        return jsonify(ok=False, message='Нет доступа или запись уже закрыта'), 403
+
+    master = con.execute(
+        "SELECT id FROM users WHERE id=? AND active=1 AND role='master'",
+        (employee_id,),
+    ).fetchone()
+    if not master:
+        con.close()
+        return jsonify(ok=False, message='Мастер не найден'), 400
+
+    duration = int(ap['duration_min'] or 0)
+    if not duration:
+        service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+        bundle = resolve_services_bundle(con, service_ids)
+        duration = int(bundle['duration_min']) if bundle else 60
+    end_m = start_m + duration
+    end = m2hm(end_m)
+
+    conflict = con.execute(
+        "SELECT id, client_name, start_time, end_time FROM appointments "
+        "WHERE id!=? AND appointment_date=? AND status!='Отменен' AND employee_id=? "
+        "AND start_time < ? AND end_time > ? LIMIT 1",
+        (aid, d, employee_id, end, start),
+    ).fetchone()
+    if conflict:
+        con.close()
+        return jsonify(
+            ok=False,
+            message=f"Слот занят: {conflict['client_name']} ({conflict['start_time']}–{conflict['end_time']})",
+        ), 409
+
+    old_d, old_start, old_eid = ap['appointment_date'], ap['start_time'], ap['employee_id']
+    if old_d == d and old_start == start and int(old_eid or 0) == employee_id:
+        con.close()
+        return jsonify(ok=True, unchanged=True, date=d, start_time=start, end_time=end, employee_id=employee_id)
+
+    note = f'Перенос: {old_d} {old_start} → {d} {start}'
+    if int(old_eid or 0) != employee_id:
+        note += f' (мастер #{old_eid or 0} → #{employee_id})'
+    comment = f"{ap['comment']}\n{note}".strip() if ap['comment'] else note
+
+    con.execute(
+        "UPDATE appointments SET appointment_date=?, start_time=?, end_time=?, duration_min=?, employee_id=?, comment=? WHERE id=?",
+        (d, start, end, duration, employee_id, comment, aid),
+    )
+    set_appointment_employees(con, aid, [employee_id])
+    clear_appointment_client_notifications(con, aid)
+    con.commit()
+    con.close()
+    defer_notify_new_appointment(
+        [employee_id], d, start, ap['client_name'], ap['service_name'],
+        ap['car'] or ap['plate_number'], source='Перенос',
+    )
+    defer_client_appointment_notify(aid, 'confirm')
+    return jsonify(ok=True, date=d, start_time=start, end_time=end, employee_id=employee_id, duration_min=duration)
+
 
 @app.route('/certificates', methods=['GET','POST'])
 @login_required
