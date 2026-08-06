@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v93'
+BUILD_VERSION = 'client-v94'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -6794,7 +6794,7 @@ def employees():
             online_booking = 1 if role == 'master' and request.form.get('online_booking') else 0
             salary_percent = 30.0 if role == 'master' else 0.0
             con.execute(
-                "INSERT INTO users(username,password_hash,role,full_name,active,online_booking,salary_percent,hired_at,created_at) VALUES(?,?,?,?,1,?,?,?,?,?)",
+                "INSERT INTO users(username,password_hash,role,full_name,active,online_booking,salary_percent,hired_at,created_at) VALUES(?,?,?,?,1,?,?,?,?)",
                 (request.form['username'].strip(), generate_password_hash(password), role, request.form['full_name'], online_booking, salary_percent, today(), now()),
             )
             uid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
@@ -6805,6 +6805,8 @@ def employees():
             con.commit(); flash('Сотрудник создан')
         except sqlite3.IntegrityError:
             flash('Такой логин уже есть')
+        except Exception as e:
+            flash(f'Не удалось создать сотрудника: {e}')
         return redirect(url_for('employees'))
     rows = con.execute("SELECT * FROM users ORDER BY active DESC, role, full_name").fetchall()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
@@ -7054,9 +7056,12 @@ def employee_delete(uid):
         ('user_permissions', 'user_id'),
         ('user_services', 'user_id'),
         ('employee_weekly_schedule', 'user_id'),
+        ('employee_service_rates', 'user_id'),
         ('schedules', 'user_id'),
         ('director_notification_prefs', 'user_id'),
         ('phone_access_requests', 'user_id'),
+        ('user_bottom_nav', 'user_id'),
+        ('auth_remember_tokens', 'user_id'),
     ):
         con.execute(f"DELETE FROM {table} WHERE {col}=?", (uid,))
     con.execute("DELETE FROM director_employee_notify WHERE director_id=? OR employee_id=?", (uid, uid))
