@@ -867,9 +867,8 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
       if (e.button != null && e.button !== 0) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (e.target.closest('button, input, select, textarea')) return;
-      // Блокируем нативный drag ссылок/выделение текста
-      if (e.pointerType === 'mouse') e.preventDefault();
       const rect = el.getBoundingClientRect();
+      const homeGrid = el.closest('.jr-grid');
       drag = {
         el: el,
         pointerId: e.pointerId,
@@ -880,8 +879,8 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
         rect: rect,
         active: false,
         ghost: null,
-        lastGrid: el.closest('.jr-grid'),
-        lastSnap: snapFromPoint(el.closest('.jr-grid') || board, e.clientY),
+        lastGrid: homeGrid,
+        lastSnap: homeGrid ? snapFromPoint(homeGrid, e.clientY) : null,
       };
       document.addEventListener('pointermove', onMove, { passive: false });
       document.addEventListener('pointerup', onUp);
