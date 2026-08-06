@@ -90,19 +90,28 @@
           <div class="jr-marker cal-slot-marker" hidden></div>
           {% for ev in col.events %}
           {% set r = ev.row %}
-          <a class="jr-event {{ ev.tone }}{% if r.status == 'Закрыт' %} done{% endif %}{% if r.status not in ['Закрыт','Отменен'] %} jr-draggable{% endif %}"
+          {% if r.status not in ['Закрыт','Отменен'] %}
+          {% set ev_href = url_for('close_appointment', aid=r.id) %}
+          {% elif r.status == 'Закрыт' %}
+          {% set ev_href = url_for('after_close_documents', aid=r.id, date=r.appointment_date) %}
+          {% else %}
+          {% set ev_href = '#' %}
+          {% endif %}
+          <div class="jr-event {{ ev.tone }}{% if r.status == 'Закрыт' %} done{% endif %}{% if r.status not in ['Закрыт','Отменен'] %} jr-draggable{% endif %}"
              style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc(4px + {{ ev.col }} * ((100% - 8px) / {{ ev.col_count }})); width: calc((100% - 8px) / {{ ev.col_count }} - 2px)"
-             href="{% if r.status not in ['Закрыт','Отменен'] %}{{ url_for('close_appointment', aid=r.id) }}{% elif r.status == 'Закрыт' %}{{ url_for('after_close_documents', aid=r.id, date=r.appointment_date) }}{% else %}#{% endif %}"
+             role="link" tabindex="0"
+             data-href="{{ ev_href }}"
              data-aid="{{ r.id }}"
              data-date="{{ r.appointment_date }}"
              data-start="{{ r.start_time }}"
              data-end="{{ r.end_time }}"
              data-duration="{{ r.duration_min or (ev.end_m - ev.start_m) }}"
-             data-employee-id="{{ r.employee_id or col.id }}">
+             data-employee-id="{{ r.employee_id or col.id }}"
+             draggable="false">
             <strong>{{ r.start_time }}–{{ r.end_time }}</strong>
             <span>{{ r.client_name }}</span>
             <span>{{ r.service_name }}</span>
-          </a>
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -683,18 +692,26 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
   }
 
   function hitGrid(x, y) {
-    const grids = document.querySelectorAll('.jr-grid[data-master-id]');
+    const grids = Array.prototype.slice.call(document.querySelectorAll('.jr-grid[data-master-id]'));
+    let best = null;
+    let bestDist = Infinity;
     for (let i = 0; i < grids.length; i++) {
       const g = grids[i];
       const r = g.getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return g;
+      if (y < r.top - 8 || y > r.bottom + 8) continue;
+      if (x >= r.left && x <= r.right) return g;
+      const dist = x < r.left ? r.left - x : x - r.right;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = g;
+      }
     }
-    return null;
+    return bestDist <= 40 ? best : null;
   }
 
   function snapFromPoint(grid, clientY) {
     const rect = grid.getBoundingClientRect();
-    const y = clientY - rect.top;
+    const y = Math.min(Math.max(clientY - rect.top, 0), rect.height - 1);
     const idx = Math.max(0, Math.floor(y / slotH));
     const startM = dayStartM + idx * 30;
     return { time: m2hm(startM), top: idx * slotH, startM: startM };
@@ -708,6 +725,11 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
     if (slot) slot.classList.add('jr-drop-slot');
   }
 
+  function openEvent(el) {
+    const href = el.getAttribute('data-href');
+    if (href && href !== '#') location.href = href;
+  }
+
   function endDrag(cancelled) {
     if (!drag) return;
     const state = drag;
@@ -718,13 +740,17 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
     clearDropHints();
     if (state.ghost && state.ghost.parentNode) state.ghost.parentNode.removeChild(state.ghost);
     state.el.classList.remove('jr-dragging');
+    document.body.classList.remove('jr-dnd-active');
     try { state.el.releasePointerCapture(state.pointerId); } catch (e) {}
 
     if (cancelled || !state.active) return;
 
     const grid = state.lastGrid;
     const snap = state.lastSnap;
-    if (!grid || !snap) return;
+    if (!grid || !snap) {
+      toast('Отпустите над колонкой мастера');
+      return;
+    }
 
     const aid = state.el.dataset.aid;
     const date = grid.dataset.selectedDate || state.el.dataset.date;
@@ -737,7 +763,7 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
     if (same || employeeId <= 0) return;
 
     suppressClick = true;
-    setTimeout(function () { suppressClick = false; }, 400);
+    setTimeout(function () { suppressClick = false; }, 500);
 
     state.el.style.opacity = '0.55';
     fetch('/api/appointment/' + aid + '/move', {
@@ -770,17 +796,20 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
     const dx = e.clientX - drag.x0;
     const dy = e.clientY - drag.y0;
     if (!drag.active) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
       drag.active = true;
+      suppressClick = true;
       drag.el.classList.add('jr-dragging');
+      document.body.classList.add('jr-dnd-active');
       const ghost = drag.el.cloneNode(true);
       ghost.classList.add('jr-event-ghost');
       ghost.classList.remove('jr-dragging', 'jr-draggable');
-      ghost.removeAttribute('href');
+      ghost.removeAttribute('data-href');
       ghost.style.left = '0';
       ghost.style.top = '0';
       ghost.style.width = drag.rect.width + 'px';
       ghost.style.height = drag.rect.height + 'px';
+      ghost.style.transform = 'translate(' + (e.clientX - drag.offsetX) + 'px,' + (e.clientY - drag.offsetY) + 'px) scale(1.02)';
       document.body.appendChild(ghost);
       drag.ghost = ghost;
       try { drag.el.setPointerCapture(drag.pointerId); } catch (err) {}
@@ -800,6 +829,8 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
       if (strong) strong.textContent = snap.time + '–' + m2hm(endM);
     } else {
       clearDropHints();
+      drag.lastGrid = null;
+      drag.lastSnap = null;
     }
   }
 
@@ -813,17 +844,31 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
     endDrag(true);
   }
 
-  document.querySelectorAll('.jr-event.jr-draggable').forEach(function (el) {
+  document.querySelectorAll('.jr-event').forEach(function (el) {
+    el.addEventListener('dragstart', function (e) { e.preventDefault(); });
+
     el.addEventListener('click', function (e) {
-      if (suppressClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (suppressClick) return;
+      openEvent(el);
+    });
+
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        e.stopPropagation();
+        openEvent(el);
       }
-    }, true);
+    });
+
+    if (!el.classList.contains('jr-draggable')) return;
 
     el.addEventListener('pointerdown', function (e) {
       if (e.button != null && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (e.target.closest('button, input, select, textarea')) return;
+      // Блокируем нативный drag ссылок/выделение текста
+      if (e.pointerType === 'mouse') e.preventDefault();
       const rect = el.getBoundingClientRect();
       drag = {
         el: el,
@@ -835,8 +880,8 @@ window.BS_DATE_TITLE = {{ date_title|tojson }};
         rect: rect,
         active: false,
         ghost: null,
-        lastGrid: null,
-        lastSnap: null,
+        lastGrid: el.closest('.jr-grid'),
+        lastSnap: snapFromPoint(el.closest('.jr-grid') || board, e.clientY),
       };
       document.addEventListener('pointermove', onMove, { passive: false });
       document.addEventListener('pointerup', onUp);

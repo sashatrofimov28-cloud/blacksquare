@@ -871,14 +871,17 @@ button,.btn,.mini-btn{display:inline-block;border:0;background:#050505;color:#ff
 .jr-event{
   position:absolute;border-radius:10px;padding:6px 7px;color:#111;z-index:3;
   font-size:10px;line-height:1.25;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);
-  text-decoration:none;box-sizing:border-box;display:flex;flex-direction:column;gap:1px
+  text-decoration:none;box-sizing:border-box;display:flex;flex-direction:column;gap:1px;
+  cursor:pointer;-webkit-user-drag:none;user-select:none
 }
-.jr-event.jr-draggable{touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
-.jr-event.jr-dragging{opacity:.4;cursor:grabbing}
+.jr-event.jr-draggable{touch-action:none;cursor:grab}
+.jr-event.jr-dragging{opacity:.35;cursor:grabbing}
+body.jr-dnd-active{cursor:grabbing!important;user-select:none}
+body.jr-dnd-active *{cursor:grabbing!important}
 .jr-event-ghost{
   position:fixed;z-index:900;pointer-events:none;border-radius:10px;padding:6px 7px;color:#111;
   font-size:10px;line-height:1.25;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18);
-  box-sizing:border-box;display:flex;flex-direction:column;gap:1px;opacity:.92;transform:scale(1.02)
+  box-sizing:border-box;display:flex;flex-direction:column;gap:1px;opacity:.95;margin:0
 }
 .jr-grid.jr-drop-over{box-shadow:inset 0 0 0 2px rgba(0,179,104,.45)}
 .jr-slot.jr-drop-slot{background:rgba(0,179,104,.14)!important}
