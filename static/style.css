@@ -2331,6 +2331,7 @@ body.close-z-sheet-open{overflow:hidden}
 .sal-card-main b{font-size:14px}
 .sal-card-main span{font-size:12px;color:var(--muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sal-car{color:#111!important;font-weight:800!important}
+.sal-pays{color:#3a3a3c!important;font-weight:700!important;white-space:normal!important}
 .sal-service{color:var(--text,#fff)!important;font-weight:600}
 .sal-amount{font-size:16px;white-space:nowrap;color:var(--accent-green,#2ecc71)}
 .sal-card-details{padding:0 14px 14px;display:grid;gap:8px;border-top:1px solid var(--border,#2a2a2a);padding-top:12px}

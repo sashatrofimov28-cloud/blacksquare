@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v97'
+BUILD_VERSION = 'client-v98'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -7233,6 +7233,7 @@ def stock():
 @login_required
 @perm_required('salary')
 def salary():
+    """ЗП по закрытым визитам мастера за период (не только строки salary)."""
     con = db(); u = current_user()
     employee_id = request.args.get('employee_id', type=int)
     if u['role'] == 'master':
@@ -7253,72 +7254,128 @@ def salary():
             period = 'month'
         start, end = analytics_period_bounds(period)
 
-    date_expr = "COALESCE(a.appointment_date, date(s.created_at))"
-    where = ["1=1"]
-    params = []
-    if employee_id:
-        where.append("s.employee_id=?")
-        params.append(employee_id)
-    else:
-        where.append("u.role='master'")
+    date_where = ""
+    date_params = []
     if start and end:
-        where.append(f"{date_expr} BETWEEN ? AND ?")
-        params.extend([start, end])
+        date_where = " AND a.appointment_date BETWEEN ? AND ?"
+        date_params = [start, end]
 
-    sql = f"""SELECT s.*, u.full_name employee_name, a.client_name, a.phone, a.plate_number, a.car,
-                     a.service_name, a.appointment_date, a.start_time, a.end_time, a.comment visit_comment,
-                     a.closed_at, a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid,
-                     a.status ap_status
-              FROM salary s
-              LEFT JOIN users u ON u.id=s.employee_id
-              LEFT JOIN appointments a ON a.id=s.appointment_id
-              WHERE {' AND '.join(where)}
-              ORDER BY {date_expr} DESC, s.id DESC"""
-    rows = con.execute(sql, params).fetchall()
+    master_on_visit = (
+        "(a.employee_id=? OR EXISTS ("
+        "SELECT 1 FROM appointment_employees ae "
+        "WHERE ae.appointment_id=a.id AND ae.employee_id=?))"
+    )
+
+    rows = []
+    if employee_id:
+        # Один ряд = один закрытый визит этого мастера (без дублей)
+        sql = f"""
+            SELECT a.id AS appointment_id, a.client_name, a.phone, a.plate_number, a.car,
+                   a.service_name, a.appointment_date, a.start_time, a.end_time, a.comment AS visit_comment,
+                   a.closed_at, a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid,
+                   a.status AS ap_status, a.created_at AS ap_created_at,
+                   u.full_name AS employee_name, u.id AS employee_id,
+                   COALESCE(s.amount, 0) AS amount, s.id AS salary_id, s.period, s.comment, s.created_at
+            FROM appointments a
+            JOIN users u ON u.id=?
+            LEFT JOIN salary s ON s.appointment_id=a.id AND s.employee_id=?
+            WHERE a.status='Закрыт' AND {master_on_visit}
+            {date_where}
+            ORDER BY a.appointment_date DESC, a.start_time DESC, a.id DESC
+        """
+        params = [employee_id, employee_id, employee_id, employee_id] + date_params
+        rows = con.execute(sql, params).fetchall()
+    else:
+        # Все мастера: один ряд на визит, ЗП мастеров внутри карточки
+        sql = f"""
+            SELECT a.id AS appointment_id, a.client_name, a.phone, a.plate_number, a.car,
+                   a.service_name, a.appointment_date, a.start_time, a.end_time, a.comment AS visit_comment,
+                   a.closed_at, a.price, a.material_m2, a.material_cost, a.extras_total, a.certificate_paid,
+                   a.status AS ap_status, a.created_at AS ap_created_at,
+                   COALESCE(a.salary_amount, 0) AS amount,
+                   NULL AS salary_id, NULL AS period, NULL AS comment, NULL AS created_at,
+                   NULL AS employee_name, NULL AS employee_id
+            FROM appointments a
+            WHERE a.status='Закрыт'
+              AND EXISTS (
+                  SELECT 1 FROM users u
+                  WHERE u.role='master' AND u.active=1
+                    AND (u.id=a.employee_id OR EXISTS (
+                        SELECT 1 FROM appointment_employees ae
+                        WHERE ae.appointment_id=a.id AND ae.employee_id=u.id
+                    ))
+              )
+            {date_where}
+            ORDER BY a.appointment_date DESC, a.start_time DESC, a.id DESC
+        """
+        rows = con.execute(sql, date_params).fetchall()
 
     details = {}
     for r in rows:
-        if r['appointment_id']:
-            details[r['id']] = {
-                'materials': con.execute(
-                    "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
-                    (r['appointment_id'],)
-                ).fetchall(),
-                'extras': con.execute(
-                    "SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id",
-                    (r['appointment_id'],)
-                ).fetchall(),
-            }
-
-    period_total = sum(float(r['amount'] or 0) for r in rows)
-    visits_count = len({r['appointment_id'] for r in rows if r['appointment_id']})
-
-    if start and end:
-        totals = con.execute(
-            f"""SELECT u.id, u.full_name,
-                       COALESCE(SUM(CASE WHEN {date_expr} BETWEEN ? AND ? THEN s.amount ELSE 0 END), 0) total,
-                       COUNT(CASE WHEN {date_expr} BETWEEN ? AND ? THEN s.id END) cnt
-                FROM users u
-                LEFT JOIN salary s ON s.employee_id=u.id
-                LEFT JOIN appointments a ON a.id=s.appointment_id
-                WHERE u.role='master' AND u.active=1
-                GROUP BY u.id
-                ORDER BY u.full_name""",
-            (start, end, start, end),
+        aid = r['appointment_id']
+        master_pays = con.execute(
+            """SELECT s.employee_id, s.amount, u.full_name
+               FROM salary s JOIN users u ON u.id=s.employee_id
+               WHERE s.appointment_id=? ORDER BY u.full_name""",
+            (aid,),
         ).fetchall()
+        if not master_pays:
+            # Мастера на визите без начисления — покажем 0
+            master_pays = con.execute(
+                """SELECT u.id AS employee_id, 0 AS amount, u.full_name
+                   FROM users u
+                   WHERE u.role='master' AND (
+                       u.id=(SELECT employee_id FROM appointments WHERE id=?)
+                       OR EXISTS (
+                           SELECT 1 FROM appointment_employees ae
+                           WHERE ae.appointment_id=? AND ae.employee_id=u.id
+                       )
+                   )
+                   ORDER BY u.full_name""",
+                (aid, aid),
+            ).fetchall()
+        details[aid] = {
+            'materials': con.execute(
+                "SELECT am.*, si.name, si.unit FROM appointment_materials am LEFT JOIN stock_items si ON si.id=am.item_id WHERE am.appointment_id=?",
+                (aid,),
+            ).fetchall(),
+            'extras': con.execute(
+                "SELECT * FROM appointment_extras WHERE appointment_id=? ORDER BY id",
+                (aid,),
+            ).fetchall(),
+            'master_pays': master_pays,
+        }
+
+    if employee_id:
+        period_total = sum(float(r['amount'] or 0) for r in rows)
     else:
-        totals = con.execute(
-            """SELECT u.id, u.full_name, COALESCE(SUM(s.amount),0) total, COUNT(s.id) cnt
-               FROM users u
-               LEFT JOIN salary s ON s.employee_id=u.id
-               WHERE u.role='master' AND u.active=1
-               GROUP BY u.id
-               ORDER BY u.full_name"""
-        ).fetchall()
+        period_total = sum(
+            sum(float(p['amount'] or 0) for p in details[r['appointment_id']]['master_pays'])
+            for r in rows
+        )
+    visits_count = len(rows)
 
-    employees = con.execute(
-        "SELECT id,full_name FROM users WHERE active=1 AND role='master' ORDER BY full_name"
+    # Карточки мастеров: сумма ЗП + число закрытых авто за период
+    totals = []
+    masters = con.execute(
+        "SELECT id, full_name FROM users WHERE role='master' AND active=1 ORDER BY full_name"
     ).fetchall()
+    for m in masters:
+        mid = m['id']
+        visit_cnt = con.execute(
+            f"""SELECT COUNT(*) c FROM appointments a
+                WHERE a.status='Закрыт' AND {master_on_visit} {date_where}""",
+            [mid, mid] + date_params,
+        ).fetchone()['c']
+        sal_total = con.execute(
+            f"""SELECT COALESCE(SUM(s.amount),0) s FROM salary s
+                JOIN appointments a ON a.id=s.appointment_id
+                WHERE s.employee_id=? AND a.status='Закрыт' {date_where}""",
+            [mid] + date_params,
+        ).fetchone()['s']
+        totals.append({'id': mid, 'full_name': m['full_name'], 'total': sal_total, 'cnt': visit_cnt})
+
+    employees = masters
     con.close()
 
     ctx = dict(

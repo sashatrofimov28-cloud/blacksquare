@@ -16,6 +16,11 @@
   {%- set _e = e if e is not none else end -%}
   {{- url_for('salary', period=_p, employee_id=_eid or None, start=_s if _p == 'custom' else None, end=_e if _p == 'custom' else None) -}}
 {%- endmacro %}
+{% macro show_client(car, client) -%}
+  {%- set c = (car or '')|trim|lower -%}
+  {%- set n = (client or '')|trim|lower -%}
+  {%- if n and n != '.' and n != ',' and n != c and n not in c and c not in n -%}{{ client|trim }}{%- endif -%}
+{%- endmacro %}
 <div class="sal-page staff-light sal-page-soft">
   <header class="sal-header">
     <div>
@@ -51,7 +56,7 @@
     <a href="{{ sal_qs(period, t.id) }}" class="sal-total-card card-surface{% if employee_id==t.id %} active{% endif %}">
       <span>{{ t.full_name }}</span>
       <strong>{{ format_money(t.total) }} ₽</strong>
-      <em>{{ t.cnt or 0 }} начисл.</em>
+      <em>{{ t.cnt or 0 }} авто</em>
     </a>
     {% else %}
     <div class="sal-total-card card-surface">
@@ -76,21 +81,28 @@
 
   <div class="sal-list">
     {% for r in rows %}
-    {% set d = details.get(r.id, {}) %}
+    {% set d = details.get(r.appointment_id, {}) %}
+    {% set pays = d.master_pays or [] %}
+    {% set cli = show_client(r.car, r.client_name) %}
     <details class="sal-card card-surface">
       <summary class="sal-card-summary">
         <div class="sal-card-main">
+          {% if employee_id %}
           <b>{{ r.employee_name }}</b>
-          {% if r.appointment_date %}
+          {% elif pays|length == 1 %}
+          <b>{{ pays[0].full_name }}</b>
+          {% else %}
+          <b>{% for p in pays %}{{ p.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}</b>
+          {% endif %}
           <span>{{ r.appointment_date }} · {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}</span>
           <span class="sal-car">{{ r.car or 'Авто не указано' }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
-          <span>{{ r.client_name or '—' }}</span>
+          {% if cli %}<span>{{ cli }}</span>{% endif %}
           <span class="sal-service">{{ r.service_name or '—' }}</span>
-          {% else %}
-          <span>{{ r.period or 'Начисление' }}</span>
+          {% if not employee_id and pays|length > 1 %}
+          <span class="sal-pays">{% for p in pays %}{{ p.full_name.split(' ')[0] }} {{ format_money(p.amount) }} ₽{% if not loop.last %} · {% endif %}{% endfor %}</span>
           {% endif %}
         </div>
-        <strong class="sal-amount">{{ format_money(r.amount) }} ₽</strong>
+        <strong class="sal-amount">{% if employee_id %}{{ format_money(r.amount) }}{% else %}{{ format_money(pays|sum(attribute='amount')) }}{% endif %} ₽</strong>
       </summary>
       <div class="sal-card-details">
         <div class="sal-car-block">
@@ -98,11 +110,15 @@
           <b>{{ r.car or '—' }}</b>
           {% if r.plate_number %}<b class="sal-plate">{{ r.plate_number }}</b>{% endif %}
         </div>
-        <div><span>Клиент</span><b>{{ r.client_name or '—' }}</b></div>
+        {% if cli %}<div><span>Клиент</span><b>{{ cli }}</b></div>{% endif %}
         {% if r.phone %}<div><span>Телефон</span><b>{{ r.phone }}</b></div>{% endif %}
         <div><span>Услуга</span><b>{{ r.service_name or '—' }}</b></div>
-        <div><span>Дата визита</span><b>{% if r.appointment_date %}{{ r.appointment_date }} {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}{% else %}—{% endif %}</b></div>
-        <div><span>Записано</span><b>{{ r.created_at[:16] if r.created_at else '—' }}</b></div>
+        {% if pays %}
+        <div class="sal-materials"><span>ЗП мастеров</span>
+          {% for p in pays %}<b>{{ p.full_name }}: {{ format_money(p.amount) }} ₽</b>{% endfor %}
+        </div>
+        {% endif %}
+        <div><span>Дата визита</span><b>{{ r.appointment_date }} {{ r.start_time[:5] if r.start_time else '' }}{% if r.end_time %}–{{ r.end_time[:5] }}{% endif %}</b></div>
         <div><span>Закрыто</span><b>{{ r.closed_at[:16] if r.closed_at else '—' }}</b></div>
         <div><span>Сумма заказа</span><b>{{ format_money(r.price or 0) }} ₽</b></div>
         <div><span>Допуслуги</span><b>{{ format_money(r.extras_total or 0) }} ₽</b></div>
@@ -120,16 +136,14 @@
           {% for e in d.extras %}<b>{{ e.name }}: {{ format_money(e.price) }} ₽</b>{% endfor %}
         </div>
         {% endif %}
-        {% if r.visit_comment or r.comment %}
-        <div class="sal-comment"><span>Комментарий</span><b>{{ r.visit_comment or r.comment }}</b></div>
+        {% if r.visit_comment %}
+        <div class="sal-comment"><span>Комментарий</span><b>{{ r.visit_comment }}</b></div>
         {% endif %}
-        {% if r.appointment_id %}
         <a class="sal-open" href="{{ url_for('after_close_documents', aid=r.appointment_id, date=r.appointment_date or '') }}">Открыть визит</a>
-        {% endif %}
       </div>
     </details>
     {% else %}
-    <p class="sal-empty">За выбранный период начислений нет</p>
+    <p class="sal-empty">За выбранный период закрытых авто нет</p>
     {% endfor %}
   </div>
 </div>
