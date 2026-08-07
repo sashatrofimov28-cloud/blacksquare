@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v98'
+BUILD_VERSION = 'client-v99'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -4561,7 +4561,7 @@ def dashboard():
         closed_today = con.execute(
             f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
             f"WHERE {mf} AND {closed_today_sql('a')} "
-            f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
+            f"ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC LIMIT 100",
             (u['id'], u['id'], day, day),
         ).fetchall()
         completed = con.execute(
@@ -4638,7 +4638,7 @@ def dashboard():
     closed_today = con.execute(
         f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a LEFT JOIN users u ON u.id=a.employee_id "
         f"WHERE {closed_today_sql('a')} "
-        f"ORDER BY COALESCE(a.closed_at, a.appointment_date || ' ' || a.start_time) DESC LIMIT 12",
+        f"ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC LIMIT 100",
         (day, day),
     ).fetchall()
     day_row = con.execute(
