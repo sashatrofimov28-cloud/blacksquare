@@ -116,7 +116,7 @@
     <span class="dzc-muted">{{ format_money(closed_today_sum) }} ₽</span>
   </div>
   <div class="dzc-cards dzc-cards-closed">
-    {% for r in closed_today[:4] %}
+    {% for r in closed_today %}
     <div class="dzc-appt dzc-appt-static">
       <span class="dzc-stripe next" aria-hidden="true"></span>
       <div class="dzc-when">
