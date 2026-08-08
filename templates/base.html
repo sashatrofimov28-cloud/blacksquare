@@ -62,6 +62,7 @@
     <nav>
       <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint=='dashboard' %}active{% endif %}">Главная</a>
       {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Журнал записи</a>{% endif %}
+      {% if has_perm('calendar') %}<a href="{{ url_for('tv_board') }}" class="{% if request.endpoint in ['tv_board','tv_board_wall'] %}active{% endif %}" target="_blank" rel="noopener">TV-экран</a>{% endif %}
       {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
       {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
       {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}

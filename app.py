@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v99'
+BUILD_VERSION = 'client-v100'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -5303,6 +5303,115 @@ def api_client_lookup():
     con.close()
     return jsonify(payload)
 
+    return jsonify(payload)
+
+
+def ensure_tv_board_token():
+    token = (get_setting('tv_board_token', '') or '').strip()
+    if not token:
+        token = secrets.token_urlsafe(18)
+        set_setting('tv_board_token', token)
+    return token
+
+
+def tv_board_public_url():
+    base = (public_base_url() or '').rstrip('/') or 'https://blacksquare72.ru'
+    return f"{base}/tv/wall/{ensure_tv_board_token()}"
+
+
+def tv_status_meta(status):
+    s = (status or '').strip()
+    if s == 'Закрыт':
+        return {'key': 'done', 'label': 'Закрыт'}
+    if s in ('В работе', 'Начат'):
+        return {'key': 'work', 'label': 'В работе'}
+    return {'key': 'wait', 'label': 'Ждёт'}
+
+
+def build_tv_board(day=None):
+    """Данные экрана ТВ: колонки мастеров с записями на день."""
+    day = day or today()
+    con = db()
+    masters = list_masters(con)
+    rows = con.execute(
+        f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a "
+        f"LEFT JOIN users u ON u.id=a.employee_id "
+        f"WHERE a.appointment_date=? AND a.status!='Отменен' "
+        f"ORDER BY a.start_time ASC, a.id ASC",
+        (day,),
+    ).fetchall()
+    by_master = {m['id']: [] for m in masters}
+    for r in rows:
+        eids = get_appointment_employee_ids(con, r['id'], r['employee_id'])
+        placed = False
+        for eid in eids:
+            if eid in by_master:
+                by_master[eid].append(r)
+                placed = True
+        if not placed and (r['employee_id'] or 0) in by_master:
+            by_master[r['employee_id']].append(r)
+    columns = []
+    for m in masters:
+        first, initials = _master_display_name(m['full_name'])
+        events = []
+        for r in by_master[m['id']]:
+            st = tv_status_meta(r['status'])
+            events.append({
+                'id': r['id'],
+                'start': (r['start_time'] or '')[:5],
+                'end': (r['end_time'] or '')[:5],
+                'car': (r['car'] or '').strip() or 'Авто не указано',
+                'plate': (r['plate_number'] or '').strip(),
+                'client': (r['client_name'] or '').strip(),
+                'service': (r['service_name'] or '').strip(),
+                'status': r['status'],
+                'status_key': st['key'],
+                'status_label': st['label'],
+                'tone': employee_tone(m['id']),
+            })
+        columns.append({
+            'id': m['id'],
+            'name': first,
+            'full_name': m['full_name'] or first,
+            'initials': initials,
+            'tone': employee_tone(m['id']),
+            'events': events,
+            'count': len(events),
+        })
+    load_c = len(rows)
+    load_mins = sum(int(r['duration_min'] or 0) for r in rows)
+    con.close()
+    now_dt = app_now()
+    return {
+        'day': day,
+        'date_title': format_date_journal_short(day),
+        'is_today': day == today(),
+        'clock': now_dt.strftime('%H:%M'),
+        'columns': columns,
+        'load_c': load_c,
+        'load_mins': load_mins,
+        'refresh_sec': 30,
+    }
+
+
+@app.route('/tv')
+@login_required
+@perm_required('calendar')
+def tv_board():
+    data = build_tv_board(today())
+    wall_url = tv_board_public_url() if current_user()['role'] == 'director' else ''
+    return render_template('tv_board.html', wall_url=wall_url, kiosk=False, **data)
+
+
+@app.route('/tv/wall/<token>')
+def tv_board_wall(token):
+    expected = (get_setting('tv_board_token', '') or '').strip()
+    if not expected or not token or token != expected:
+        return 'Ссылка на TV-экран недействительна. Откройте Настройки → TV-экран и возьмите новую ссылку.', 403
+    data = build_tv_board(today())
+    return render_template('tv_board.html', wall_url='', kiosk=True, **data)
+
+
 @app.route('/calendar', methods=['GET','POST'])
 @login_required
 @perm_required('calendar')
@@ -7875,6 +7984,9 @@ def settings():
                 set_setting('studio_open_time', open_t)
                 set_setting('studio_close_time', close_t)
                 flash(f'Часы работы студии: {open_t} — {close_t}')
+        elif action == 'tv_token_regen':
+            set_setting('tv_board_token', secrets.token_urlsafe(18))
+            flash('Ссылка TV-экрана обновлена. Старая больше не работает.')
         elif action == 'bonus_save':
             set_setting('bonus_enabled', '1' if request.form.get('bonus_enabled') else '0')
             set_setting('bonus_percent', request.form.get('bonus_percent', '3').strip() or '3')
@@ -8072,6 +8184,8 @@ def settings():
         friend_cards=friend_cards,
         clients=clients,
         cert_has_template=certificate_has_template(),
+        tv_wall_url=tv_board_public_url(),
+        tv_board_url=url_for('tv_board', _external=True),
     )
 
 

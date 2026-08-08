@@ -30,6 +30,24 @@
       </div>
     </details>
 
+    <details class="settings-fold" open>
+      <summary>TV-экран в зале</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Откройте ссылку на телевизоре в браузере (Chrome / Smart TV). Экран сам обновляется каждые 30 секунд. Для киоска без логина используйте постоянную ссылку ниже.</p>
+        <p class="settings-hint"><b>С логином:</b> <a href="{{ tv_board_url }}" target="_blank" rel="noopener">{{ tv_board_url }}</a></p>
+        <label>Ссылка для телевизора (без логина)
+          <input type="text" readonly value="{{ tv_wall_url }}" onclick="this.select()" style="width:100%">
+        </label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <a class="ghost" href="{{ tv_wall_url }}" target="_blank" rel="noopener">Открыть TV</a>
+          <form method="post" style="margin:0">
+            <input type="hidden" name="action" value="tv_token_regen">
+            <button class="ghost" type="submit">Сменить ссылку</button>
+          </form>
+        </div>
+      </div>
+    </details>
+
     <details class="settings-fold">
       <summary>Статистика на главной</summary>
       <div class="settings-fold-body">

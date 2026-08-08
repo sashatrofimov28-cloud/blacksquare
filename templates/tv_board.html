@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="bs-build" content="{{ build_version }}">
+  <meta http-equiv="refresh" content="{{ refresh_sec }}">
+  <title>TV · {{ date_title }} · BlackSquare</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0c0d10; --panel:#16181e; --line:#2a2d36; --text:#f4f5f7; --mute:#9aa0ad;
+      --wait:#3b82f6; --work:#f59e0b; --done:#22c55e; --now:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      overflow:hidden;cursor:none
+    }
+    .tv{height:100%;display:grid;grid-template-rows:auto 1fr;gap:0}
+    .tv-top{
+      display:flex;align-items:center;justify-content:space-between;gap:20px;
+      padding:18px 28px 14px;border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,#12141a 0%,#0c0d10 100%)
+    }
+    .tv-brand{display:flex;align-items:baseline;gap:14px;min-width:0}
+    .tv-brand b{font-size:28px;font-weight:800;letter-spacing:-.4px}
+    .tv-brand span{font-size:18px;color:var(--mute);font-weight:700;white-space:nowrap}
+    .tv-meta{display:flex;align-items:center;gap:18px;font-weight:800}
+    .tv-clock{font-size:42px;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+    .tv-count{font-size:16px;color:var(--mute)}
+    .tv-live{
+      display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
+      background:#1d2430;color:#dbe4ff;font-size:13px;font-weight:800
+    }
+    .tv-live i{width:8px;height:8px;border-radius:50%;background:var(--done);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 1.6s infinite}
+    @keyframes pulse{
+      0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}
+      70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}
+      100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}
+    }
+    .tv-board{
+      display:grid;grid-template-columns:repeat({{ columns|length or 1 }}, minmax(0,1fr));
+      gap:14px;padding:16px 20px 20px;min-height:0;height:100%
+    }
+    .tv-col{
+      min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;
+      background:var(--panel);border:1px solid var(--line);border-radius:22px;overflow:hidden
+    }
+    .tv-col-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:16px 18px;border-bottom:1px solid var(--line)
+    }
+    .tv-col-head .who{display:flex;align-items:center;gap:12px;min-width:0}
+    .tv-av{
+      width:42px;height:42px;border-radius:14px;display:grid;place-items:center;
+      font-weight:800;font-size:15px;color:#111;background:#cfe2ff;flex-shrink:0
+    }
+    .tv-av.tone-green{background:#c8f0d8}
+    .tv-av.tone-blue{background:#cfe2ff}
+    .tv-av.tone-purple{background:#e4d4ff}
+    .tv-av.tone-orange{background:#ffe0b8}
+    .tv-col-head b{font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-col-head em{font-style:normal;color:var(--mute);font-weight:800;font-size:15px}
+    .tv-list{overflow:auto;padding:12px;display:grid;gap:10px;align-content:start}
+    .tv-card{
+      border-radius:16px;padding:14px 16px;background:#1d2028;border:1px solid #2c303a;
+      display:grid;gap:6px;position:relative
+    }
+    .tv-card.wait{border-left:5px solid var(--wait)}
+    .tv-card.work{border-left:5px solid var(--work);background:#261f14}
+    .tv-card.done{border-left:5px solid var(--done);opacity:.72}
+    .tv-time{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .tv-time strong{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+    .tv-badge{
+      font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;letter-spacing:.02em
+    }
+    .tv-card.wait .tv-badge{background:rgba(59,130,246,.18);color:#93c5fd}
+    .tv-card.work .tv-badge{background:rgba(245,158,11,.2);color:#fcd34d}
+    .tv-card.done .tv-badge{background:rgba(34,197,94,.18);color:#86efac}
+    .tv-car{font-size:26px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
+    .tv-plate{font-size:14px;color:var(--mute);font-weight:700;letter-spacing:.04em}
+    .tv-svc{font-size:15px;color:#d5d8e0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tv-client{font-size:14px;color:var(--mute);font-weight:700}
+    .tv-empty{
+      margin:auto;text-align:center;color:var(--mute);font-weight:700;font-size:18px;padding:40px 16px
+    }
+    .tv-hint{
+      position:fixed;left:20px;bottom:16px;z-index:5;opacity:.35;font-size:12px;font-weight:700;color:var(--mute)
+    }
+    @media (max-width: 900px){
+      body{cursor:auto;overflow:auto}
+      .tv{height:auto;min-height:100%}
+      .tv-board{grid-template-columns:1fr;height:auto}
+      .tv-clock{font-size:32px}
+      .tv-car{font-size:22px}
+    }
+  </style>
+</head>
+<body>
+  <div class="tv">
+    <header class="tv-top">
+      <div class="tv-brand">
+        <b>BlackSquare</b>
+        <span>{{ date_title }}{% if is_today %} · сегодня{% endif %}</span>
+      </div>
+      <div class="tv-meta">
+        <span class="tv-count">{{ load_c }} записей · {{ (load_mins // 60) }}ч {{ load_mins % 60 }}м</span>
+        <span class="tv-live"><i></i> авто {{ refresh_sec }}с</span>
+        <div class="tv-clock" id="tvClock">{{ clock }}</div>
+      </div>
+    </header>
+
+    <div class="tv-board" style="--cols: {{ columns|length or 1 }}">
+      {% for col in columns %}
+      <section class="tv-col">
+        <div class="tv-col-head">
+          <div class="who">
+            <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
+            <b>{{ col.name }}</b>
+          </div>
+          <em>{{ col.count }}</em>
+        </div>
+        <div class="tv-list">
+          {% for ev in col.events %}
+          <article class="tv-card {{ ev.status_key }}">
+            <div class="tv-time">
+              <strong>{{ ev.start }}{% if ev.end %}–{{ ev.end }}{% endif %}</strong>
+              <span class="tv-badge">{{ ev.status_label }}</span>
+            </div>
+            <div class="tv-car">{{ ev.car }}</div>
+            {% if ev.plate %}<div class="tv-plate">{{ ev.plate }}</div>{% endif %}
+            <div class="tv-svc">{{ ev.service or '—' }}</div>
+            {% if ev.client and ev.client|lower not in (ev.car|lower) %}
+            <div class="tv-client">{{ ev.client }}</div>
+            {% endif %}
+          </article>
+          {% else %}
+          <div class="tv-empty">Нет записей</div>
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <section class="tv-col"><div class="tv-empty">Нет активных мастеров</div></section>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if wall_url and not kiosk %}
+  <div class="tv-hint">Для телевизора без логина: {{ wall_url }}</div>
+  {% endif %}
+
+  <script>
+  (function () {
+    var sec = {{ refresh_sec|int }};
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function tick(){
+      var d = new Date();
+      var el = document.getElementById('tvClock');
+      if (el) el.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    tick();
+    setInterval(tick, 1000);
+    // Жёсткое обновление данных (на случай если meta refresh отключён)
+    setTimeout(function () { location.reload(); }, sec * 1000);
+  })();
+  </script>
+</body>
+</html>
