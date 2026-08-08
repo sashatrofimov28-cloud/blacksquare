@@ -12,7 +12,6 @@ GitHub Pages не запускает Python/Flask, поэтому этот пр�
 - `static/style.css` — стили.
 - `requirements.txt` — зависимости Python.
 - `Dockerfile` и `.dockerignore` — запуск в Timeweb Cloud через Docker.
-- `.cursor/mcp.json` — подключение Timeweb MCP для деплоя через Cursor/AI-агента.
 - `.htaccess` и `index.wsgi` — файлы запуска для Python-хостинга Timeweb через WSGI.
 - `CNAME` — домен `blacksquare72.ru` как справочный файл для проекта.
 - `release/blacksquare-site.zip` — архив проекта для загрузки на хостинг.
@@ -102,24 +101,6 @@ http://127.0.0.1:8000
 
 9. В настройках домена Timeweb Cloud привяжите `blacksquare72.ru` к этому приложению.
 10. Если Timeweb Cloud выдаст CNAME или A-запись, добавьте ее в DNS-зону домена.
-
-## Timeweb MCP в Cursor
-
-В репозитории есть проектная конфигурация `.cursor/mcp.json` для официального MCP-сервера Timeweb Cloud. Токен в репозиторий не добавляется: Cursor передает его из переменной окружения `TIMEWEB_TOKEN`.
-
-1. Создайте API-токен в панели Timeweb Cloud.
-2. Добавьте переменную окружения `TIMEWEB_TOKEN` в окружение Cursor/Cloud Agent или локальной оболочки.
-3. Перезапустите Cursor или MCP-серверы, чтобы конфигурация перечиталась.
-4. Для деплоя можно попросить агента:
-
-   ```text
-   Запусти это Flask-приложение в Timeweb Cloud через Dockerfile.
-   Репозиторий: sashatrofimov28-cloud/blacksquare
-   Ветка: main
-   Порт: 8000
-   Health check: /healthz
-   Переменные: FLASK_SECRET_KEY, DATABASE_PATH=/app/data/blacksquare_stock_crm_v2.db
-   ```
 
 ## Настройка на Timeweb
 
