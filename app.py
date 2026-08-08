@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v103'
+BUILD_VERSION = 'client-v104'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -5438,7 +5438,7 @@ def tv_status_meta(status):
 
 
 def build_tv_board(day=None):
-    """Данные экрана ТВ: колонки мастеров с записями на день."""
+    """TV-экран как дневной журнал: ось времени + колонки всех мастеров."""
     day = day or today()
     con = db()
     masters = list_masters(con)
@@ -5449,46 +5449,45 @@ def build_tv_board(day=None):
         f"ORDER BY a.start_time ASC, a.id ASC",
         (day,),
     ).fetchall()
-    by_master = {m['id']: [] for m in masters}
-    for r in rows:
-        eids = get_appointment_employee_ids(con, r['id'], r['employee_id'])
-        placed = False
-        for eid in eids:
-            if eid in by_master:
-                by_master[eid].append(r)
-                placed = True
-        if not placed and (r['employee_id'] or 0) in by_master:
-            by_master[r['employee_id']].append(r)
+    # Как в журнале: карточка в колонке primary-мастера
+    board = layout_master_board(rows, masters, px_per_hour=72)
+    now_marker = journal_now_marker(day, board)
+
     columns = []
-    for m in masters:
-        first, initials = _master_display_name(m['full_name'])
+    for col in board['columns']:
         events = []
-        for r in by_master[m['id']]:
+        for ev in col['events']:
+            r = ev['row']
             st = tv_status_meta(r['status'])
             events.append({
                 'id': r['id'],
+                'top': ev['top'],
+                'height': max(ev['height'], 48),
+                'col': ev.get('col', 0),
+                'col_count': ev.get('col_count', 1),
+                'tone': ev.get('tone') or col['tone'],
                 'start': (r['start_time'] or '')[:5],
                 'end': (r['end_time'] or '')[:5],
                 'car': (r['car'] or '').strip() or 'Авто не указано',
                 'plate': (r['plate_number'] or '').strip(),
                 'client': (r['client_name'] or '').strip(),
                 'service': (r['service_name'] or '').strip(),
-                'status': r['status'],
                 'status_key': st['key'],
                 'status_label': st['label'],
-                'tone': employee_tone(m['id']),
+                'done': r['status'] == 'Закрыт',
             })
         columns.append({
-            'id': m['id'],
-            'name': first,
-            'full_name': m['full_name'] or first,
-            'initials': initials,
-            'tone': employee_tone(m['id']),
+            'id': col['id'],
+            'name': col['name'],
+            'full_name': col['full_name'],
+            'initials': col['initials'],
+            'tone': col['tone'],
             'events': events,
             'count': len(events),
         })
-    load_c = len(rows)
-    load_mins = sum(int(r['duration_min'] or 0) for r in rows)
+
+    load_c = len([r for r in rows if r['status'] != 'Отменен'])
+    load_mins = sum(int(r['duration_min'] or 0) for r in rows if r['status'] != 'Отменен')
     con.close()
     now_dt = app_now()
     return {
@@ -5497,6 +5496,10 @@ def build_tv_board(day=None):
         'is_today': day == today(),
         'clock': now_dt.strftime('%H:%M'),
         'columns': columns,
+        'hours': board['hours'],
+        'height_px': board['height_px'],
+        'px_per_hour': board['px_per_hour'],
+        'now_marker': now_marker,
         'load_c': load_c,
         'load_mins': load_mins,
         'refresh_sec': 30,
