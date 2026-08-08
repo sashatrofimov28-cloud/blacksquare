@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v109'
+BUILD_VERSION = 'client-v110'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -5462,7 +5462,7 @@ def build_tv_board(day=None):
             events.append({
                 'id': r['id'],
                 'top': ev['top'],
-                'height': max(ev['height'], 48),
+                'height': max(ev['height'], 96),
                 'col': ev.get('col', 0),
                 'col_count': ev.get('col_count', 1),
                 'tone': ev.get('tone') or col['tone'],
