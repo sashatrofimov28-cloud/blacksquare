@@ -4,8 +4,8 @@ set -eu
 PORT="${PORT:-8000}"
 HOST="${HOST:-0.0.0.0}"
 DATABASE_PATH="${DATABASE_PATH:-/app/data/blacksquare_stock_crm_v2.db}"
-export TZ="${TZ:-Europe/Moscow}"
-export APP_TZ="${APP_TZ:-Europe/Moscow}"
+export TZ="${TZ:-Asia/Yekaterinburg}"
+export APP_TZ="${APP_TZ:-Asia/Yekaterinburg}"
 
 mkdir -p "$(dirname "$DATABASE_PATH")"
 export DATABASE_PATH

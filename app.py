@@ -19,8 +19,8 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v107'
-APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
+BUILD_VERSION = 'client-v108'
+APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
     template_folder=str(BASE_DIR / 'templates'),
@@ -1110,11 +1110,11 @@ def now(): return app_now().strftime('%Y-%m-%d %H:%M')
 def today(): return app_today().isoformat()
 
 def app_now():
-    """Текущее локальное время салона (Москва), naive — как в БД."""
+    """Текущее локальное время салона (Тюмень / Asia/Yekaterinburg), naive — как в БД."""
     return datetime.now(APP_TZ).replace(tzinfo=None)
 
 def app_today():
-    """Текущая календарная дата салона (Москва)."""
+    """Текущая календарная дата салона (Тюмень)."""
     return app_now().date()
 def hm2m(hm):
     parts = (hm or '0:0').split(':')

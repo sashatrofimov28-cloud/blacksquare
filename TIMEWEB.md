@@ -9,7 +9,7 @@
 | Домен | **https://blacksquare72.ru** |
 | IP | `85.239.37.243` |
 | Ветка | `main` |
-| Часовой пояс | **Europe/Moscow** (`TZ` / `APP_TZ`) — касса «сегодня» с полуночи МСК |
+| Часовой пояс | **Asia/Yekaterinburg** (`TZ` / `APP_TZ`) — Тюмень, UTC+5 |
 | Порт | `8000` |
 | Health check | `/healthz` |
 | **Run command** | `./docker-entrypoint.sh` |
