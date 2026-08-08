@@ -11,77 +11,89 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#f2f2f7; --card:#fff; --line:#e5e5ea; --text:#111; --mute:#8e8e93;
+      --bg:#f2f2f7; --card:#fff; --line:#e5e5ea; --text:#111; --mute:#6b6b70;
       --hour: {{ px_per_hour }}px; --height: {{ height_px }}px; --cols: {{ columns|length or 1 }};
-      --mhead: 84px;
+      --axis: 56px;
     }
     *{box-sizing:border-box}
     html,body{width:100%;height:100%;margin:0}
     body{
-      font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      font-family:'Nunito',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);
       overflow:hidden;cursor:none
     }
-    .tv{width:100%;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+    .tv{width:100%;height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr)}
+
     .tv-top{
       display:flex;align-items:center;justify-content:space-between;gap:16px;
-      padding:12px 18px;background:#fff;border-bottom:1px solid var(--line)
+      padding:10px 18px;background:#fff;border-bottom:1px solid var(--line);z-index:3
     }
     .tv-brand{display:flex;align-items:baseline;gap:12px;min-width:0}
-    .tv-brand b{font-size:clamp(20px,2vw,28px);font-weight:800;letter-spacing:-.3px}
-    .tv-brand span{font-size:clamp(13px,1.2vw,17px);color:var(--mute);font-weight:700}
+    .tv-brand b{font-size:clamp(22px,2.2vw,30px);font-weight:800;letter-spacing:-.3px}
+    .tv-brand span{font-size:clamp(14px,1.3vw,18px);color:var(--mute);font-weight:700}
     .tv-meta{display:flex;align-items:center;gap:12px;font-weight:800}
-    .tv-clock{font-size:clamp(26px,2.8vw,38px);font-variant-numeric:tabular-nums;letter-spacing:-1px}
-    .tv-count{font-size:14px;color:var(--mute)}
+    .tv-clock{font-size:clamp(28px,3vw,40px);font-variant-numeric:tabular-nums;letter-spacing:-1px}
+    .tv-count{font-size:15px;color:var(--mute)}
     .tv-live{
       display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;
       background:#111;color:#fff;font-size:12px;font-weight:800
     }
     .tv-live i{width:7px;height:7px;border-radius:50%;background:#30d158}
 
-    .tv-wrap{
-      min-height:0;height:100%;padding:10px 12px 12px;
-      display:flex;align-items:stretch;justify-content:stretch
-    }
-    .tv-stage{
-      flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;
-      border-radius:16px;border:1px solid var(--line);background:var(--card)
-    }
-    .tv-board{
-      position:absolute;left:0;top:0;
+    /* Имена мастеров — отдельная полоса, не масштабируется вместе с сеткой */
+    .tv-masters{
       display:grid;
-      grid-template-columns:52px repeat(var(--cols), minmax(0, 1fr));
-      width:100%;
-      background:#fff;
-      transform-origin: top left;
+      grid-template-columns:var(--axis) repeat(var(--cols), minmax(0, 1fr));
+      background:#fff;border-bottom:1px solid var(--line);z-index:3
     }
-    .tv-hours{border-right:1px solid var(--line);background:#fafafa;z-index:2}
+    .tv-masters-spacer{background:#fafafa;border-right:1px solid var(--line)}
     .tv-mhead{
-      height:var(--mhead);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-      border-bottom:1px solid var(--line);background:#fff;text-align:center;padding:8px 6px
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      min-height:72px;padding:10px 12px;border-right:1px solid var(--line);background:#fff
     }
-    .tv-mhead-spacer{background:#fafafa}
+    .tv-mhead:last-child{border-right:0}
     .tv-av{
-      width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
-      font-size:13px;font-weight:800;color:#fff
+      flex:0 0 auto;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+      font-size:16px;font-weight:800;color:#fff
     }
     .tv-av.tone-green{background:#00b368}
     .tv-av.tone-blue{background:#2979ff}
     .tv-av.tone-purple{background:#9b51e0}
     .tv-av.tone-orange{background:#ff9500}
-    .tv-mhead b{font-size:clamp(14px,1.3vw,18px);font-weight:800;color:#111;line-height:1.1}
-    .tv-mhead small{font-size:11px;color:var(--mute);font-weight:700}
+    .tv-mhead-text{min-width:0;display:flex;flex-direction:column;gap:1px}
+    .tv-mhead-text b{
+      font-size:clamp(18px,1.8vw,26px);font-weight:800;color:#111;line-height:1.15;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+    }
+    .tv-mhead-text small{font-size:12px;color:var(--mute);font-weight:700}
+
+    .tv-wrap{
+      min-height:0;height:100%;padding:0 0 0;
+      display:flex;align-items:stretch;justify-content:stretch
+    }
+    .tv-stage{
+      flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;background:var(--card)
+    }
+    .tv-board{
+      position:absolute;left:0;top:0;
+      display:grid;
+      grid-template-columns:var(--axis) repeat(var(--cols), minmax(0, 1fr));
+      width:100%;
+      background:#fff;
+      transform-origin: top left;
+    }
+    .tv-hours{border-right:1px solid var(--line);background:#fafafa;z-index:2}
     .tv-hours-body,.tv-grid{position:relative;height:var(--height)}
     .tv-hour{
-      height:var(--hour);padding:5px 4px 0;font-size:12px;font-weight:800;color:var(--mute);
-      border-bottom:1px solid #f0f0f0
+      height:var(--hour);padding:6px 6px 0;font-size:13px;font-weight:800;color:var(--mute);
+      border-bottom:1px solid #ececf0
     }
     .tv-col{border-right:1px solid var(--line);min-width:0;background:#fff}
     .tv-col:last-child{border-right:0}
-    .tv-line{height:var(--hour);border-bottom:1px solid #f0f0f0;pointer-events:none}
+    .tv-line{height:var(--hour);border-bottom:1px solid #ececf0;pointer-events:none}
     .tv-now{position:absolute;left:0;right:0;height:2px;background:#ff3b30;z-index:5;pointer-events:none}
     .tv-now-label::before{
-      content:attr(data-t);position:absolute;left:50%;top:-10px;transform:translateX(-50%);
-      background:#ff3b30;color:#fff;font-size:11px;font-weight:800;padding:2px 6px;border-radius:6px
+      content:attr(data-t);position:absolute;left:50%;top:-11px;transform:translateX(-50%);
+      background:#ff3b30;color:#fff;font-size:12px;font-weight:800;padding:2px 7px;border-radius:6px
     }
     .tv-event{
       position:absolute;z-index:3;border-radius:12px;padding:8px 9px;overflow:hidden;
@@ -118,6 +130,21 @@
       </div>
     </header>
 
+    <div class="tv-masters" id="tvMasters">
+      <div class="tv-masters-spacer" aria-hidden="true"></div>
+      {% for col in columns %}
+      <div class="tv-mhead">
+        <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
+        <div class="tv-mhead-text">
+          <b>{{ col.name }}</b>
+          <small>{{ col.count }} зап.</small>
+        </div>
+      </div>
+      {% else %}
+      <div class="tv-mhead"><div class="tv-mhead-text"><b>Нет мастеров</b></div></div>
+      {% endfor %}
+    </div>
+
     <div class="tv-wrap">
       <div class="tv-stage" id="tvStage">
         <div class="tv-board" id="tvBoard"
@@ -125,7 +152,6 @@
              data-base-hour="{{ px_per_hour }}"
              data-base-height="{{ height_px }}">
           <div class="tv-hours">
-            <div class="tv-mhead tv-mhead-spacer" aria-hidden="true"></div>
             <div class="tv-hours-body" id="tvHoursBody">
               {% for h in hours %}
               <div class="tv-hour">{{ h }}</div>
@@ -138,11 +164,6 @@
 
           {% for col in columns %}
           <div class="tv-col">
-            <div class="tv-mhead">
-              <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
-              <b>{{ col.name }}</b>
-              <small>мастер</small>
-            </div>
             <div class="tv-grid">
               {% for h in hours %}
               <div class="tv-line"></div>
@@ -190,38 +211,39 @@
       if (!board || !stage) return;
       var hours = parseInt(board.dataset.hours || '12', 10) || 12;
       var baseHour = parseFloat(board.dataset.baseHour || '72') || 72;
-      var mhead = 84;
-      var availW = stage.clientWidth;
-      var availH = stage.clientHeight;
-      // Подгоняем высоту часа, чтобы весь день влез на экран
-      var hourPx = Math.max(36, Math.floor((availH - mhead - 2) / hours));
+      var availW = stage.clientWidth || window.innerWidth || 1280;
+      var availH = stage.clientHeight || Math.max(200, (window.innerHeight || 720) - 160);
+
+      // Весь день влезает по высоте — имена сверху не трогаем
+      var hourPx = Math.max(28, Math.floor((availH - 2) / hours));
       var heightPx = hourPx * hours;
-      var scaleY = 1;
-      if (mhead + heightPx > availH && availH > 100) {
-        scaleY = availH / (mhead + heightPx);
+      var scale = 1;
+      if (heightPx > availH && availH > 80) {
+        scale = availH / heightPx;
       }
+
       var root = document.documentElement;
       root.style.setProperty('--hour', hourPx + 'px');
       root.style.setProperty('--height', heightPx + 'px');
-      root.style.setProperty('--mhead', mhead + 'px');
 
-      // Пересчитать позиции событий относительно базового px/hour
       var ratio = hourPx / baseHour;
       board.querySelectorAll('.tv-event').forEach(function (el) {
         var top = parseFloat(el.dataset.top || '0');
         var h = parseFloat(el.dataset.height || '48');
         el.style.top = (top * ratio) + 'px';
-        el.style.height = Math.max(h * ratio, 44) + 'px';
+        el.style.height = Math.max(h * ratio, 40) + 'px';
       });
       board.querySelectorAll('.tv-now').forEach(function (el) {
         var top = parseFloat(el.dataset.top || '0');
         el.style.top = (top * ratio) + 'px';
       });
 
-      board.style.width = availW + 'px';
-      board.style.transform = scaleY < 0.999 ? ('scale(' + scaleY + ')') : 'none';
-      if (scaleY < 0.999) {
-        board.style.width = (availW / scaleY) + 'px';
+      if (scale < 0.999) {
+        board.style.width = (availW / scale) + 'px';
+        board.style.transform = 'scale(' + scale + ')';
+      } else {
+        board.style.width = availW + 'px';
+        board.style.transform = 'none';
       }
     }
 
@@ -229,6 +251,8 @@
     setInterval(tick, 1000);
     fit();
     window.addEventListener('resize', fit);
+    setTimeout(fit, 50);
+    setTimeout(fit, 300);
     setTimeout(function () { location.reload(); }, sec * 1000);
   })();
   </script>
