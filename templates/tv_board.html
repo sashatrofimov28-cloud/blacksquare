@@ -2,92 +2,105 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="bs-build" content="{{ build_version }}">
   <meta http-equiv="refresh" content="{{ refresh_sec }}">
   <title>TV · {{ date_title }} · BlackSquare</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{width:100%;height:100%;overflow:hidden;background:#f2f2f7;color:#111;
-      font-family:Arial Black,Arial,Helvetica,sans-serif}
+      font-family:Arial,Helvetica,sans-serif}
     body{cursor:none}
-    .tv{width:100%;height:100%;display:flex;flex-direction:column}
+    .tv{width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden}
 
     .top{
       flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
-      padding:12px 20px;background:#fff;border-bottom:2px solid #111
+      gap:12px;padding:10px 16px;background:#fff;border-bottom:2px solid #111;z-index:5
     }
-    .top h1{font-size:30px;font-weight:900;letter-spacing:-.4px}
-    .top .sub{margin-left:12px;font-size:20px;color:#222;font-weight:900}
-    .top-right{display:flex;align-items:center;gap:16px;font-weight:900}
-    .clock{font-size:42px;letter-spacing:-1px;font-weight:900;color:#000}
-    .count{font-size:17px;color:#222;font-weight:900}
-    .live{background:#111;color:#fff;border-radius:20px;padding:7px 12px;font-size:14px;font-weight:900}
+    .top-left{min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:nowrap;overflow:hidden}
+    .top h1{font-size:26px;font-weight:900;white-space:nowrap}
+    .top .sub{font-size:18px;color:#222;font-weight:800;white-space:nowrap}
+    .top-right{flex:0 0 auto;display:flex;align-items:center;gap:12px;font-weight:900}
+    .clock{font-size:40px;letter-spacing:-1px;font-weight:900;color:#000}
+    .count{font-size:16px;color:#222;font-weight:800;white-space:nowrap}
+    .live{background:#111;color:#fff;border-radius:20px;padding:6px 11px;font-size:13px;font-weight:900;white-space:nowrap}
 
-    table.board{
-      width:100%;height:100%;border-collapse:collapse;table-layout:fixed;background:#fff
+    /* Всё поле расписания масштабируется целиком — ничего не обрезается */
+    .stage{
+      flex:1 1 auto;min-height:0;min-width:0;position:relative;overflow:hidden;background:#fff
     }
-    .board-wrap{flex:1 1 auto;min-height:0;padding:0;overflow:hidden;background:#fff}
-    table.board th, table.board td{vertical-align:top;border-right:1px solid #d0d0d5}
-    table.board th:last-child, table.board td:last-child{border-right:0}
-    col.axis{width:68px}
-    thead th{
-      background:#fff;border-bottom:3px solid #111;padding:12px 8px;text-align:center;
-      height:96px
+    .scaler{
+      position:absolute;left:0;top:0;transform-origin:0 0;background:#fff
     }
-    thead th.axis-h{background:#fafafa;border-bottom:3px solid #111}
+
+    .masters{
+      display:flex;flex-direction:row;width:100%;border-bottom:3px solid #111;background:#fff
+    }
+    .masters .axis{flex:0 0 72px;width:72px;background:#fafafa;border-right:1px solid #d0d0d5}
+    .masters .mhead{
+      flex:1 1 0;min-width:0;padding:10px 8px;text-align:center;
+      border-right:1px solid #d0d0d5;background:#fff
+    }
+    .masters .mhead:last-child{border-right:0}
     .av{
-      display:inline-block;width:52px;height:52px;line-height:52px;border-radius:50%;
-      color:#fff;font-size:20px;font-weight:900;text-align:center;margin-bottom:6px
+      display:inline-block;width:46px;height:46px;line-height:46px;border-radius:50%;
+      color:#fff;font-size:18px;font-weight:900;text-align:center;margin-bottom:4px
     }
     .av.blue{background:#2979ff}
     .av.purple{background:#9b51e0}
     .av.green{background:#00b368}
     .av.orange{background:#ff9500}
     .mname{
-      display:block;font-size:28px;font-weight:900;color:#000;line-height:1.1;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      -webkit-text-stroke:0.4px #000
+      display:block;font-size:22px;font-weight:900;color:#000;line-height:1.1;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis
     }
-    .mmeta{display:block;margin-top:3px;font-size:14px;color:#222;font-weight:900}
+    .mmeta{display:block;margin-top:2px;font-size:13px;color:#222;font-weight:800}
 
-    tbody td{padding:0;position:relative;background:#fff}
-    tbody td.axis-c{background:#fafafa}
-    .hours,.grid{position:relative;width:100%}
-    .hour{
-      border-bottom:1px solid #e0e0e5;padding:6px 4px 0;font-size:15px;font-weight:900;color:#333
+    .rows{
+      display:flex;flex-direction:row;width:100%;position:relative;background:#fff
     }
-    .line{border-bottom:1px solid #e0e0e5;width:100%}
+    .hours{
+      flex:0 0 72px;width:72px;position:relative;background:#fafafa;border-right:1px solid #d0d0d5;z-index:2
+    }
+    .col{
+      flex:1 1 0;min-width:0;position:relative;border-right:1px solid #d0d0d5;background:#fff
+    }
+    .col:last-child{border-right:0}
+    .hour,.line{border-bottom:1px solid #e0e0e5}
+    .hour{padding:4px 6px 0;font-size:14px;font-weight:900;color:#333}
+
     .now{
-      position:absolute;left:0;right:0;height:3px;background:#ff3b30;z-index:5
+      position:absolute;left:0;right:0;height:3px;background:#ff3b30;z-index:6
     }
     .now-lab{
-      position:absolute;left:50%;top:-13px;margin-left:-28px;
+      position:absolute;left:4px;top:-12px;
       background:#ff3b30;color:#fff;font-size:13px;font-weight:900;
-      padding:2px 8px;border-radius:6px;white-space:nowrap
+      padding:2px 7px;border-radius:6px;white-space:nowrap;z-index:7
     }
+
     .ev{
-      position:absolute;z-index:3;border-radius:10px;padding:8px;overflow:hidden;
+      position:absolute;z-index:3;border-radius:10px;padding:8px 9px;overflow:hidden;
       box-shadow:0 1px 3px rgba(0,0,0,.12);color:#111
     }
     .ev.blue{background:#cfe2ff}
     .ev.purple{background:#e4d4ff}
     .ev.green{background:#c8f0d8}
     .ev.orange{background:#ffe0b8}
-    .ev.done{opacity:.7}
+    .ev.done{opacity:.72}
     .ev.work{outline:2px solid #f59e0b}
-    .ev b{display:block;font-size:14px;font-weight:900}
-    .ev .car{display:block;font-size:18px;font-weight:900;margin-top:2px}
-    .ev .s{display:block;font-size:13px;font-weight:800;color:#222;margin-top:2px;
+    .ev b{display:block;font-size:15px;font-weight:900}
+    .ev .car{display:block;font-size:20px;font-weight:900;margin-top:2px;line-height:1.15}
+    .ev .s{display:block;font-size:14px;font-weight:800;color:#222;margin-top:2px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   </style>
 </head>
 <body>
 {% set tone_map = {'tone-blue':'blue','tone-purple':'purple','tone-green':'green','tone-orange':'orange'} %}
+{% set n_hours = hours|length %}
   <div class="tv">
     <div class="top">
-      <div>
-        <h1 style="display:inline">Журнал записи</h1>
+      <div class="top-left">
+        <h1>Журнал записи</h1>
         <span class="sub">{{ date_title }}{% if is_today %} · сегодня{% endif %}</span>
       </div>
       <div class="top-right">
@@ -97,75 +110,62 @@
       </div>
     </div>
 
-    <div class="board-wrap" id="tvStage">
-      <table class="board" id="tvBoard">
-        <colgroup>
-          <col class="axis">
+    <div class="stage" id="tvStage">
+      <div class="scaler" id="tvScaler"
+           data-hours="{{ n_hours }}"
+           data-base-hour="{{ px_per_hour }}"
+           data-day-start="{{ hours[0] if hours else '10:00' }}">
+        <div class="masters" id="tvMasters">
+          <div class="axis"></div>
           {% for col in columns %}
-          <col>
+          <div class="mhead">
+            <div class="av {{ tone_map.get(col.tone, 'blue') }}">{{ col.initials }}</div>
+            <span class="mname">{{ col.name }}</span>
+            <span class="mmeta">мастер · {{ col.count }} зап.</span>
+          </div>
           {% else %}
-          <col>
+          <div class="mhead"><span class="mname">Нет мастеров</span></div>
           {% endfor %}
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="axis-h"></th>
-            {% for col in columns %}
-            <th>
-              <div class="av {{ tone_map.get(col.tone, 'blue') }}">{{ col.initials }}</div>
-              <span class="mname">{{ col.name }}</span>
-              <span class="mmeta">мастер · {{ col.count }} зап.</span>
-            </th>
-            {% else %}
-            <th><span class="mname">Нет мастеров</span></th>
+        </div>
+
+        <div class="rows" id="tvRows">
+          <div class="hours" id="tvHours">
+            {% for h in hours %}
+            <div class="hour" data-h="1">{{ h }}</div>
             {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="axis-c">
-              <div class="hours" id="tvHours" data-base-hour="{{ px_per_hour }}" data-hours="{{ hours|length }}">
-                {% for h in hours %}
-                <div class="hour" data-h="1">{{ h }}</div>
-                {% endfor %}
-                {% if now_marker %}
-                <div class="now" data-top="{{ now_marker.top }}" style="top:{{ now_marker.top }}px">
-                  <span class="now-lab">{{ now_marker.label }}</span>
-                </div>
-                {% endif %}
-              </div>
-            </td>
-            {% for col in columns %}
-            <td>
-              <div class="grid" data-base-hour="{{ px_per_hour }}">
-                {% for h in hours %}
-                <div class="line" data-h="1"></div>
-                {% endfor %}
-                {% if now_marker %}
-                <div class="now" data-top="{{ now_marker.top }}" style="top:{{ now_marker.top }}px"></div>
-                {% endif %}
-                {% for ev in col.events %}
-                {% set tclass = tone_map.get(ev.tone, 'blue') %}
-                <div class="ev {{ tclass }}{% if ev.done %} done{% endif %}{% if ev.status_key == 'work' %} work{% endif %}"
-                     data-top="{{ ev.top }}" data-height="{{ ev.height }}"
-                     style="top:{{ ev.top }}px;height:{{ ev.height }}px;left:{{ 4 + (ev.col * 100 / ev.col_count) }}%;width:calc({{ 100 / ev.col_count }}% - 8px)">
-                  <b>{{ ev.start }}–{{ ev.end }}</b>
-                  <span class="car">{{ ev.car }}</span>
-                  {% if ev.plate %}<span class="s">{{ ev.plate }}</span>{% endif %}
-                  <span class="s">{{ ev.service or '—' }}</span>
-                  {% if ev.client and ev.client|lower not in (ev.car|lower) %}
-                  <span class="s">{{ ev.client }}</span>
-                  {% endif %}
-                </div>
-                {% endfor %}
-              </div>
-            </td>
-            {% else %}
-            <td style="text-align:center;padding:40px;color:#222;font-size:22px;font-weight:900">Нет активных мастеров</td>
+            {% if now_marker %}
+            <div class="now" id="tvNowAxis" data-top="{{ now_marker.top }}" style="top:{{ now_marker.top }}px">
+              <span class="now-lab" id="tvNowLab">{{ now_marker.label }}</span>
+            </div>
+            {% endif %}
+          </div>
+
+          {% for col in columns %}
+          <div class="col">
+            {% for h in hours %}
+            <div class="line" data-h="1"></div>
             {% endfor %}
-          </tr>
-        </tbody>
-      </table>
+            {% if now_marker %}
+            <div class="now" data-top="{{ now_marker.top }}" style="top:{{ now_marker.top }}px"></div>
+            {% endif %}
+            {% for ev in col.events %}
+            {% set tclass = tone_map.get(ev.tone, 'blue') %}
+            <div class="ev {{ tclass }}{% if ev.done %} done{% endif %}{% if ev.status_key == 'work' %} work{% endif %}"
+                 data-top="{{ ev.top }}" data-height="{{ ev.height }}"
+                 style="top:{{ ev.top }}px;height:{{ ev.height }}px;left:{{ 4 + (ev.col * 100 / ev.col_count) }}%;width:{{ (100 / ev.col_count) - 1.5 }}%">
+              <b>{{ ev.start }}–{{ ev.end }}</b>
+              <span class="car">{{ ev.car }}</span>
+              {% if ev.plate %}<span class="s">{{ ev.plate }}</span>{% endif %}
+              <span class="s">{{ ev.service or '—' }}</span>
+              {% if ev.client and ev.client|lower not in (ev.car|lower) %}
+              <span class="s">{{ ev.client }}</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
 
@@ -173,63 +173,95 @@
   (function () {
     var sec = {{ refresh_sec|int }};
     var stage = document.getElementById('tvStage');
-    var hoursBox = document.getElementById('tvHours');
+    var scaler = document.getElementById('tvScaler');
     var clockEl = document.getElementById('tvClock');
-    // Часы с сервера (Тюмень), не из настроек телевизора
     var hm = (clockEl && clockEl.getAttribute('data-hm')) || '{{ clock }}';
     var parts = String(hm).split(':');
     var baseMins = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
     var startedAt = Date.now();
+    var baseHour = parseFloat((scaler && scaler.getAttribute('data-base-hour')) || '72') || 72;
+    var hoursN = parseInt((scaler && scaler.getAttribute('data-hours')) || '12', 10) || 12;
+    var dayStart = (scaler && scaler.getAttribute('data-day-start')) || '10:00';
+    var ds = String(dayStart).split(':');
+    var dayStartMins = (parseInt(ds[0], 10) || 10) * 60 + (parseInt(ds[1], 10) || 0);
 
     function pad(n){ return (n < 10 ? '0' : '') + n; }
-    function tick(){
-      if (!clockEl) return;
+
+    function serverMinsNow(){
       var elapsedMin = Math.floor((Date.now() - startedAt) / 60000);
       var mins = (baseMins + elapsedMin) % (24 * 60);
       if (mins < 0) mins += 24 * 60;
-      clockEl.textContent = pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
+      return mins;
+    }
+
+    function tick(){
+      var mins = serverMinsNow();
+      if (clockEl) clockEl.textContent = pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
+      var lab = document.getElementById('tvNowLab');
+      if (lab) lab.textContent = pad(Math.floor(mins / 60)) + ':' + pad(mins % 60);
     }
 
     function fit() {
-      if (!stage || !hoursBox) return;
-      var hours = parseInt(hoursBox.getAttribute('data-hours') || '12', 10) || 12;
-      var baseHour = parseFloat(hoursBox.getAttribute('data-base-hour') || '72') || 72;
-      var head = 96;
-      var avail = stage.clientHeight - head - 4;
-      if (avail < 120) avail = Math.max(120, (window.innerHeight || 700) - 180);
-      var hourPx = Math.max(32, Math.floor(avail / hours));
-      var ratio = hourPx / baseHour;
+      if (!stage || !scaler) return;
+      var availW = stage.clientWidth || window.innerWidth || 1280;
+      var availH = stage.clientHeight || Math.max(200, (window.innerHeight || 720) - 70);
 
+      // Базовый размер: все колонки на всю ширину экрана, высота часа под экран
+      scaler.style.width = availW + 'px';
+      scaler.style.transform = 'none';
+
+      var masterH = 84;
+      var hourPx = Math.max(24, Math.floor((availH - masterH - 2) / hoursN));
+      var ratio = hourPx / baseHour;
       var nodes = document.querySelectorAll('[data-h="1"]');
-      for (var i = 0; i < nodes.length; i++) {
-        nodes[i].style.height = hourPx + 'px';
-      }
-      var grids = document.querySelectorAll('.hours, .grid');
-      for (var g = 0; g < grids.length; g++) {
-        grids[g].style.height = (hourPx * hours) + 'px';
-      }
+      for (var i = 0; i < nodes.length; i++) nodes[i].style.height = hourPx + 'px';
+      var rows = document.getElementById('tvRows');
+      var bodyH = hourPx * hoursN;
+      if (rows) rows.style.height = bodyH + 'px';
+      var hoursEl = document.getElementById('tvHours');
+      if (hoursEl) hoursEl.style.height = bodyH + 'px';
+      var cols = document.querySelectorAll('.col');
+      for (var c = 0; c < cols.length; c++) cols[c].style.height = bodyH + 'px';
+
+      // Позиции событий и now
+      var nowTop = (serverMinsNow() - dayStartMins) / 60 * hourPx;
       var nows = document.querySelectorAll('.now');
       for (var n = 0; n < nows.length; n++) {
-        var top = parseFloat(nows[n].getAttribute('data-top') || '0');
-        nows[n].style.top = (top * ratio) + 'px';
+        if (nowTop < 0 || nowTop > bodyH) {
+          nows[n].style.display = 'none';
+        } else {
+          nows[n].style.display = 'block';
+          nows[n].style.top = nowTop + 'px';
+        }
       }
       var evs = document.querySelectorAll('.ev');
       for (var e = 0; e < evs.length; e++) {
         var et = parseFloat(evs[e].getAttribute('data-top') || '0');
         var eh = parseFloat(evs[e].getAttribute('data-height') || '48');
         evs[e].style.top = (et * ratio) + 'px';
-        evs[e].style.height = Math.max(eh * ratio, 42) + 'px';
+        evs[e].style.height = Math.max(eh * ratio, 48) + 'px';
+      }
+
+      // Если всё же чуть не влезло — дожимаем scale
+      var needH = masterH + bodyH;
+      var scale = 1;
+      if (needH > availH + 1) scale = Math.min(scale, availH / needH);
+      var contentW = scaler.scrollWidth || availW;
+      if (contentW > availW + 1) scale = Math.min(scale, availW / contentW);
+      if (scale < 0.999) {
+        scaler.style.transform = 'scale(' + scale + ')';
+        scaler.style.width = (availW / scale) + 'px';
       }
     }
 
     tick();
     setInterval(tick, 1000);
     fit();
-    if (window.addEventListener) {
-      window.addEventListener('resize', fit);
-    }
-    setTimeout(fit, 80);
-    setTimeout(fit, 400);
+    setInterval(fit, 15000);
+    if (window.addEventListener) window.addEventListener('resize', fit);
+    setTimeout(fit, 50);
+    setTimeout(fit, 250);
+    setTimeout(fit, 800);
     setTimeout(function () { location.reload(); }, sec * 1000);
   })();
   </script>
