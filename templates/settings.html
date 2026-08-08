@@ -3,7 +3,7 @@
 <div class="settings-page staff-light">
   <header class="top">
     <h1>Настройки</h1>
-    <p>Студия, уведомления, лояльность и система</p>
+    <p>Ссылки, студия, уведомления и система</p>
   </header>
 
   <nav class="settings-nav scrollable-x" aria-label="Разделы настроек">
@@ -18,9 +18,21 @@
     <h2 class="settings-section-title">Студия</h2>
 
     <details class="settings-fold" open>
+      <summary>Онлайн-запись</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Эту ссылку отправляйте клиентам. Мастера включаются в онлайн в разделе «Сотрудники» → галочка «Онлайн».</p>
+        <div class="settings-link-row">
+          <input id="bookingUrlInput" type="text" readonly value="{{ booking_public or booking_url }}" onclick="this.select()">
+          <button type="button" class="ghost" data-copy="#bookingUrlInput">Копировать</button>
+          <a class="ghost" href="{{ booking_public or booking_url }}" target="_blank" rel="noopener">Открыть</a>
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-fold" open>
       <summary>Часы работы</summary>
       <div class="settings-fold-body">
-        <p class="settings-hint">Календарь, онлайн-запись и график мастеров по умолчанию.</p>
+        <p class="settings-hint">Влияют на календарь, онлайн-запись и график мастеров по умолчанию.</p>
         <form method="post" class="form-grid">
           <input type="hidden" name="action" value="studio_hours">
           <label>Открытие <input type="time" name="studio_open_time" value="{{ studio_open }}" required></label>
@@ -30,58 +42,23 @@
       </div>
     </details>
 
-    <details class="settings-fold" open>
+    <details class="settings-fold">
       <summary>TV-экран в зале</summary>
       <div class="settings-fold-body">
-        <p class="settings-hint">Откройте ссылку на телевизоре в браузере (Chrome / Smart TV). Экран сам обновляется каждые 30 секунд. Для киоска без логина используйте постоянную ссылку ниже.</p>
-        <p class="settings-hint"><b>С логином:</b> <a href="{{ tv_board_url }}" target="_blank" rel="noopener">{{ tv_board_url }}</a></p>
-        <label>Ссылка для телевизора (без логина)
-          <input type="text" readonly value="{{ tv_wall_url }}" onclick="this.select()" style="width:100%">
-        </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-          <a class="ghost" href="{{ tv_wall_url }}" target="_blank" rel="noopener">Открыть TV</a>
-          <form method="post" style="margin:0">
+        <p class="settings-hint">Откройте ссылку на телевизоре в браузере. Экран обновляется сам каждые 30 секунд.</p>
+        <label class="settings-label">Ссылка для телевизора (без логина)</label>
+        <div class="settings-link-row">
+          <input id="tvWallUrlInput" type="text" readonly value="{{ tv_wall_url }}" onclick="this.select()">
+          <button type="button" class="ghost" data-copy="#tvWallUrlInput">Копировать</button>
+          <a class="ghost" href="{{ tv_wall_url }}" target="_blank" rel="noopener">Открыть</a>
+        </div>
+        <div class="settings-actions">
+          <form method="post">
             <input type="hidden" name="action" value="tv_token_regen">
             <button class="ghost" type="submit">Сменить ссылку</button>
           </form>
+          <a class="settings-secondary-link" href="{{ tv_board_url }}" target="_blank" rel="noopener">Версия с логином (Tv / TV)</a>
         </div>
-      </div>
-    </details>
-
-    <details class="settings-fold">
-      <summary>Статистика на главной</summary>
-      <div class="settings-fold-body">
-        <p class="settings-hint">Касса обновляется при закрытии записи. Здесь — режим пересчёта, если понадобится.</p>
-        <form method="post" class="form-grid">
-          <input type="hidden" name="action" value="stats">
-          <select name="stats_refresh" class="span2">
-            <option value="live" {% if stats_refresh=='live' %}selected{% endif %}>Сразу при закрытии</option>
-            <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Каждый день</option>
-            <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
-            <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>
-          </select>
-          <button>Сохранить</button>
-        </form>
-        {% if stats_updated %}<p class="settings-hint">Последнее обновление: {{ stats_updated }}</p>{% endif %}
-        <form method="post" style="margin-top:8px">
-          <input type="hidden" name="action" value="refresh_stats">
-          <button class="ghost" type="submit">Обновить сейчас</button>
-        </form>
-      </div>
-    </details>
-
-    <details class="settings-fold">
-      <summary>Реквизиты продавца</summary>
-      <div class="settings-fold-body">
-        <p class="settings-hint">Для актов сдачи-приёмки и документов.</p>
-        <form method="post" class="form-grid">
-          <input type="hidden" name="action" value="legal_seller">
-          <input name="legal_seller_name" class="span4" value="{{ legal_seller_name }}" placeholder="Компания или ИП">
-          <input name="legal_seller_inn" value="{{ legal_seller_inn }}" placeholder="ИНН">
-          <input name="legal_seller_kpp" value="{{ legal_seller_kpp }}" placeholder="КПП">
-          <textarea name="legal_seller_address" class="span4" rows="2" placeholder="Юридический адрес">{{ legal_seller_address }}</textarea>
-          <button>Сохранить реквизиты</button>
-        </form>
       </div>
     </details>
   </section>
@@ -120,7 +97,7 @@
             <li>Голос: «Пантюха, …» — нужен ключ OpenAI ниже.</li>
           </ol>
         </details>
-        <form method="post" class="form-grid" style="margin-top:10px">
+        <form method="post" class="form-grid settings-subform">
           <input type="hidden" name="action" value="openai_save">
           <input name="openai_api_key" type="password" placeholder="Ключ OpenAI (sk-...)" autocomplete="off" class="span3">
           <button class="ghost">Сохранить ключ</button>
@@ -146,7 +123,7 @@
           <label class="check"><input type="checkbox" name="client_sms_remind_1h" {% if client_sms_remind_1h %}checked{% endif %}> За 1 час</label>
           <button>Сохранить SMS</button>
         </form>
-        <form method="post" class="form-grid" style="margin-top:10px">
+        <form method="post" class="form-grid settings-subform">
           <input type="hidden" name="action" value="client_sms_test">
           <input name="client_sms_test_phone" placeholder="Телефон для теста" required>
           <button class="ghost">Тест SMS</button>
@@ -163,7 +140,7 @@
           <label class="check span4"><input type="checkbox" name="novofon_enabled" {% if novofon_on %}checked{% endif %}> Принимать звонки</label>
           <button>Сохранить</button>
         </form>
-        <form method="post" class="form-grid" style="margin-top:10px">
+        <form method="post" class="form-grid settings-subform">
           <input type="hidden" name="action" value="novofon_test">
           <input name="novofon_test_phone" placeholder="Телефон +7..." required>
           <button class="ghost">Симулировать звонок</button>
@@ -197,7 +174,7 @@
           <input name="friend_discount_percent" type="number" step="0.1" min="0" value="{{ friend_discount_percent }}" placeholder="Скидка %, по умолчанию">
           <button>Сохранить %</button>
         </form>
-        <form method="post" class="form-grid" style="margin-top:10px">
+        <form method="post" class="form-grid settings-subform">
           <input type="hidden" name="action" value="friend_add">
           <input name="friend_name" placeholder="Имя друга" required>
           <select name="friend_client_id">
@@ -210,6 +187,7 @@
           <input name="friend_comment" placeholder="Комментарий">
           <button>Выдать карту</button>
         </form>
+        <p class="settings-hint">В списке — последние 200 клиентов. Если нужного нет, сначала заведите его в CRM.</p>
         {% if friend_cards %}
         <div class="settings-friend-list">
           {% for fc in friend_cards %}
@@ -235,7 +213,23 @@
 
   <section class="settings-section" id="set-docs">
     <h2 class="settings-section-title">Документы</h2>
+
     <details class="settings-fold" open>
+      <summary>Реквизиты продавца</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Для актов сдачи-приёмки и документов.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="legal_seller">
+          <input name="legal_seller_name" class="span4" value="{{ legal_seller_name }}" placeholder="Компания или ИП">
+          <input name="legal_seller_inn" value="{{ legal_seller_inn }}" placeholder="ИНН">
+          <input name="legal_seller_kpp" value="{{ legal_seller_kpp }}" placeholder="КПП">
+          <textarea name="legal_seller_address" class="span4" rows="2" placeholder="Юридический адрес">{{ legal_seller_address }}</textarea>
+          <button>Сохранить реквизиты</button>
+        </form>
+      </div>
+    </details>
+
+    <details class="settings-fold">
       <summary>Шаблон сертификата PDF</summary>
       <div class="settings-fold-body">
         {% if cert_has_template %}
@@ -254,6 +248,7 @@
 
   <section class="settings-section" id="set-system">
     <h2 class="settings-section-title">Система</h2>
+
     <details class="settings-fold" open>
       <summary>База данных</summary>
       <div class="settings-fold-body">
@@ -271,6 +266,55 @@
         {% endif %}
       </div>
     </details>
+
+    <details class="settings-fold">
+      <summary>Статистика на главной</summary>
+      <div class="settings-fold-body">
+        <p class="settings-hint">Касса обновляется при закрытии записи. Здесь — режим пересчёта, если понадобится.</p>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="action" value="stats">
+          <select name="stats_refresh" class="span2">
+            <option value="live" {% if stats_refresh=='live' %}selected{% endif %}>Сразу при закрытии</option>
+            <option value="daily" {% if stats_refresh=='daily' %}selected{% endif %}>Каждый день</option>
+            <option value="weekly" {% if stats_refresh=='weekly' %}selected{% endif %}>Раз в неделю</option>
+            <option value="monthly" {% if stats_refresh=='monthly' %}selected{% endif %}>Раз в месяц</option>
+          </select>
+          <button>Сохранить</button>
+        </form>
+        {% if stats_updated %}<p class="settings-hint">Последнее обновление: {{ stats_updated }}</p>{% endif %}
+        <form method="post" class="settings-subform">
+          <input type="hidden" name="action" value="refresh_stats">
+          <button class="ghost" type="submit">Обновить сейчас</button>
+        </form>
+      </div>
+    </details>
   </section>
 </div>
+
+<script>
+(function () {
+  function copyFrom(sel) {
+    var input = document.querySelector(sel);
+    if (!input) return;
+    var text = input.value || '';
+    input.focus();
+    input.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {
+        try { document.execCommand('copy'); } catch (e) {}
+      });
+    } else {
+      try { document.execCommand('copy'); } catch (e) {}
+    }
+  }
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      copyFrom(btn.getAttribute('data-copy'));
+      var old = btn.textContent;
+      btn.textContent = 'Скопировано';
+      setTimeout(function () { btn.textContent = old; }, 1200);
+    });
+  });
+})();
+</script>
 {% endblock %}

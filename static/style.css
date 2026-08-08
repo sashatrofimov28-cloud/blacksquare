@@ -2695,7 +2695,24 @@ body.body-z-light .settings-nav, .main-z-light .settings-nav{background:#f2f2f7}
 .settings-hint.ok{color:#2e7d32}
 .settings-hint.bad{color:#c62828}
 .settings-code{display:inline-block;max-width:100%;word-break:break-all;font-size:11px}
-.settings-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.settings-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.settings-label{display:block;font-size:13px;font-weight:700;margin:0 0 6px;color:var(--muted,#888)}
+.settings-link-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;
+}
+.settings-link-row input[type="text"]{
+  width:100%;min-width:0;font-size:13px;font-weight:700;
+}
+.settings-secondary-link{
+  font-size:13px;font-weight:700;color:var(--muted,#888);text-decoration:underline;
+}
+.settings-subform{margin-top:10px}
+.form-grid .span2{grid-column:span 2}
+@media (max-width:640px){
+  .settings-link-row{grid-template-columns:minmax(0,1fr); }
+  .settings-link-row .ghost, .settings-link-row a.ghost{width:100%;text-align:center}
+  .form-grid .span2{grid-column:span 1}
+}
 .settings-help{margin-top:10px;font-size:13px;color:var(--muted,#888)}
 .settings-help summary{cursor:pointer;font-weight:700}
 .settings-help ol{margin:8px 0 0;padding-left:18px;line-height:1.45}

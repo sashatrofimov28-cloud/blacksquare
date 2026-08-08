@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v110'
+BUILD_VERSION = 'client-v111'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -1863,6 +1863,26 @@ def get_setting(key, default=''):
     row = con.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
     con.close()
     return row['value'] if row else default
+
+
+def get_settings_map(keys, defaults=None):
+    """Одним запросом читать несколько ключей app_settings."""
+    defaults = defaults or {}
+    keys = list(keys)
+    out = {k: defaults.get(k, '') for k in keys}
+    if not keys:
+        return out
+    con = db()
+    placeholders = ','.join('?' for _ in keys)
+    rows = con.execute(
+        f"SELECT key, value FROM app_settings WHERE key IN ({placeholders})",
+        keys,
+    ).fetchall()
+    con.close()
+    for row in rows:
+        out[row['key']] = row['value'] if row['value'] is not None else defaults.get(row['key'], '')
+    return out
+
 
 def set_setting(key, value):
     con = db()
@@ -8218,84 +8238,102 @@ def settings():
             else:
                 flash('Чаты не найдены. Напишите что-нибудь боту в рабочем чате и повторите поиск.')
         return redirect(url_for('settings'))
-    telegram_autoconfigure()
-    stats_refresh = get_setting('stats_refresh', 'live')
-    stats_updated = json.loads(get_setting('stats_cached', '{}')).get('at', '')
+
+    # Не дергаем Telegram API на каждый GET — иначе настройки «висят» до 12с.
+    # Автопоиск чатов только по кнопке «Найти чаты».
+    cfg = get_settings_map([
+        'stats_refresh', 'stats_cached',
+        'studio_open_time', 'studio_close_time',
+        'friend_discount_percent',
+        'telegram_enabled', 'telegram_chat_id', 'telegram_wake_name', 'telegram_last_error',
+        'openai_api_key',
+        'bonus_enabled', 'bonus_percent', 'bonus_from_visit',
+        'legal_seller_name', 'legal_seller_inn', 'legal_seller_kpp', 'legal_seller_address',
+        'client_sms_enabled', 'client_sms_api_id', 'client_sms_confirm',
+        'client_sms_remind_24h', 'client_sms_remind_1h', 'client_sms_brand', 'client_sms_address',
+        'novofon_enabled',
+    ], {
+        'stats_refresh': 'live',
+        'stats_cached': '{}',
+        'studio_open_time': STUDIO_OPEN_DEFAULT,
+        'studio_close_time': STUDIO_CLOSE_DEFAULT,
+        'friend_discount_percent': '10',
+        'telegram_enabled': '0',
+        'telegram_wake_name': 'пантюха',
+        'bonus_enabled': '1',
+        'bonus_percent': '3',
+        'bonus_from_visit': '2',
+        'client_sms_enabled': '0',
+        'client_sms_confirm': '1',
+        'client_sms_remind_24h': '1',
+        'client_sms_remind_1h': '1',
+        'client_sms_brand': 'Black Square',
+        'novofon_enabled': '1',
+    })
+    try:
+        stats_updated = json.loads(cfg.get('stats_cached') or '{}').get('at', '')
+    except Exception:
+        stats_updated = ''
+
     con = db()
     db_info = {
         'appointments': con.execute("SELECT COUNT(*) c FROM appointments").fetchone()['c'],
         'clients': con.execute("SELECT COUNT(*) c FROM clients").fetchone()['c'],
     }
-    friend_discount_percent = get_setting('friend_discount_percent', '10')
     friend_cards_raw = con.execute(
         "SELECT fc.*, c.name client_name FROM friend_cards fc LEFT JOIN clients c ON c.id=fc.client_id ORDER BY fc.id DESC"
     ).fetchall()
-    clients = con.execute("SELECT id, name, phone FROM clients ORDER BY name").fetchall()
+    # Не тащим всю базу клиентов в селект — достаточно недавних
+    clients = con.execute(
+        "SELECT id, name, phone FROM clients ORDER BY id DESC LIMIT 200"
+    ).fetchall()
     con.close()
+
     backup_dir = Path(DB).parent / 'backups'
     backups = sorted(backup_dir.glob('blacksquare_*.db'), key=lambda p: p.stat().st_mtime, reverse=True)[:5] if backup_dir.exists() else []
-    telegram_on = get_setting('telegram_enabled', '0') == '1'
-    telegram_chat = get_setting('telegram_chat_id', '')
-    telegram_token_ok = bool(telegram_bot_token())
-    telegram_wake = get_setting('telegram_wake_name', 'пантюха')
-    telegram_last_error = get_setting('telegram_last_error', '')
-    openai_ok = bool(openai_api_key())
-    openai_key = openai_api_key()
+
+    openai_key = (os.environ.get('OPENAI_API_KEY', '').strip() or (cfg.get('openai_api_key') or '').strip())
     openai_masked = ('sk-…' + openai_key[-4:]) if len(openai_key) > 8 else ''
-    bonus_on = get_setting('bonus_enabled', '1') == '1'
-    bonus_percent = get_setting('bonus_percent', '3')
-    bonus_from_visit = get_setting('bonus_from_visit', '2')
-    legal_seller_name = get_setting('legal_seller_name', '')
-    legal_seller_inn = get_setting('legal_seller_inn', '')
-    legal_seller_kpp = get_setting('legal_seller_kpp', '')
-    legal_seller_address = get_setting('legal_seller_address', '')
-    client_sms_on = get_setting('client_sms_enabled', '0') == '1'
-    client_sms_api = get_setting('client_sms_api_id', '')
-    client_sms_confirm = get_setting('client_sms_confirm', '1') == '1'
-    client_sms_remind_24h = get_setting('client_sms_remind_24h', '1') == '1'
-    client_sms_remind_1h = get_setting('client_sms_remind_1h', '1') == '1'
-    client_sms_brand = get_setting('client_sms_brand', 'Black Square')
-    client_sms_address = get_setting('client_sms_address', '')
-    novofon_on = get_setting('novofon_enabled', '1') == '1'
-    novofon_webhook_url = (public_base_url() or 'https://blacksquare72.ru') + '/api/novofon/webhook'
     friend_cards = []
     for r in friend_cards_raw:
         fc = dict(r)
         fc['card_url'] = friend_card_url(r['access_token'])
         friend_cards.append(fc)
+
     return render_template(
         'settings.html',
-        stats_refresh=stats_refresh,
+        stats_refresh=cfg.get('stats_refresh') or 'live',
         stats_updated=stats_updated,
-        studio_open=studio_open_time(),
-        studio_close=studio_close_time(),
+        studio_open=normalize_studio_time(cfg.get('studio_open_time'), STUDIO_OPEN_DEFAULT),
+        studio_close=normalize_studio_time(cfg.get('studio_close_time'), STUDIO_CLOSE_DEFAULT),
+        booking_public=booking_public_url(),
         db_path=DB,
         db_info=db_info,
         backups=backups,
-        telegram_on=telegram_on,
-        telegram_chat=telegram_chat,
-        telegram_token_ok=telegram_token_ok,
-        telegram_wake=telegram_wake,
-        telegram_last_error=telegram_last_error,
-        openai_ok=openai_ok,
+        telegram_on=(cfg.get('telegram_enabled') or '0') == '1',
+        telegram_chat=cfg.get('telegram_chat_id') or '',
+        telegram_token_ok=bool(telegram_bot_token()),
+        telegram_wake=cfg.get('telegram_wake_name') or 'пантюха',
+        telegram_last_error=cfg.get('telegram_last_error') or '',
+        openai_ok=bool(openai_key),
         openai_masked=openai_masked,
-        bonus_on=bonus_on,
-        bonus_percent=bonus_percent,
-        bonus_from_visit=bonus_from_visit,
-        legal_seller_name=legal_seller_name,
-        legal_seller_inn=legal_seller_inn,
-        legal_seller_kpp=legal_seller_kpp,
-        legal_seller_address=legal_seller_address,
-        client_sms_on=client_sms_on,
-        client_sms_api=client_sms_api,
-        client_sms_confirm=client_sms_confirm,
-        client_sms_remind_24h=client_sms_remind_24h,
-        client_sms_remind_1h=client_sms_remind_1h,
-        client_sms_brand=client_sms_brand,
-        client_sms_address=client_sms_address,
-        novofon_on=novofon_on,
-        novofon_webhook_url=novofon_webhook_url,
-        friend_discount_percent=friend_discount_percent,
+        bonus_on=(cfg.get('bonus_enabled') or '1') == '1',
+        bonus_percent=cfg.get('bonus_percent') or '3',
+        bonus_from_visit=cfg.get('bonus_from_visit') or '2',
+        legal_seller_name=cfg.get('legal_seller_name') or '',
+        legal_seller_inn=cfg.get('legal_seller_inn') or '',
+        legal_seller_kpp=cfg.get('legal_seller_kpp') or '',
+        legal_seller_address=cfg.get('legal_seller_address') or '',
+        client_sms_on=(cfg.get('client_sms_enabled') or '0') == '1',
+        client_sms_api=cfg.get('client_sms_api_id') or '',
+        client_sms_confirm=(cfg.get('client_sms_confirm') or '1') == '1',
+        client_sms_remind_24h=(cfg.get('client_sms_remind_24h') or '1') == '1',
+        client_sms_remind_1h=(cfg.get('client_sms_remind_1h') or '1') == '1',
+        client_sms_brand=cfg.get('client_sms_brand') or 'Black Square',
+        client_sms_address=cfg.get('client_sms_address') or '',
+        novofon_on=(cfg.get('novofon_enabled') or '1') == '1',
+        novofon_webhook_url=(public_base_url() or 'https://blacksquare72.ru') + '/api/novofon/webhook',
+        friend_discount_percent=cfg.get('friend_discount_percent') or '10',
         friend_cards=friend_cards,
         clients=clients,
         cert_has_template=certificate_has_template(),
