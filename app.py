@@ -4562,6 +4562,10 @@ def ensure_db():
         init_db()
         telegram_autoconfigure()
         start_scheduler()
+        try:
+            sync_tv_kiosk_password()
+        except Exception:
+            pass
         _db_initialized = True
 
 def canonical_site_host():
