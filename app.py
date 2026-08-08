@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v100'
+BUILD_VERSION = 'client-v101'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -1144,7 +1144,8 @@ def list_masters(con, online_only=False):
     if online_only:
         sql += " AND COALESCE(online_booking,1)=1"
     sql += " ORDER BY full_name"
-    return con.execute(sql).fetchall()
+    rows = con.execute(sql).fetchall()
+    return [r for r in rows if not is_tv_kiosk_user(r)]
 
 def user_online_booking_enabled(con, uid):
     row = con.execute("SELECT online_booking FROM users WHERE id=?", (uid,)).fetchone()
@@ -2113,11 +2114,44 @@ def clear_remember_cookie(response=None):
         response.delete_cookie('bs_remember', domain=_cookie_domain, path='/')
 
 
+def is_tv_kiosk_user(user):
+    """Учётка для телевизора в зале (логин Tv / имя Тв) — сразу на TV-экран."""
+    if not user:
+        return False
+    un = (user['username'] or '').strip().lower()
+    fn = (user['full_name'] or '').strip().lower()
+    raw = (get_setting('tv_kiosk_usernames', 'tv,тв') or 'tv,тв')
+    names = {x.strip().lower() for x in raw.split(',') if x.strip()}
+    names.update({'tv', 'тв'})
+    return un in names or fn in names
+
+
+def home_endpoint_for_user(user):
+    if is_tv_kiosk_user(user):
+        return 'tv_board'
+    return 'dashboard'
+
+
+def ensure_tv_kiosk_access(user):
+    """TV-учётке нужен доступ к экрану, даже если права мастера сняты."""
+    if not user or not is_tv_kiosk_user(user):
+        return
+    con = db()
+    con.execute(
+        "INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,1) "
+        "ON CONFLICT(user_id,permission) DO UPDATE SET allowed=1",
+        (user['id'], 'calendar'),
+    )
+    con.commit()
+    con.close()
+
+
 def login_user_response(user):
     session['uid'] = user['id']
     session.permanent = True
+    ensure_tv_kiosk_access(user)
     token = issue_remember_token(user['id'])
-    resp = redirect(url_for('dashboard'))
+    resp = redirect(url_for(home_endpoint_for_user(user)))
     resp.set_cookie('bs_remember', token, **remember_cookie_opts())
     return resp
 
@@ -2495,7 +2529,8 @@ def perm_required(perm):
         def wrapper(*args, **kwargs):
             if not has_perm(perm):
                 flash('Нет доступа к этому разделу')
-                return redirect(url_for('dashboard'))
+                u = current_user()
+                return redirect(url_for(home_endpoint_for_user(u) if u else 'dashboard'))
             return fn(*args, **kwargs)
         return wrapper
     return deco
@@ -4315,8 +4350,9 @@ def inject():
 def index():
     if request.method == 'POST':
         return login()
-    if current_user():
-        return redirect(url_for('dashboard'))
+    u = current_user()
+    if u:
+        return redirect(url_for(home_endpoint_for_user(u)))
     return redirect(url_for('login'))
 
 @app.route('/design')
@@ -4513,6 +4549,20 @@ def restore_login_from_remember():
     return None
 
 
+@app.before_request
+def tv_kiosk_force_board():
+    """Учётка TV всегда остаётся на экране записей."""
+    if request.endpoint in (
+        'healthz', 'health', 'login', 'logout', 'static', 'manifest',
+        'tv_board', 'tv_board_wall',
+    ):
+        return None
+    u = current_user()
+    if u and is_tv_kiosk_user(u):
+        return redirect(url_for('tv_board'))
+    return None
+
+
 @app.after_request
 def auto_backup_after_mutation(response):
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and response.status_code < 400:
@@ -4523,7 +4573,7 @@ def auto_backup_after_mutation(response):
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'GET' and current_user():
-        return redirect(url_for('dashboard'))
+        return redirect(url_for(home_endpoint_for_user(current_user())))
     if request.method == 'POST':
         con = db(); u = con.execute("SELECT * FROM users WHERE username=? AND active=1", (request.form.get('username','').strip(),)).fetchone(); con.close()
         if u and check_password_hash(u['password_hash'], request.form.get('password','')):
@@ -5396,11 +5446,14 @@ def build_tv_board(day=None):
 
 @app.route('/tv')
 @login_required
-@perm_required('calendar')
 def tv_board():
+    u = current_user()
+    if not (is_tv_kiosk_user(u) or has_perm('calendar')):
+        flash('Нет доступа к TV-экрану')
+        return redirect(url_for('dashboard'))
     data = build_tv_board(today())
-    wall_url = tv_board_public_url() if current_user()['role'] == 'director' else ''
-    return render_template('tv_board.html', wall_url=wall_url, kiosk=False, **data)
+    wall_url = tv_board_public_url() if u['role'] == 'director' else ''
+    return render_template('tv_board.html', wall_url=wall_url, kiosk=is_tv_kiosk_user(u), **data)
 
 
 @app.route('/tv/wall/<token>')
