@@ -12,91 +12,97 @@
   <style>
     :root{
       --bg:#0c0d10; --panel:#16181e; --line:#2a2d36; --text:#f4f5f7; --mute:#9aa0ad;
-      --wait:#3b82f6; --work:#f59e0b; --done:#22c55e; --now:#ef4444;
+      --wait:#3b82f6; --work:#f59e0b; --done:#22c55e;
+      --cols: {{ columns|length or 1 }};
     }
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0}
+    html,body{width:100%;height:100%;margin:0}
     body{
       font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
       overflow:hidden;cursor:none
     }
-    .tv{height:100%;display:grid;grid-template-rows:auto 1fr;gap:0}
+    .tv{
+      width:100%;height:100%;
+      display:grid;grid-template-rows:auto minmax(0,1fr);gap:0
+    }
     .tv-top{
       display:flex;align-items:center;justify-content:space-between;gap:20px;
-      padding:18px 28px 14px;border-bottom:1px solid var(--line);
+      padding:16px 24px 12px;border-bottom:1px solid var(--line);
       background:linear-gradient(180deg,#12141a 0%,#0c0d10 100%)
     }
     .tv-brand{display:flex;align-items:baseline;gap:14px;min-width:0}
-    .tv-brand b{font-size:28px;font-weight:800;letter-spacing:-.4px}
-    .tv-brand span{font-size:18px;color:var(--mute);font-weight:700;white-space:nowrap}
-    .tv-meta{display:flex;align-items:center;gap:18px;font-weight:800}
-    .tv-clock{font-size:42px;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-    .tv-count{font-size:16px;color:var(--mute)}
+    .tv-brand b{font-size:clamp(22px,2.2vw,30px);font-weight:800;letter-spacing:-.4px}
+    .tv-brand span{font-size:clamp(14px,1.4vw,18px);color:var(--mute);font-weight:700;white-space:nowrap}
+    .tv-meta{display:flex;align-items:center;gap:16px;font-weight:800}
+    .tv-clock{font-size:clamp(28px,3.4vw,44px);letter-spacing:-1px;font-variant-numeric:tabular-nums}
+    .tv-count{font-size:clamp(13px,1.2vw,16px);color:var(--mute)}
     .tv-live{
       display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
       background:#1d2430;color:#dbe4ff;font-size:13px;font-weight:800
     }
-    .tv-live i{width:8px;height:8px;border-radius:50%;background:var(--done);box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse 1.6s infinite}
+    .tv-live i{width:8px;height:8px;border-radius:50%;background:var(--done);animation:pulse 1.6s infinite}
     @keyframes pulse{
       0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}
       70%{box-shadow:0 0 0 10px rgba(34,197,94,0)}
       100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}
     }
+
+    /* Всегда колонки в ряд — как доска в зале */
     .tv-board{
-      display:grid;grid-template-columns:repeat({{ columns|length or 1 }}, minmax(0,1fr));
-      gap:14px;padding:16px 20px 20px;min-height:0;height:100%
+      display:grid;
+      grid-template-columns:repeat(var(--cols), minmax(0, 1fr));
+      grid-auto-flow:column;
+      gap:14px;
+      padding:14px 16px 16px;
+      min-height:0;height:100%;width:100%
     }
     .tv-col{
-      min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr;
-      background:var(--panel);border:1px solid var(--line);border-radius:22px;overflow:hidden
+      min-width:0;min-height:0;height:100%;
+      display:flex;flex-direction:column;
+      background:var(--panel);border:1px solid var(--line);border-radius:20px;overflow:hidden
     }
     .tv-col-head{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      padding:16px 18px;border-bottom:1px solid var(--line)
+      flex:0 0 auto;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+      padding:18px 14px 14px;border-bottom:1px solid var(--line);text-align:center
     }
-    .tv-col-head .who{display:flex;align-items:center;gap:12px;min-width:0}
     .tv-av{
-      width:42px;height:42px;border-radius:14px;display:grid;place-items:center;
-      font-weight:800;font-size:15px;color:#111;background:#cfe2ff;flex-shrink:0
+      width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+      font-weight:800;font-size:18px;color:#111;background:#cfe2ff
     }
     .tv-av.tone-green{background:#c8f0d8}
     .tv-av.tone-blue{background:#cfe2ff}
     .tv-av.tone-purple{background:#e4d4ff}
     .tv-av.tone-orange{background:#ffe0b8}
-    .tv-col-head b{font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tv-col-head em{font-style:normal;color:var(--mute);font-weight:800;font-size:15px}
-    .tv-list{overflow:auto;padding:12px;display:grid;gap:10px;align-content:start}
+    .tv-col-head b{
+      font-size:clamp(18px,1.8vw,26px);font-weight:800;line-height:1.15;
+      max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .tv-col-head em{font-style:normal;color:var(--mute);font-weight:800;font-size:14px}
+    .tv-list{
+      flex:1 1 auto;min-height:0;overflow:auto;
+      padding:12px;display:flex;flex-direction:column;gap:10px
+    }
     .tv-card{
-      border-radius:16px;padding:14px 16px;background:#1d2028;border:1px solid #2c303a;
-      display:grid;gap:6px;position:relative
+      border-radius:16px;padding:14px 14px;background:#1d2028;border:1px solid #2c303a;
+      display:grid;gap:6px;flex:0 0 auto
     }
-    .tv-card.wait{border-left:5px solid var(--wait)}
-    .tv-card.work{border-left:5px solid var(--work);background:#261f14}
-    .tv-card.done{border-left:5px solid var(--done);opacity:.72}
-    .tv-time{display:flex;justify-content:space-between;align-items:center;gap:10px}
-    .tv-time strong{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
-    .tv-badge{
-      font-size:12px;font-weight:800;padding:5px 9px;border-radius:999px;letter-spacing:.02em
-    }
+    .tv-card.wait{border-top:4px solid var(--wait)}
+    .tv-card.work{border-top:4px solid var(--work);background:#261f14}
+    .tv-card.done{border-top:4px solid var(--done);opacity:.72}
+    .tv-time{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .tv-time strong{font-size:clamp(18px,1.7vw,24px);font-weight:800;font-variant-numeric:tabular-nums}
+    .tv-badge{font-size:11px;font-weight:800;padding:5px 8px;border-radius:999px;white-space:nowrap}
     .tv-card.wait .tv-badge{background:rgba(59,130,246,.18);color:#93c5fd}
     .tv-card.work .tv-badge{background:rgba(245,158,11,.2);color:#fcd34d}
     .tv-card.done .tv-badge{background:rgba(34,197,94,.18);color:#86efac}
-    .tv-car{font-size:26px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
-    .tv-plate{font-size:14px;color:var(--mute);font-weight:700;letter-spacing:.04em}
-    .tv-svc{font-size:15px;color:#d5d8e0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .tv-client{font-size:14px;color:var(--mute);font-weight:700}
+    .tv-car{font-size:clamp(20px,2vw,28px);font-weight:800;letter-spacing:-.3px;line-height:1.15}
+    .tv-plate{font-size:13px;color:var(--mute);font-weight:700;letter-spacing:.04em}
+    .tv-svc{font-size:14px;color:#d5d8e0;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .tv-client{font-size:13px;color:var(--mute);font-weight:700}
     .tv-empty{
-      margin:auto;text-align:center;color:var(--mute);font-weight:700;font-size:18px;padding:40px 16px
-    }
-    .tv-hint{
-      position:fixed;left:20px;bottom:16px;z-index:5;opacity:.35;font-size:12px;font-weight:700;color:var(--mute)
-    }
-    @media (max-width: 900px){
-      body{cursor:auto;overflow:auto}
-      .tv{height:auto;min-height:100%}
-      .tv-board{grid-template-columns:1fr;height:auto}
-      .tv-clock{font-size:32px}
-      .tv-car{font-size:22px}
+      margin:auto;text-align:center;color:var(--mute);font-weight:700;
+      font-size:clamp(15px,1.4vw,18px);padding:32px 12px
     }
   </style>
 </head>
@@ -118,11 +124,9 @@
       {% for col in columns %}
       <section class="tv-col">
         <div class="tv-col-head">
-          <div class="who">
-            <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
-            <b>{{ col.name }}</b>
-          </div>
-          <em>{{ col.count }}</em>
+          <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
+          <b>{{ col.name }}</b>
+          <em>{{ col.count }} запис.</em>
         </div>
         <div class="tv-list">
           {% for ev in col.events %}
@@ -149,10 +153,6 @@
     </div>
   </div>
 
-  {% if wall_url and not kiosk %}
-  <div class="tv-hint">Для телевизора без логина: {{ wall_url }}</div>
-  {% endif %}
-
   <script>
   (function () {
     var sec = {{ refresh_sec|int }};
@@ -164,7 +164,6 @@
     }
     tick();
     setInterval(tick, 1000);
-    // Жёсткое обновление данных (на случай если meta refresh отключён)
     setTimeout(function () { location.reload(); }, sec * 1000);
   })();
   </script>
