@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v101'
+BUILD_VERSION = 'client-v102'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Europe/Moscow'))
 app = Flask(
     __name__,
@@ -2126,6 +2126,57 @@ def is_tv_kiosk_user(user):
     return un in names or fn in names
 
 
+def find_login_user(con, username):
+    """Поиск пользователя для входа: без учёта регистра + алиасы Тв/Tv."""
+    username = (username or '').strip()
+    if not username:
+        return None
+    u = con.execute(
+        "SELECT * FROM users WHERE username=? AND active=1",
+        (username,),
+    ).fetchone()
+    if u:
+        return u
+    u = con.execute(
+        "SELECT * FROM users WHERE lower(username)=lower(?) AND active=1",
+        (username,),
+    ).fetchone()
+    if u:
+        return u
+    # Кириллица «Тв» / латиница «Tv» — одна TV-учётка
+    key = username.lower().replace(' ', '')
+    if key in ('tv', 'тв', 'tв', 'тv'):
+        u = con.execute(
+            "SELECT * FROM users WHERE active=1 AND ("
+            "lower(username)='tv' OR lower(full_name) IN ('тв','tv')"
+            ") ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if u:
+            return u
+    return None
+
+
+def sync_tv_kiosk_password():
+    """Пароль TV-учётки: TV (как на пульте/клавиатуре ТВ)."""
+    con = db()
+    u = con.execute(
+        "SELECT * FROM users WHERE active=1 AND ("
+        "lower(username)='tv' OR lower(full_name) IN ('тв','tv')"
+        ") ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if not u:
+        con.close()
+        return
+    desired = 'TV'
+    if not check_password_hash(u['password_hash'] or '', desired):
+        con.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (generate_password_hash(desired), u['id']),
+        )
+        con.commit()
+    con.close()
+
+
 def home_endpoint_for_user(user):
     if is_tv_kiosk_user(user):
         return 'tv_board'
@@ -2136,6 +2187,7 @@ def ensure_tv_kiosk_access(user):
     """TV-учётке нужен доступ к экрану, даже если права мастера сняты."""
     if not user or not is_tv_kiosk_user(user):
         return
+    sync_tv_kiosk_password()
     con = db()
     con.execute(
         "INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,1) "
@@ -4575,8 +4627,11 @@ def login():
     if request.method == 'GET' and current_user():
         return redirect(url_for(home_endpoint_for_user(current_user())))
     if request.method == 'POST':
-        con = db(); u = con.execute("SELECT * FROM users WHERE username=? AND active=1", (request.form.get('username','').strip(),)).fetchone(); con.close()
-        if u and check_password_hash(u['password_hash'], request.form.get('password','')):
+        sync_tv_kiosk_password()
+        con = db()
+        u = find_login_user(con, request.form.get('username', ''))
+        con.close()
+        if u and check_password_hash(u['password_hash'], request.form.get('password', '')):
             return login_user_response(u)
         flash('Неверный логин или пароль')
     return render_template('login.html')
