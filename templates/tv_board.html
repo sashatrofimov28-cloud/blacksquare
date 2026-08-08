@@ -8,93 +8,99 @@
   <title>TV · {{ date_title }} · BlackSquare</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#101114; --panel:#181a20; --line:#2c303a; --text:#f3f4f6; --mute:#9aa0ad;
+      --bg:#f2f2f7; --card:#fff; --line:#e5e5ea; --text:#111; --mute:#8e8e93;
       --hour: {{ px_per_hour }}px; --height: {{ height_px }}px; --cols: {{ columns|length or 1 }};
+      --mhead: 84px;
     }
     *{box-sizing:border-box}
     html,body{width:100%;height:100%;margin:0}
     body{
-      font-family:'Manrope',system-ui,sans-serif;background:var(--bg);color:var(--text);
+      font-family:'Nunito',system-ui,sans-serif;background:var(--bg);color:var(--text);
       overflow:hidden;cursor:none
     }
     .tv{width:100%;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
     .tv-top{
       display:flex;align-items:center;justify-content:space-between;gap:16px;
-      padding:14px 22px;border-bottom:1px solid var(--line);background:#12141a
+      padding:12px 18px;background:#fff;border-bottom:1px solid var(--line)
     }
     .tv-brand{display:flex;align-items:baseline;gap:12px;min-width:0}
-    .tv-brand b{font-size:clamp(22px,2vw,30px);font-weight:800}
-    .tv-brand span{font-size:clamp(14px,1.3vw,18px);color:var(--mute);font-weight:700}
-    .tv-meta{display:flex;align-items:center;gap:14px;font-weight:800}
-    .tv-clock{font-size:clamp(28px,3vw,42px);font-variant-numeric:tabular-nums;letter-spacing:-1px}
-    .tv-count,.tv-live{font-size:14px;color:var(--mute)}
-    .tv-live{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;background:#1d2430;color:#dbe4ff}
-    .tv-live i{width:8px;height:8px;border-radius:50%;background:#22c55e}
+    .tv-brand b{font-size:clamp(20px,2vw,28px);font-weight:800;letter-spacing:-.3px}
+    .tv-brand span{font-size:clamp(13px,1.2vw,17px);color:var(--mute);font-weight:700}
+    .tv-meta{display:flex;align-items:center;gap:12px;font-weight:800}
+    .tv-clock{font-size:clamp(26px,2.8vw,38px);font-variant-numeric:tabular-nums;letter-spacing:-1px}
+    .tv-count{font-size:14px;color:var(--mute)}
+    .tv-live{
+      display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;
+      background:#111;color:#fff;font-size:12px;font-weight:800
+    }
+    .tv-live i{width:7px;height:7px;border-radius:50%;background:#30d158}
 
-    .tv-wrap{min-height:0;overflow:auto;padding:12px 14px 16px}
+    .tv-wrap{
+      min-height:0;height:100%;padding:10px 12px 12px;
+      display:flex;align-items:stretch;justify-content:stretch
+    }
+    .tv-stage{
+      flex:1;min-width:0;min-height:0;position:relative;overflow:hidden;
+      border-radius:16px;border:1px solid var(--line);background:var(--card)
+    }
     .tv-board{
+      position:absolute;left:0;top:0;
       display:grid;
-      grid-template-columns:56px repeat(var(--cols), minmax(0, 1fr));
-      min-height:100%;
-      background:var(--panel);
-      border:1px solid var(--line);
-      border-radius:18px;
-      overflow:hidden
+      grid-template-columns:52px repeat(var(--cols), minmax(0, 1fr));
+      width:100%;
+      background:#fff;
+      transform-origin: top left;
     }
-    .tv-hours{border-right:1px solid var(--line);background:#14161c}
+    .tv-hours{border-right:1px solid var(--line);background:#fafafa;z-index:2}
     .tv-mhead{
-      height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-      border-bottom:1px solid var(--line);background:#1a1d25;text-align:center;padding:8px
+      height:var(--mhead);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+      border-bottom:1px solid var(--line);background:#fff;text-align:center;padding:8px 6px
     }
-    .tv-mhead-spacer{background:#14161c}
+    .tv-mhead-spacer{background:#fafafa}
     .tv-av{
-      width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
-      font-size:12px;font-weight:800;color:#fff
+      width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+      font-size:13px;font-weight:800;color:#fff
     }
     .tv-av.tone-green{background:#00b368}
     .tv-av.tone-blue{background:#2979ff}
     .tv-av.tone-purple{background:#9b51e0}
     .tv-av.tone-orange{background:#ff9500}
-    .tv-mhead b{font-size:clamp(13px,1.2vw,17px);font-weight:800;line-height:1.1}
+    .tv-mhead b{font-size:clamp(14px,1.3vw,18px);font-weight:800;color:#111;line-height:1.1}
     .tv-mhead small{font-size:11px;color:var(--mute);font-weight:700}
     .tv-hours-body,.tv-grid{position:relative;height:var(--height)}
     .tv-hour{
-      height:var(--hour);padding:6px 6px 0;font-size:12px;font-weight:800;color:var(--mute);
-      border-bottom:1px solid rgba(255,255,255,.05)
+      height:var(--hour);padding:5px 4px 0;font-size:12px;font-weight:800;color:var(--mute);
+      border-bottom:1px solid #f0f0f0
     }
-    .tv-col{border-right:1px solid var(--line);min-width:0}
+    .tv-col{border-right:1px solid var(--line);min-width:0;background:#fff}
     .tv-col:last-child{border-right:0}
-    .tv-line{
-      height:var(--hour);border-bottom:1px solid rgba(255,255,255,.05);pointer-events:none
-    }
-    .tv-now{
-      position:absolute;left:0;right:0;height:2px;background:#ff3b30;z-index:5;pointer-events:none
-    }
+    .tv-line{height:var(--hour);border-bottom:1px solid #f0f0f0;pointer-events:none}
+    .tv-now{position:absolute;left:0;right:0;height:2px;background:#ff3b30;z-index:5;pointer-events:none}
     .tv-now-label::before{
       content:attr(data-t);position:absolute;left:50%;top:-10px;transform:translateX(-50%);
       background:#ff3b30;color:#fff;font-size:11px;font-weight:800;padding:2px 6px;border-radius:6px
     }
     .tv-event{
-      position:absolute;z-index:3;border-radius:12px;padding:8px 10px;overflow:hidden;
-      box-shadow:0 2px 8px rgba(0,0,0,.25);color:#111;display:flex;flex-direction:column;gap:2px
+      position:absolute;z-index:3;border-radius:12px;padding:8px 9px;overflow:hidden;
+      box-shadow:0 1px 3px rgba(0,0,0,.08);color:#111;display:flex;flex-direction:column;gap:2px
     }
-    .tv-event.tone-green{background:#b8efcf}
-    .tv-event.tone-blue{background:#bfd6ff}
-    .tv-event.tone-purple{background:#dcc8ff}
-    .tv-event.tone-orange{background:#ffd7a8}
-    .tv-event.done{opacity:.7;filter:saturate(.8)}
-    .tv-event.work{outline:2px solid #f59e0b}
-    .tv-event strong{font-size:clamp(12px,1.1vw,15px);font-weight:800}
-    .tv-event .car{font-size:clamp(14px,1.35vw,19px);font-weight:800;line-height:1.15}
+    .tv-event.tone-green{background:#c8f0d8}
+    .tv-event.tone-blue{background:#cfe2ff}
+    .tv-event.tone-purple{background:#e4d4ff}
+    .tv-event.tone-orange{background:#ffe0b8}
+    .tv-event.done{opacity:.72;filter:saturate(.85)}
+    .tv-event.work{box-shadow:inset 0 0 0 2px #f59e0b}
+    .tv-event strong{font-size:clamp(12px,1.05vw,15px);font-weight:800}
+    .tv-event .car{font-size:clamp(14px,1.25vw,18px);font-weight:800;line-height:1.15}
     .tv-event .svc,.tv-event .cli{
-      font-size:clamp(11px,1vw,13px);font-weight:700;opacity:.85;
+      font-size:clamp(11px,.95vw,13px);font-weight:700;opacity:.85;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis
     }
     .tv-empty-board{
-      grid-column:2 / -1;display:grid;place-items:center;color:var(--mute);font-weight:700;font-size:18px;padding:40px
+      grid-column:2 / -1;display:grid;place-items:center;color:var(--mute);font-weight:700;font-size:18px;min-height:200px
     }
   </style>
 </head>
@@ -102,61 +108,67 @@
   <div class="tv">
     <header class="tv-top">
       <div class="tv-brand">
-        <b>BlackSquare</b>
+        <b>Журнал записи</b>
         <span>{{ date_title }}{% if is_today %} · сегодня{% endif %}</span>
       </div>
       <div class="tv-meta">
-        <span class="tv-count">{{ load_c }} записей · {{ (load_mins // 60) }}ч {{ load_mins % 60 }}м</span>
+        <span class="tv-count">{{ load_c }} записей · {{ load_mins }} мин</span>
         <span class="tv-live"><i></i> авто {{ refresh_sec }}с</span>
         <div class="tv-clock" id="tvClock">{{ clock }}</div>
       </div>
     </header>
 
     <div class="tv-wrap">
-      <div class="tv-board">
-        <div class="tv-hours">
-          <div class="tv-mhead tv-mhead-spacer" aria-hidden="true"></div>
-          <div class="tv-hours-body">
-            {% for h in hours %}
-            <div class="tv-hour">{{ h }}</div>
-            {% endfor %}
-            {% if now_marker %}
-            <div class="tv-now tv-now-label" style="top: {{ now_marker.top }}px" data-t="{{ now_marker.label }}"></div>
-            {% endif %}
-          </div>
-        </div>
-
-        {% for col in columns %}
-        <div class="tv-col">
-          <div class="tv-mhead">
-            <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
-            <b>{{ col.name }}</b>
-            <small>{{ col.count }} запис.</small>
-          </div>
-          <div class="tv-grid">
-            {% for h in hours %}
-            <div class="tv-line"></div>
-            {% endfor %}
-            {% if now_marker %}
-            <div class="tv-now" style="top: {{ now_marker.top }}px"></div>
-            {% endif %}
-            {% for ev in col.events %}
-            <div class="tv-event {{ ev.tone }}{% if ev.done %} done{% endif %}{% if ev.status_key == 'work' %} work{% endif %}"
-                 style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc(4px + {{ ev.col }} * ((100% - 8px) / {{ ev.col_count }})); width: calc((100% - 8px) / {{ ev.col_count }} - 2px)">
-              <strong>{{ ev.start }}–{{ ev.end }}</strong>
-              <span class="car">{{ ev.car }}</span>
-              {% if ev.plate %}<span class="cli">{{ ev.plate }}</span>{% endif %}
-              <span class="svc">{{ ev.service or '—' }}</span>
-              {% if ev.client and ev.client|lower not in (ev.car|lower) %}
-              <span class="cli">{{ ev.client }}</span>
+      <div class="tv-stage" id="tvStage">
+        <div class="tv-board" id="tvBoard"
+             data-hours="{{ hours|length }}"
+             data-base-hour="{{ px_per_hour }}"
+             data-base-height="{{ height_px }}">
+          <div class="tv-hours">
+            <div class="tv-mhead tv-mhead-spacer" aria-hidden="true"></div>
+            <div class="tv-hours-body" id="tvHoursBody">
+              {% for h in hours %}
+              <div class="tv-hour">{{ h }}</div>
+              {% endfor %}
+              {% if now_marker %}
+              <div class="tv-now tv-now-label" id="tvNowLabel" style="top: {{ now_marker.top }}px" data-t="{{ now_marker.label }}" data-top="{{ now_marker.top }}"></div>
               {% endif %}
             </div>
-            {% endfor %}
           </div>
+
+          {% for col in columns %}
+          <div class="tv-col">
+            <div class="tv-mhead">
+              <div class="tv-av {{ col.tone }}">{{ col.initials }}</div>
+              <b>{{ col.name }}</b>
+              <small>мастер</small>
+            </div>
+            <div class="tv-grid">
+              {% for h in hours %}
+              <div class="tv-line"></div>
+              {% endfor %}
+              {% if now_marker %}
+              <div class="tv-now" style="top: {{ now_marker.top }}px" data-top="{{ now_marker.top }}"></div>
+              {% endif %}
+              {% for ev in col.events %}
+              <div class="tv-event {{ ev.tone }}{% if ev.done %} done{% endif %}{% if ev.status_key == 'work' %} work{% endif %}"
+                   style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc(4px + {{ ev.col }} * ((100% - 8px) / {{ ev.col_count }})); width: calc((100% - 8px) / {{ ev.col_count }} - 2px)"
+                   data-top="{{ ev.top }}" data-height="{{ ev.height }}">
+                <strong>{{ ev.start }}–{{ ev.end }}</strong>
+                <span class="car">{{ ev.car }}</span>
+                {% if ev.plate %}<span class="cli">{{ ev.plate }}</span>{% endif %}
+                <span class="svc">{{ ev.service or '—' }}</span>
+                {% if ev.client and ev.client|lower not in (ev.car|lower) %}
+                <span class="cli">{{ ev.client }}</span>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% else %}
+          <div class="tv-empty-board">Нет активных мастеров</div>
+          {% endfor %}
         </div>
-        {% else %}
-        <div class="tv-empty-board">Нет активных мастеров</div>
-        {% endfor %}
       </div>
     </div>
   </div>
@@ -164,14 +176,59 @@
   <script>
   (function () {
     var sec = {{ refresh_sec|int }};
+    var board = document.getElementById('tvBoard');
+    var stage = document.getElementById('tvStage');
+
     function pad(n){ return String(n).padStart(2,'0'); }
     function tick(){
       var d = new Date();
       var el = document.getElementById('tvClock');
       if (el) el.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
+
+    function fit() {
+      if (!board || !stage) return;
+      var hours = parseInt(board.dataset.hours || '12', 10) || 12;
+      var baseHour = parseFloat(board.dataset.baseHour || '72') || 72;
+      var mhead = 84;
+      var availW = stage.clientWidth;
+      var availH = stage.clientHeight;
+      // Подгоняем высоту часа, чтобы весь день влез на экран
+      var hourPx = Math.max(36, Math.floor((availH - mhead - 2) / hours));
+      var heightPx = hourPx * hours;
+      var scaleY = 1;
+      if (mhead + heightPx > availH && availH > 100) {
+        scaleY = availH / (mhead + heightPx);
+      }
+      var root = document.documentElement;
+      root.style.setProperty('--hour', hourPx + 'px');
+      root.style.setProperty('--height', heightPx + 'px');
+      root.style.setProperty('--mhead', mhead + 'px');
+
+      // Пересчитать позиции событий относительно базового px/hour
+      var ratio = hourPx / baseHour;
+      board.querySelectorAll('.tv-event').forEach(function (el) {
+        var top = parseFloat(el.dataset.top || '0');
+        var h = parseFloat(el.dataset.height || '48');
+        el.style.top = (top * ratio) + 'px';
+        el.style.height = Math.max(h * ratio, 44) + 'px';
+      });
+      board.querySelectorAll('.tv-now').forEach(function (el) {
+        var top = parseFloat(el.dataset.top || '0');
+        el.style.top = (top * ratio) + 'px';
+      });
+
+      board.style.width = availW + 'px';
+      board.style.transform = scaleY < 0.999 ? ('scale(' + scaleY + ')') : 'none';
+      if (scaleY < 0.999) {
+        board.style.width = (availW / scaleY) + 'px';
+      }
+    }
+
     tick();
     setInterval(tick, 1000);
+    fit();
+    window.addEventListener('resize', fit);
     setTimeout(function () { location.reload(); }, sec * 1000);
   })();
   </script>
