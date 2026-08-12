@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v111'
+BUILD_VERSION = 'client-v112'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
