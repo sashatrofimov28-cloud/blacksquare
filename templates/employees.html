@@ -80,7 +80,7 @@
         <option value="director">Директор</option>
       </select>
       <label class="check span4"><input type="checkbox" name="online_booking" checked> Участвует в онлайн-записи</label>
-      <div class="span4 emp-perms"><b>Права</b><div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}"> {{ title }}</label>{% endfor %}</div></div>
+      <div class="span4 emp-perms"><b>Права</b><div class="perm-list">{% for key,title in perms.items() %}<label class="check"><input type="checkbox" name="perm_{{ key }}" {% if key in ('calendar','salary','extra_services') %}checked{% endif %}> {{ title }}</label>{% endfor %}</div></div>
       <div class="span4 emp-perms"><b>Услуги</b><div class="perm-list">{% for s in services %}<label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" checked> {{ s.name }}</label>{% endfor %}</div></div>
       <button class="span4">Создать</button>
     </form>

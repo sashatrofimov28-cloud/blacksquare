@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v112'
+BUILD_VERSION = 'client-v113'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -211,6 +211,34 @@ PERMS = {
     'phone_access': 'Доступ к телефонам',
     'finance': 'Финансы',
 }
+
+# Базовые права мастера: журнал (записывать машины) + своя ЗП + допуслуги
+MASTER_DEFAULT_PERMS = ('calendar', 'salary', 'extra_services')
+ADMIN_DEFAULT_PERMS = (
+    'calendar', 'services', 'crm', 'employees', 'delete_appointments',
+    'extra_services', 'certificates', 'phone_access', 'edit_closed_appointments',
+)
+
+
+def default_perms_for_role(role):
+    """Какие права включать по умолчанию для роли."""
+    if role == 'director':
+        return set(PERMS.keys())
+    if role == 'admin':
+        return set(ADMIN_DEFAULT_PERMS)
+    return set(MASTER_DEFAULT_PERMS)
+
+
+def resolve_perm_allowed(role, perm_key, form_checked):
+    """Director = всё; мастер всегда получает calendar (запись машин)."""
+    if role == 'director':
+        return 1
+    if form_checked:
+        return 1
+    # Мастерам нельзя случайно снять журнал — иначе не смогут записывать
+    if role == 'master' and perm_key == 'calendar':
+        return 1
+    return 0
 
 BOTTOM_NAV_DEFAULT = ('calendar', 'crm', 'finance')
 
@@ -1856,6 +1884,14 @@ def migrate_db(c):
         c.execute(
             "UPDATE users SET active=0, online_booking=0, fired_at=COALESCE(NULLIF(fired_at,''), ?) WHERE id=?",
             (today(), row['id']),
+        )
+    # Мастеры должны уметь записывать машины в журнал (+ базовые права)
+    for p in MASTER_DEFAULT_PERMS:
+        c.execute(
+            "INSERT INTO user_permissions(user_id,permission,allowed) "
+            "SELECT id, ?, 1 FROM users WHERE role='master' AND COALESCE(active,1)=1 "
+            "ON CONFLICT(user_id,permission) DO UPDATE SET allowed=1",
+            (p,),
         )
 
 def get_setting(key, default=''):
@@ -7133,8 +7169,13 @@ def employees():
                 (request.form['username'].strip(), generate_password_hash(password), role, request.form['full_name'], online_booking, salary_percent, today(), now()),
             )
             uid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+            defaults = default_perms_for_role(role)
             for p in PERMS:
-                con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
+                checked = bool(request.form.get('perm_' + p)) or (p in defaults)
+                con.execute(
+                    "INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?)",
+                    (uid, p, resolve_perm_allowed(role, p, checked)),
+                )
             for sid in request.form.getlist('service_ids'):
                 con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
             con.commit(); flash('Сотрудник создан')
@@ -7311,7 +7352,12 @@ def employee_update(uid):
         (full_name, role, active, online_booking, None if active else today(), hired_at, salary_percent, uid),
     )
     for p in PERMS:
-        con.execute("INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed", (uid,p,1 if role == 'director' or request.form.get('perm_'+p) else 0))
+        checked = bool(request.form.get('perm_' + p))
+        con.execute(
+            "INSERT INTO user_permissions(user_id,permission,allowed) VALUES(?,?,?) "
+            "ON CONFLICT(user_id,permission) DO UPDATE SET allowed=excluded.allowed",
+            (uid, p, resolve_perm_allowed(role, p, checked)),
+        )
     con.execute("DELETE FROM user_services WHERE user_id=?", (uid,))
     for sid in request.form.getlist('service_ids'):
         con.execute("INSERT INTO user_services(user_id,service_id,allowed) VALUES(?,?,1)", (uid,sid))
