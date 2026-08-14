@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v113'
+BUILD_VERSION = 'client-v114'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -2672,7 +2672,24 @@ def get_schedule(con, uid, d):
     if wrow:
         return wrow
     open_t, close_t = studio_hours()
-    return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 0}
+    # Нет записи в графике на этот день — не работает
+    return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 1}
+
+
+def employee_is_working(con, uid, d):
+    """Стоит в графике на дату (неделя или разовый день) и это не выходной."""
+    sched = get_schedule(con, uid, d)
+    return not int(sched['is_day_off'] or 0)
+
+
+def list_working_masters(con, day, extra_ids=None):
+    """Мастера, которые в графике на день. extra_ids — у кого уже есть записи."""
+    extra = {int(x) for x in (extra_ids or []) if x}
+    out = []
+    for m in list_masters(con):
+        if m['id'] in extra or employee_is_working(con, m['id'], day):
+            out.append(m)
+    return out
 
 def slot_free(con, uid, d, start, end, exclude_aid=None):
     s = hm2m(start); e = hm2m(end)
@@ -5497,7 +5514,6 @@ def build_tv_board(day=None):
     """TV-экран как дневной журнал: ось времени + колонки всех мастеров."""
     day = day or today()
     con = db()
-    masters = list_masters(con)
     rows = con.execute(
         f"SELECT a.*,{EMPLOYEE_NAME_SQL} FROM appointments a "
         f"LEFT JOIN users u ON u.id=a.employee_id "
@@ -5505,7 +5521,11 @@ def build_tv_board(day=None):
         f"ORDER BY a.start_time ASC, a.id ASC",
         (day,),
     ).fetchall()
-    # Как в журнале: карточка в колонке primary-мастера
+    masters = list_working_masters(
+        con,
+        day,
+        extra_ids=[r['employee_id'] for r in rows if r.get('employee_id')],
+    )
     board = layout_master_board(rows, masters, px_per_hour=72)
     now_marker = journal_now_marker(day, board)
 
@@ -5703,7 +5723,11 @@ def calendar_view():
 
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    employees = list_masters(con)
+    booked_ids = [
+        r['employee_id'] for r in rows
+        if r.get('employee_id') and r.get('appointment_date') == selected
+    ]
+    employees = list_working_masters(con, selected, extra_ids=booked_ids)
     if u['role'] == 'master':
         employees = [e for e in employees if e['id'] == u['id']]
     master_board = None
