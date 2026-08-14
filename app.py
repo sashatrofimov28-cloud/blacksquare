@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v114'
+BUILD_VERSION = 'client-v115'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -5524,7 +5524,7 @@ def build_tv_board(day=None):
     masters = list_working_masters(
         con,
         day,
-        extra_ids=[r['employee_id'] for r in rows if r.get('employee_id')],
+        extra_ids=[r['employee_id'] for r in rows if r['employee_id']],
     )
     board = layout_master_board(rows, masters, px_per_hour=72)
     now_marker = journal_now_marker(day, board)
@@ -5725,7 +5725,7 @@ def calendar_view():
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     booked_ids = [
         r['employee_id'] for r in rows
-        if r.get('employee_id') and r.get('appointment_date') == selected
+        if r['employee_id'] and r['appointment_date'] == selected
     ]
     employees = list_working_masters(con, selected, extra_ids=booked_ids)
     if u['role'] == 'master':
