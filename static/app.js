@@ -663,7 +663,16 @@
     }
 
     function syncEmptyHint() {
-      if (emptyHint) emptyHint.hidden = selected.size > 0;
+      if (!emptyHint) return;
+      if (!masters.length) {
+        emptyHint.hidden = false;
+        emptyHint.textContent = 'Нет мастеров для выбора — проверьте раздел «Сотрудники».';
+        return;
+      }
+      emptyHint.hidden = selected.size > 0;
+      if (selected.size === 0) {
+        emptyHint.textContent = 'Выберите мастера';
+      }
     }
 
     function showMasterError(show) {
@@ -813,6 +822,7 @@
       }
       renderCards();
       syncHidden();
+      syncEmptyHint();
       syncSalaryMasterGrid();
     } else {
       if (addBtn) {

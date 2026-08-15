@@ -900,8 +900,11 @@ body.jr-dnd-active *{cursor:grabbing!important}
 }
 .jr-dnd-toast.on{opacity:1}
 .jr-empty-board{
-  grid-column:2 / -1;padding:40px 16px;text-align:center;color:var(--jr-mute);font-size:13px
+  grid-column:2 / -1;padding:40px 16px;text-align:center;color:var(--jr-mute);font-size:13px;
+  display:flex;flex-direction:column;gap:8px;align-items:center;max-width:420px;margin:0 auto;line-height:1.45
 }
+.jr-empty-board b{color:#111;font-size:15px;font-weight:700}
+.jr-empty-board span{display:block}
 .jr-fab{
   position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px));
   width:52px;height:52px;border-radius:50%;border:0;background:#111;color:#fff;

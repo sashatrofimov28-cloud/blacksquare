@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v115'
+BUILD_VERSION = 'client-v116'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -2664,6 +2664,11 @@ def employee_can_service(con, uid, sid):
     return bool(row and row['allowed'])
 
 def get_schedule(con, uid, d):
+    """Расписание на дату: разовая дата → неделя → часы студии (рабочий день).
+
+    Явный «Вых» в недельном/разовом графике = выходной.
+    Если строки графика ещё нет — как в карточке сотрудника: часы студии, не выходной.
+    """
     row = con.execute("SELECT * FROM schedules WHERE user_id=? AND work_date=?", (uid,d)).fetchone()
     if row:
         return row
@@ -2672,18 +2677,17 @@ def get_schedule(con, uid, d):
     if wrow:
         return wrow
     open_t, close_t = studio_hours()
-    # Нет записи в графике на этот день — не работает
-    return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 1}
+    return {'start_time': open_t, 'end_time': close_t, 'is_day_off': 0}
 
 
 def employee_is_working(con, uid, d):
-    """Стоит в графике на дату (неделя или разовый день) и это не выходной."""
+    """В журнале: скрываем только явный выходной. Без строки графика — работает (часы студии)."""
     sched = get_schedule(con, uid, d)
     return not int(sched['is_day_off'] or 0)
 
 
 def list_working_masters(con, day, extra_ids=None):
-    """Мастера, которые в графике на день. extra_ids — у кого уже есть записи."""
+    """Мастера без явного выходного на день. extra_ids — у кого уже есть записи."""
     extra = {int(x) for x in (extra_ids or []) if x}
     out = []
     for m in list_masters(con):
@@ -5727,17 +5731,21 @@ def calendar_view():
         r['employee_id'] for r in rows
         if r['employee_id'] and r['appointment_date'] == selected
     ]
-    employees = list_working_masters(con, selected, extra_ids=booked_ids)
+    # Колонки журнала — только кто не в «Вых»; в форме записи — все мастера.
+    board_employees = list_working_masters(con, selected, extra_ids=booked_ids)
+    picker_employees = list_masters(con)
     if u['role'] == 'master':
-        employees = [e for e in employees if e['id'] == u['id']]
+        board_employees = [e for e in board_employees if e['id'] == u['id']]
+        picker_employees = [e for e in picker_employees if e['id'] == u['id']]
+    employees = board_employees
     master_board = None
     now_marker = None
     date_strip = None
     if view == 'day':
         date_strip = build_date_strip(selected)
-        master_board = layout_master_board(rows, employees)
+        master_board = layout_master_board(rows, board_employees)
         now_marker = journal_now_marker(selected, master_board)
-    masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
+    masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in picker_employees])
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
     con.close()
     month_start = datetime.strptime(selected, '%Y-%m-%d').date().replace(day=1)

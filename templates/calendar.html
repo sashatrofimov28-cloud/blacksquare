@@ -116,7 +116,10 @@
         </div>
       </div>
       {% else %}
-      <div class="jr-empty-board">Нет активных мастеров</div>
+      <div class="jr-empty-board">
+        <b>На этот день все мастера в выходном</b>
+        <span>Откройте сотрудника → График и снимите «Вых» на этот день недели, затем сохраните. Запись через «+» всё равно можно создать.</span>
+      </div>
       {% endfor %}
     </div>
   </div>
@@ -253,9 +256,10 @@
           <div class="jr-block master-picker {% if master_error %}field-error{% endif %}" id="masterPicker" data-form-id="manualBookingForm" data-ui="cards">
             <div class="jr-block-h">
               <b>Мастер</b>
-              <span>из журнала</span>
+              <span>кто ведёт запись</span>
             </div>
             <span class="field-hint master-required-hint" {% if not master_error %}hidden{% endif %}>Укажите мастера</span>
+            <p class="field-hint" id="masterEmptyHint" hidden>Нет мастеров для выбора — проверьте раздел «Сотрудники».</p>
             <div class="jr-masters" id="masterCardGrid"></div>
             <div id="masterHiddenInputs"></div>
             <select id="masterSelect" hidden aria-hidden="true" tabindex="-1"><option value="">—</option></select>
