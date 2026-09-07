@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v117'
+BUILD_VERSION = 'client-v118'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -2589,6 +2589,67 @@ def parse_autosalon_rows_from_table(headers, rows):
     return out
 
 
+def read_xlsx_sheet_rows(raw_bytes):
+    """Читает первый лист .xlsx без openpyxl (stdlib zipfile+xml)."""
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    ns = {'a': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+    with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+        shared = []
+        if 'xl/sharedStrings.xml' in zf.namelist():
+            root = ET.fromstring(zf.read('xl/sharedStrings.xml'))
+            for si in root.findall('a:si', ns):
+                texts = [t.text or '' for t in si.findall('.//a:t', ns)]
+                shared.append(''.join(texts))
+        sheet_path = None
+        for name in zf.namelist():
+            if name.startswith('xl/worksheets/sheet') and name.endswith('.xml'):
+                sheet_path = name
+                break
+        if not sheet_path:
+            return []
+        root = ET.fromstring(zf.read(sheet_path))
+        rows_out = []
+        for row in root.findall('a:sheetData/a:row', ns):
+            cells = {}
+            max_idx = -1
+            for c in row.findall('a:c', ns):
+                ref = c.get('r') or 'A1'
+                col = 0
+                for ch in ref:
+                    if ch.isalpha():
+                        col = col * 26 + (ord(ch.upper()) - 64)
+                    else:
+                        break
+                col -= 1
+                max_idx = max(max_idx, col)
+                ctype = c.get('t')
+                v = c.find('a:v', ns)
+                if v is None or v.text is None:
+                    val = ''
+                elif ctype == 's':
+                    try:
+                        val = shared[int(v.text)]
+                    except (ValueError, IndexError):
+                        val = v.text
+                else:
+                    val = v.text
+                    # Excel stores numbers as float strings
+                    if ctype != 'inlineStr':
+                        try:
+                            f = float(val)
+                            if f.is_integer():
+                                val = str(int(f))
+                        except ValueError:
+                            pass
+                cells[col] = val
+            if max_idx < 0:
+                continue
+            rows_out.append([cells.get(i, '') for i in range(max_idx + 1)])
+        return rows_out
+
+
 def parse_autosalon_upload(file_storage):
     """Читает CSV или XLSX из upload. Возвращает (rows, error)."""
     if not file_storage or not file_storage.filename:
@@ -2621,13 +2682,9 @@ def parse_autosalon_upload(file_storage):
         return parse_autosalon_rows_from_table(rows[0], rows[1:]), ''
     if lower.endswith('.xlsx') or lower.endswith('.xlsm'):
         try:
-            from openpyxl import load_workbook
-        except ImportError:
-            return [], 'Для Excel установите openpyxl (или сохраните как CSV)'
-        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-        ws = wb.active
-        data = [[('' if c is None else c) for c in row] for row in ws.iter_rows(values_only=True)]
-        wb.close()
+            data = read_xlsx_sheet_rows(raw)
+        except Exception as e:
+            return [], f'Не удалось прочитать Excel: {e}'
         data = [r for r in data if any(str(x).strip() for x in r if x is not None)]
         if not data:
             return [], 'В Excel нет данных'
