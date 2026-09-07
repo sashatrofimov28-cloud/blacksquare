@@ -10,7 +10,15 @@ export APP_TZ="${APP_TZ:-Asia/Yekaterinburg}"
 mkdir -p "$(dirname "$DATABASE_PATH")"
 export DATABASE_PATH
 
-python3 scripts/restore_db_from_s3.py || exit 1
+# Не валим весь контейнер из-за S3, если локальная база уже есть
+if ! python3 scripts/restore_db_from_s3.py; then
+  if [ -s "$DATABASE_PATH" ]; then
+    echo "S3 restore failed, continuing with existing database: $DATABASE_PATH" >&2
+  else
+    echo "S3 restore failed and database missing: $DATABASE_PATH" >&2
+    exit 1
+  fi
+fi
 
 echo "LAUNCH BlackSquare CRM host=${HOST} port=${PORT} database=${DATABASE_PATH} tz=${TZ}" >&2
 

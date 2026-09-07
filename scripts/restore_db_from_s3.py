@@ -38,8 +38,24 @@ def main() -> int:
         import boto3
         from botocore.config import Config
     except ImportError:
-        print("S3 restore failed: boto3 not installed", file=sys.stderr, flush=True)
-        return 1
+        # На чистом контейне без pip — пробуем доустановить, иначе деплой умирает.
+        print("S3 restore: boto3 missing, trying pip install boto3 botocore", flush=True)
+        import subprocess
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "-q", "boto3==1.35.99", "botocore"],
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+            import boto3
+            from botocore.config import Config
+        except Exception as e:
+            print(f"S3 restore failed: boto3 not installed ({e})", file=sys.stderr, flush=True)
+            # Если база уже есть — не валим контейнер
+            if db_path.exists() and db_path.stat().st_size > 0:
+                print("S3 restore skipped after boto3 failure: local DB present", flush=True)
+                return 0
+            return 1
 
     region = os.environ.get("S3_REGION", "ru-1")
     client = boto3.client(
@@ -48,7 +64,7 @@ def main() -> int:
         aws_access_key_id=access,
         aws_secret_access_key=secret,
         region_name=region,
-        config=Config(signature_version="s3v4"),
+        config=Config(signature_version="s3v4", connect_timeout=10, read_timeout=60, retries={"max_attempts": 2}),
     )
     tmp = db_path.with_suffix(".db.download")
     print(f"S3 restore: s3://{bucket}/{key} -> {db_path}", flush=True)
