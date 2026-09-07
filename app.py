@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v118'
+BUILD_VERSION = 'client-v119'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -1754,7 +1754,8 @@ def trigger_auto_backup():
 
 def migrate_db(c):
     """Добавляет новые колонки и настройки без потери данных."""
-    backup_database()
+    # Без S3 на старте — иначе деплой может зависнуть на upload
+    backup_database(upload_remote=False)
     c.execute(
         "CREATE TABLE IF NOT EXISTS telegram_outbox("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT, text TEXT, "
