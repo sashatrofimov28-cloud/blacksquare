@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
+{% block content %}
+<div class="crm-page crm-page-z auto-page">
+  <header class="crm-z-top">
+    <div class="crm-z-top-row">
+      <h1>Автосалоны</h1>
+      <a href="#autoAdd" class="crm-z-add" aria-label="Добавить">+</a>
+    </div>
+    <div class="crm-z-stats auto-stats">
+      <div class="crm-z-stat"><small>Всего</small><b>{{ stats.total }}</b></div>
+      <div class="crm-z-stat"><small>Перезвонить</small><b>{{ stats.callback }}</b></div>
+      <div class="crm-z-stat"><small>Думает</small><b>{{ stats.thinking }}</b></div>
+      <div class="crm-z-stat"><small>Готов</small><b>{{ stats.ready }}</b></div>
+    </div>
+  </header>
+
+  <nav class="crm-z-filters" aria-label="Раздел">
+    <a href="{{ url_for('crm') }}" class="crm-z-filter">CRM</a>
+    <a href="{{ url_for('autosalons') }}" class="crm-z-filter on">Автосалоны</a>
+  </nav>
+
+  <form method="get" class="crm-z-search">
+    <input type="hidden" name="filter" value="{{ status_filter }}">
+    <input name="q" value="{{ q }}" placeholder="Имя, телефон, авто, примечание…">
+    {% if q %}<a class="crm-z-search-clear" href="{{ url_for('autosalons', filter=status_filter) }}">×</a>{% endif %}
+  </form>
+
+  <nav class="crm-z-filters" aria-label="Статус">
+    {% for key, label in status_filters %}
+    <a href="{{ url_for('autosalons', filter=key, q=q) }}" class="crm-z-filter{% if status_filter == key %} on{% endif %}">
+      {{ label }}{% if status_counts.get(key, 0) %} <em>{{ status_counts.get(key, 0) }}</em>{% endif %}
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="crm-z-list">
+    {% for item in rows %}
+    {% set r = item.lead %}
+    <a class="crm-z-card {{ item.status_tone }}" href="{{ url_for('autosalon_card', lid=r.id) }}">
+      <div class="crm-z-av">{{ item.initials }}</div>
+      <div class="crm-z-body">
+        <div class="crm-z-row">
+          <b>{{ r.name }}</b>
+          {% if r.updated_at %}<span class="crm-z-date">{{ r.updated_at[:16] }}</span>{% endif %}
+        </div>
+        <span class="crm-z-meta">{{ item.phone_disp }}</span>
+        <span class="crm-z-meta">{{ item.car_label }}</span>
+        <span class="crm-z-pill {{ item.status_tone }}">{{ item.status }}</span>
+        {% if r.note %}<span class="crm-z-meta auto-note-preview">{{ r.note }}</span>{% endif %}
+      </div>
+    </a>
+    {% else %}
+    <p class="crm-z-empty">Пока пусто — загрузите базу или добавьте карточку вручную</p>
+    {% endfor %}
+  </div>
+
+  <details class="crm-z-fold" id="autoImport">
+    <summary>Загрузить базу (Excel / CSV)</summary>
+    <form method="post" enctype="multipart/form-data" class="crm-z-form">
+      <input type="hidden" name="action" value="import">
+      <p class="auto-hint">Колонки: имя, телефон, машина. Статусы и примечания при повторном импорте не затираются.</p>
+      <input type="file" name="file" accept=".csv,.xlsx,.xlsm,.txt" required>
+      <button type="submit">Импортировать</button>
+    </form>
+  </details>
+
+  <details class="crm-z-fold" id="autoAdd">
+    <summary>＋ Добавить карточку</summary>
+    <form method="post" class="crm-z-form">
+      <input type="hidden" name="action" value="add">
+      <input name="name" placeholder="Имя" required>
+      <input name="phone" placeholder="Телефон" inputmode="tel">
+      <div class="crm-z-row2">
+        <input name="car" class="js-car-ac" placeholder="Авто">
+        <input name="plate_number" placeholder="Госномер">
+      </div>
+      <select name="status">
+        {% for st in statuses %}
+        <option{% if st == 'Нужно перезвонить' %} selected{% endif %}>{{ st }}</option>
+        {% endfor %}
+      </select>
+      <textarea name="note" rows="3" placeholder="Примечание — отчёт о клиенте"></textarea>
+      <button type="submit">Добавить</button>
+    </form>
+  </details>
+</div>
+{% endblock %}

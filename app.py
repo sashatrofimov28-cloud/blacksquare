@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v116'
+BUILD_VERSION = 'client-v117'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -246,7 +246,7 @@ BOTTOM_NAV_ITEMS = {
     'calendar': {'label': 'Журнал', 'icon': 'calendar', 'endpoint': 'calendar_view', 'perm': 'calendar',
                  'active': ('calendar_view', 'close_appointment', 'edit_appointment')},
     'crm': {'label': 'Клиенты', 'icon': 'crm', 'endpoint': 'crm', 'perm': 'crm',
-            'active': ('crm', 'client_card')},
+            'active': ('crm', 'client_card', 'autosalons', 'autosalon_card')},
     'finance': {'label': 'Финансы', 'icon': 'finance', 'endpoint': 'finance', 'perm': 'finance',
                 'active': ('finance',)},
     'salary': {'label': 'Зарплата', 'icon': 'salary', 'endpoint': 'salary', 'perm': 'salary',
@@ -465,6 +465,67 @@ CRM_FILTERS = (
     ('done', 'Завершено'),
     ('cancel', 'Отмена'),
 )
+
+AUTOSALON_STATUSES = (
+    'Нужно перезвонить',
+    'Думает',
+    'Готов',
+)
+AUTOSALON_STATUS_DEFAULT = 'Нужно перезвонить'
+AUTOSALON_FILTERS = (
+    ('all', 'Все'),
+    ('callback', 'Нужно перезвонить'),
+    ('thinking', 'Думает'),
+    ('ready', 'Готов'),
+)
+
+
+def autosalon_status_key(status):
+    s = (status or '').strip()
+    if s == 'Думает':
+        return 'thinking'
+    if s == 'Готов':
+        return 'ready'
+    return 'callback'
+
+
+def autosalon_status_tone(key):
+    return {
+        'callback': 'tone-orange',
+        'thinking': 'tone-blue',
+        'ready': 'tone-green',
+        'all': '',
+    }.get(key, 'tone-orange')
+
+
+def normalize_autosalon_status(raw):
+    s = (raw or '').strip().lower().replace('ё', 'е')
+    if not s:
+        return AUTOSALON_STATUS_DEFAULT
+    if 'готов' in s:
+        return 'Готов'
+    if 'дума' in s:
+        return 'Думает'
+    if 'перезвон' in s or 'звон' in s or 'callback' in s:
+        return 'Нужно перезвонить'
+    for st in AUTOSALON_STATUSES:
+        if s == st.lower():
+            return st
+    return AUTOSALON_STATUS_DEFAULT
+
+
+def enrich_autosalon_lead(row):
+    status = row['status'] if row['status'] in AUTOSALON_STATUSES else AUTOSALON_STATUS_DEFAULT
+    key = autosalon_status_key(status)
+    return {
+        'lead': row,
+        'status': status,
+        'status_key': key,
+        'status_tone': autosalon_status_tone(key),
+        'initials': client_initials(row['name'] or row['phone'] or '?'),
+        'car_label': ' · '.join(x for x in [row['car'], row['plate_number']] if x) or '—',
+        'phone_disp': format_phone_ru(row['phone']) or (row['phone'] or '—'),
+    }
 
 def client_initials(name):
     parts = (name or '?').split()
@@ -1561,6 +1622,14 @@ def init_db():
         "status TEXT DEFAULT 'pending', tries INTEGER DEFAULT 0, last_error TEXT, "
         "created_at TEXT, sent_at TEXT)"
     )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS autosalon_leads("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT, car TEXT, plate_number TEXT, "
+        "status TEXT DEFAULT 'Нужно перезвонить', note TEXT, source TEXT DEFAULT 'Автосалон', "
+        "import_key TEXT, created_at TEXT, updated_at TEXT)"
+    )
+    c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_status ON autosalon_leads(status)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_import_key ON autosalon_leads(import_key)")
     con.commit()
     migrate_db(c)
 
@@ -1893,6 +1962,14 @@ def migrate_db(c):
             "ON CONFLICT(user_id,permission) DO UPDATE SET allowed=1",
             (p,),
         )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS autosalon_leads("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, phone TEXT, car TEXT, plate_number TEXT, "
+        "status TEXT DEFAULT 'Нужно перезвонить', note TEXT, source TEXT DEFAULT 'Автосалон', "
+        "import_key TEXT, created_at TEXT, updated_at TEXT)"
+    )
+    c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_status ON autosalon_leads(status)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_import_key ON autosalon_leads(import_key)")
 
 def get_setting(key, default=''):
     con = db()
@@ -2421,6 +2498,191 @@ def normalize_phone(phone):
     elif len(d) == 10:
         d = '7' + d
     return d if len(d) >= 10 else ''
+
+
+def _autosalon_header_map(headers):
+    mapping = {}
+    aliases = {
+        'name': ('имя', 'фио', 'клиент', 'name', 'ф.и.о', 'контакт'),
+        'phone': ('телефон', 'тел', 'phone', 'мобильный', 'номер телефона'),
+        'car': ('машина', 'авто', 'автомобиль', 'модель', 'car', 'марка'),
+        'plate': ('номер', 'госномер', 'гос номер', 'plate', 'рег'),
+        'status': ('статус', 'status', 'этап'),
+        'note': ('примечание', 'заметка', 'комментарий', 'отчет', 'отчёт', 'note', 'comment'),
+    }
+    for idx, raw in enumerate(headers):
+        h = re.sub(r'\s+', ' ', str(raw or '').strip().lower().replace('ё', 'е'))
+        if not h:
+            continue
+        for key, names in aliases.items():
+            if key in mapping:
+                continue
+            if h in names or any(n in h for n in names):
+                # «номер» alone vs phone: prefer plate only if not phone-like
+                if key == 'plate' and ('тел' in h or 'phone' in h):
+                    continue
+                if key == 'phone' and h in ('номер', 'госномер', 'гос номер', 'plate'):
+                    continue
+                mapping[key] = idx
+                break
+    return mapping
+
+
+def parse_autosalon_rows_from_table(headers, rows):
+    """Преобразует таблицу (csv/xlsx) в список лидов автосалона."""
+    col = _autosalon_header_map(headers)
+    # Fallback: first 3 columns = name, phone, car
+    if 'name' not in col and len(headers) >= 1:
+        col['name'] = 0
+    if 'phone' not in col and len(headers) >= 2:
+        col['phone'] = 1
+    if 'car' not in col and len(headers) >= 3:
+        col['car'] = 2
+    out = []
+    for row in rows:
+        cells = list(row) if not isinstance(row, dict) else row
+        def cell(key):
+            i = col.get(key)
+            if i is None:
+                return ''
+            if isinstance(cells, dict):
+                val = cells.get(i, '')
+            else:
+                if i >= len(cells):
+                    return ''
+                val = cells[i]
+            if val is None:
+                return ''
+            if isinstance(val, float) and val.is_integer():
+                val = int(val)
+            return str(val).strip()
+        name = cell('name')
+        phone = cell('phone')
+        car = cell('car')
+        plate = cell('plate').upper().replace(' ', '')
+        # Часто госномер внутри строки авто: «… № А686ВЕ172 …»
+        if not plate and car:
+            m = re.search(r'№\s*([А-ЯA-Z0-9]{6,12})', car, flags=re.I)
+            if m:
+                plate = m.group(1).upper().replace(' ', '')
+        status = normalize_autosalon_status(cell('status'))
+        note = cell('note')
+        # Страна / лишние колонки в примечание не кладём при импорте — только явная колонка note
+        if not name and not phone and not car:
+            continue
+        # Skip header-like / №-only rows
+        if name in ('№', 'ФИО', 'Имя') or (name.isdigit() and not phone and not car):
+            continue
+        low = (name + phone + car).lower()
+        if 'телефон' in low and ('фио' in low or 'имя' in low):
+            continue
+        out.append({
+            'name': name or 'Без имени',
+            'phone': phone,
+            # Полная строка авто из базы обзвона (не схлопывать до марки)
+            'car': car,
+            'plate_number': plate,
+            'status': status,
+            'note': note,
+            'import_key': normalize_phone(phone) or '',
+        })
+    return out
+
+
+def parse_autosalon_upload(file_storage):
+    """Читает CSV или XLSX из upload. Возвращает (rows, error)."""
+    if not file_storage or not file_storage.filename:
+        return [], 'Файл не выбран'
+    filename = secure_filename(file_storage.filename)
+    raw = file_storage.read()
+    if not raw:
+        return [], 'Файл пустой'
+    lower = filename.lower()
+    if lower.endswith('.csv') or lower.endswith('.txt'):
+        text = None
+        for enc in ('utf-8-sig', 'utf-8', 'cp1251'):
+            try:
+                text = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            return [], 'Не удалось прочитать CSV'
+        import csv
+        sample = text[:4096]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=';,\t')
+        except csv.Error:
+            dialect = csv.excel
+        reader = csv.reader(io.StringIO(text), dialect)
+        rows = list(reader)
+        if not rows:
+            return [], 'В файле нет строк'
+        return parse_autosalon_rows_from_table(rows[0], rows[1:]), ''
+    if lower.endswith('.xlsx') or lower.endswith('.xlsm'):
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            return [], 'Для Excel установите openpyxl (или сохраните как CSV)'
+        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        ws = wb.active
+        data = [[('' if c is None else c) for c in row] for row in ws.iter_rows(values_only=True)]
+        wb.close()
+        data = [r for r in data if any(str(x).strip() for x in r if x is not None)]
+        if not data:
+            return [], 'В Excel нет данных'
+        return parse_autosalon_rows_from_table(data[0], data[1:]), ''
+    if lower.endswith('.xls'):
+        return [], 'Сохраните файл как .xlsx или .csv'
+    return [], 'Нужен файл .csv или .xlsx'
+
+
+def upsert_autosalon_leads(con, leads, keep_status_note=True):
+    """Импорт лидов: по телефону обновляет, иначе создаёт. Не затирает статусы/заметки без нужды."""
+    added = updated = 0
+    ts = now()
+    for item in leads:
+        key = item.get('import_key') or ''
+        existing = None
+        if key:
+            existing = con.execute(
+                "SELECT * FROM autosalon_leads WHERE import_key=? ORDER BY id DESC LIMIT 1",
+                (key,),
+            ).fetchone()
+        if existing:
+            status = existing['status'] if keep_status_note and existing['status'] else item['status']
+            note = existing['note'] if keep_status_note and (existing['note'] or '').strip() else item['note']
+            if not keep_status_note:
+                status = item['status']
+                if item.get('note'):
+                    note = item['note']
+            con.execute(
+                "UPDATE autosalon_leads SET name=?, phone=?, car=?, plate_number=?, status=?, note=?, updated_at=? WHERE id=?",
+                (
+                    item['name'] or existing['name'],
+                    item['phone'] or existing['phone'],
+                    item['car'] or existing['car'],
+                    item['plate_number'] or existing['plate_number'],
+                    status or AUTOSALON_STATUS_DEFAULT,
+                    note or '',
+                    ts,
+                    existing['id'],
+                ),
+            )
+            updated += 1
+        else:
+            con.execute(
+                "INSERT INTO autosalon_leads(name,phone,car,plate_number,status,note,source,import_key,created_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (
+                    item['name'], item['phone'], item['car'], item['plate_number'],
+                    item['status'] or AUTOSALON_STATUS_DEFAULT, item.get('note') or '',
+                    'Автосалон', key, ts, ts,
+                ),
+            )
+            added += 1
+    return added, updated
+
 
 def find_client_by_phone(con, phone):
     target = normalize_phone(phone)
@@ -7994,6 +8256,120 @@ def client_card(cid):
         friend_card=friend_card,
         friend_card_url=friend_card_url_val,
     )
+
+
+@app.route('/autosalons', methods=['GET', 'POST'])
+@login_required
+@perm_required('crm')
+def autosalons():
+    con = db()
+    if request.method == 'POST':
+        action = request.form.get('action', 'add')
+        if action == 'import':
+            leads, err = parse_autosalon_upload(request.files.get('file'))
+            if err:
+                con.close()
+                flash(err)
+                return redirect(url_for('autosalons'))
+            if not leads:
+                con.close()
+                flash('В файле не найдены строки с данными')
+                return redirect(url_for('autosalons'))
+            added, updated = upsert_autosalon_leads(con, leads, keep_status_note=True)
+            con.commit()
+            con.close()
+            flash(f'Импорт автосалонов: новых {added}, обновлено {updated}')
+            return redirect(url_for('autosalons'))
+        # ручное добавление
+        name = (request.form.get('name') or '').strip() or 'Без имени'
+        phone = (request.form.get('phone') or '').strip()
+        car = normalize_car_input(request.form.get('car', '') or '')
+        plate = (request.form.get('plate_number') or '').upper().replace(' ', '')
+        status = normalize_autosalon_status(request.form.get('status'))
+        note = (request.form.get('note') or '').strip()
+        ts = now()
+        con.execute(
+            "INSERT INTO autosalon_leads(name,phone,car,plate_number,status,note,source,import_key,created_at,updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (name, phone, car, plate, status, note, 'Автосалон', normalize_phone(phone), ts, ts),
+        )
+        con.commit()
+        con.close()
+        flash('Карточка автосалона добавлена')
+        return redirect(url_for('autosalons'))
+
+    q = request.args.get('q', '').strip()
+    status_filter = request.args.get('filter', 'all')
+    if status_filter not in {f[0] for f in AUTOSALON_FILTERS}:
+        status_filter = 'all'
+    if q:
+        like = f'%{q}%'
+        rows = con.execute(
+            "SELECT * FROM autosalon_leads WHERE name LIKE ? OR phone LIKE ? OR car LIKE ? OR plate_number LIKE ? OR IFNULL(note,'') LIKE ? "
+            "ORDER BY id DESC",
+            (like, like, like, like, like),
+        ).fetchall()
+    else:
+        rows = con.execute("SELECT * FROM autosalon_leads ORDER BY id DESC").fetchall()
+    enriched = [enrich_autosalon_lead(r) for r in rows]
+    counts = {f[0]: 0 for f in AUTOSALON_FILTERS}
+    for item in enriched:
+        counts[item['status_key']] = counts.get(item['status_key'], 0) + 1
+    counts['all'] = len(enriched)
+    if status_filter != 'all':
+        enriched = [item for item in enriched if item['status_key'] == status_filter]
+    con.close()
+    return render_template(
+        'autosalons.html',
+        rows=enriched,
+        q=q,
+        status_filter=status_filter,
+        status_filters=AUTOSALON_FILTERS,
+        status_counts=counts,
+        statuses=AUTOSALON_STATUSES,
+        stats={
+            'total': counts['all'],
+            'callback': counts.get('callback', 0),
+            'thinking': counts.get('thinking', 0),
+            'ready': counts.get('ready', 0),
+        },
+    )
+
+
+@app.route('/autosalons/<int:lid>', methods=['GET', 'POST'])
+@login_required
+@perm_required('crm')
+def autosalon_card(lid):
+    con = db()
+    lead = con.execute("SELECT * FROM autosalon_leads WHERE id=?", (lid,)).fetchone()
+    if not lead:
+        con.close()
+        flash('Карточка не найдена')
+        return redirect(url_for('autosalons'))
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip() or lead['name']
+        phone = (request.form.get('phone') or '').strip()
+        car = normalize_car_input(request.form.get('car', '') or '')
+        plate = (request.form.get('plate_number') or '').upper().replace(' ', '')
+        status = normalize_autosalon_status(request.form.get('status'))
+        note = (request.form.get('note') or '').strip()
+        con.execute(
+            "UPDATE autosalon_leads SET name=?, phone=?, car=?, plate_number=?, status=?, note=?, import_key=?, updated_at=? WHERE id=?",
+            (name, phone, car, plate, status, note, normalize_phone(phone), now(), lid),
+        )
+        con.commit()
+        con.close()
+        flash('Карточка сохранена')
+        return redirect(url_for('autosalon_card', lid=lid))
+    item = enrich_autosalon_lead(lead)
+    con.close()
+    return render_template(
+        'autosalon_card.html',
+        item=item,
+        lead=lead,
+        statuses=AUTOSALON_STATUSES,
+    )
+
 
 @app.route('/bonus/<code>')
 def bonus_card_public(code):

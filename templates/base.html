@@ -64,6 +64,7 @@
       {% if has_perm('calendar') %}<a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint=='calendar_view' %}active{% endif %}">Журнал записи</a>{% endif %}
       {% if has_perm('services') %}<a href="{{ url_for('services') }}" class="{% if request.endpoint=='services' %}active{% endif %}">Услуги</a>{% endif %}
       {% if has_perm('crm') %}<a href="{{ url_for('crm') }}" class="{% if request.endpoint in ['crm','client_card'] %}active{% endif %}">CRM</a>{% endif %}
+      {% if has_perm('crm') %}<a href="{{ url_for('autosalons') }}" class="{% if request.endpoint in ['autosalons','autosalon_card'] %}active{% endif %}">Автосалоны</a>{% endif %}
       {% if has_perm('stock') %}<a href="{{ url_for('stock') }}" class="{% if request.endpoint=='stock' %}active{% endif %}">Склад</a>{% endif %}
       {% if has_perm('certificates') %}<a href="{{ url_for('certificates') }}" class="{% if request.endpoint=='certificates' %}active{% endif %}">Сертификаты</a>{% endif %}
       {% if has_perm('salary') %}<a href="{{ url_for('salary') }}" class="{% if request.endpoint=='salary' %}active{% endif %}">Зарплата</a>{% endif %}

@@ -1272,13 +1272,15 @@ body.theme-dark.body-z-light .main-z-light .jr-tchip.on{background:#111!importan
 .crm-z-fold[open]>summary{border-bottom:1px solid var(--crm-line)}
 .crm-z-form{display:grid;gap:8px;padding:12px 14px 14px}
 .crm-z-row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.crm-z-form input,.crm-z-form select{
+.crm-z-form input,.crm-z-form select,.crm-z-form textarea{
   width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--crm-line)!important;
   background:#fff!important;color:#111!important;font:inherit;font-size:15px;font-weight:600;
   min-height:44px;box-sizing:border-box
 }
+.crm-z-form textarea{min-height:88px;resize:vertical;font-weight:500;line-height:1.4}
 .theme-dark .main-z-light .crm-z-form input,
-.theme-dark .main-z-light .crm-z-form select{
+.theme-dark .main-z-light .crm-z-form select,
+.theme-dark .main-z-light .crm-z-form textarea{
   background:#fff!important;color:#111!important;border-color:#e5e5ea!important
 }
 .crm-z-form button{

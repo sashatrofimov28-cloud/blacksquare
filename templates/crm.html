@@ -11,6 +11,10 @@
       <h1>Клиенты</h1>
       <a href="#crmAdd" class="crm-z-add" aria-label="Добавить клиента">+</a>
     </div>
+    <nav class="crm-z-filters" aria-label="Раздел" style="margin-bottom:12px">
+      <a href="{{ url_for('crm') }}" class="crm-z-filter on">CRM</a>
+      <a href="{{ url_for('autosalons') }}" class="crm-z-filter">Автосалоны</a>
+    </nav>
     <div class="crm-z-stats">
       <div class="crm-z-stat">
         <small>Всего</small>

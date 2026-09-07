@@ -52,6 +52,7 @@
 
   {% if client.comment %}
   <div class="client-comment-pin">
+    <small>Примечание</small>
     <p>{{ client.comment }}</p>
   </div>
   {% endif %}
@@ -168,7 +169,10 @@
         </select>
         <input name="reason" value="{{ client.reason or '' }}" placeholder="Причина">
         <input name="source" value="{{ client.source or '' }}" placeholder="Источник">
-        <textarea name="comment" placeholder="Комментарий" rows="2">{{ client.comment or '' }}</textarea>
+        <label class="auto-field">
+          <span>Примечание</span>
+          <textarea name="comment" placeholder="Отчёт о клиенте" rows="3">{{ client.comment or '' }}</textarea>
+        </label>
         <button type="submit" class="close-submit">Сохранить</button>
       </form>
       {% if cars %}

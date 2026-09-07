@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block theme_color %}#f2f2f7{% endblock %}
+{% block status_bar_style %}black-translucent{% endblock %}
+{% block body_class %} body-z-light{% endblock %}
+{% block main_class %} main-z-light{% endblock %}
+{% block nav_class %} bottom-nav-z{% endblock %}
+{% block content %}
+<div class="client-page client-page-a close-page-b client-page-z">
+  <header class="client-topbar">
+    <a href="{{ url_for('autosalons') }}" class="close-back" aria-label="Назад">‹</a>
+    <span>Автосалон</span>
+  </header>
+
+  <div class="client-hero">
+    <div class="client-avatar client-avatar-lg">{{ item.initials }}</div>
+    <div class="client-hero-text">
+      <h1>{{ lead.name }}</h1>
+      {% if lead.phone %}
+      <a class="client-phone" href="tel:{{ lead.phone|replace(' ','') }}">{{ item.phone_disp }}</a>
+      {% else %}
+      <span class="client-phone">Телефон не указан</span>
+      {% endif %}
+      <div class="client-status-pills">
+        <span class="crm-pill {{ item.status_tone }}">{{ item.status }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="client-actions">
+    {% if lead.phone %}
+    <a class="client-act primary" href="tel:{{ lead.phone|replace(' ','') }}">Позвонить</a>
+    {% endif %}
+    <a class="client-act" href="{{ url_for('calendar_view', date=today, book='1', client_name=lead.name, phone=lead.phone or '', car=lead.car or '', plate_number=lead.plate_number or '') }}">Записать</a>
+  </div>
+
+  {% if lead.note %}
+  <div class="client-comment-pin auto-note-pin">
+    <small>Примечание</small>
+    <p>{{ lead.note }}</p>
+  </div>
+  {% endif %}
+
+  <h2 class="client-section-title">Карточка</h2>
+  <form method="post" class="client-form-stack card-surface auto-card-form">
+    <label class="auto-field">
+      <span>Имя</span>
+      <input name="name" value="{{ lead.name or '' }}" required>
+    </label>
+    <label class="auto-field">
+      <span>Телефон</span>
+      <input name="phone" value="{{ lead.phone or '' }}" inputmode="tel">
+    </label>
+    <label class="auto-field">
+      <span>Авто</span>
+      <input name="car" class="js-car-ac" value="{{ lead.car or '' }}">
+    </label>
+    <label class="auto-field">
+      <span>Госномер</span>
+      <input name="plate_number" value="{{ lead.plate_number or '' }}">
+    </label>
+    <label class="auto-field">
+      <span>Статус</span>
+      <select name="status">
+        {% for st in statuses %}
+        <option{% if item.status == st %} selected{% endif %}>{{ st }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="auto-field">
+      <span>Примечание</span>
+      <textarea name="note" rows="5" placeholder="Отчёт о клиенте: что сказал, когда перезвонить…">{{ lead.note or '' }}</textarea>
+    </label>
+    <button type="submit" class="close-submit">Сохранить</button>
+  </form>
+</div>
+{% endblock %}
