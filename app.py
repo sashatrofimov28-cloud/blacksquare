@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v120'
+BUILD_VERSION = 'client-v121'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -6399,6 +6399,20 @@ def close_appointment(aid):
         ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form, ap['employee_id'])
         if not ok:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid, master_error=1))
+        service_ids = parse_service_ids(request.form)
+        if not service_ids:
+            service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+        ok, err = validate_service_ids(con, service_ids)
+        if not ok:
+            con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid))
+        bundle = resolve_services_bundle(con, service_ids)
+        if not bundle:
+            con.close(); flash('Выбрана недоступная услуга'); return redirect(url_for('close_appointment', aid=aid))
+        set_appointment_services(con, aid, service_ids)
+        con.execute(
+            "UPDATE appointments SET service_id=?, service_name=?, duration_min=? WHERE id=?",
+            (bundle['primary_id'], bundle['name'], bundle['duration_min'], aid),
+        )
         price = float(request.form.get('price') or 0)
         mat, err = process_materials_from_form(con, aid, u['id'], request.form)
         if err:
@@ -6434,8 +6448,7 @@ def close_appointment(aid):
             price = round(float(price) - friend_discount_amount, 2)
             friend_discount_applied = True
         salaries, salary_amount = parse_salaries_from_form(
-            request.form, employee_ids, price, con,
-            get_appointment_service_ids(con, aid, ap['service_id']),
+            request.form, employee_ids, price, con, service_ids,
         )
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
         due_live = round(max(0.0, float(price) - float(cert_amount or 0) - float(bonus_spent or 0)), 2)
@@ -6483,6 +6496,11 @@ def close_appointment(aid):
         if eid in master_id_set
     ]
     appointment_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+    services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
+    services_json = json.dumps([
+        {'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']}
+        for s in services
+    ])
     masters_salary_config = get_masters_salary_config(con)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     low_stock = list_low_stock_items(con)
@@ -6492,6 +6510,9 @@ def close_appointment(aid):
         ap=ap,
         materials=materials,
         extras=extras,
+        services=services,
+        services_json=services_json,
+        selected_service_ids=appointment_service_ids,
         is_master=(u['role']=='master'),
         client_bonus=client_bonus,
         bonus_percent=global_bonus_percent(),

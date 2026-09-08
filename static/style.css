@@ -1927,7 +1927,21 @@ body.theme-dark.body-z-light .main-z-light .close-z-row-input-wrap input,
 .close-z-modal-inner .close-modal-close{color:var(--z-muted)}
 .close-z-details-modal .close-modal-inner{max-height:min(86vh,640px);overflow-y:auto}
 .close-page-z .master-picker{background:#f9f9fb;border-color:var(--z-border)}
-.close-page-z .master-chip{background:#fff;border-color:var(--z-border);color:var(--z-text)}
+.close-page-z .close-svc-picker{
+  background:#f2f2f7;border:1px solid var(--z-border);border-radius:14px;padding:12px;margin-bottom:10px;
+}
+.close-page-z .close-svc-picker .master-add-row{margin-top:0}
+.close-page-z .close-svc-picker .master-select,
+.close-page-z .close-svc-picker .ghost{
+  background:#fff!important;border:1px solid var(--z-border)!important;color:var(--z-text)!important;
+}
+.close-page-z .close-svc-picker .ghost{font-weight:700;padding:10px 14px;border-radius:12px}
+.close-page-z .master-chip{background:#fff;border:1px solid var(--z-border);color:var(--z-text)}
+.close-page-z .close-svc-picker .master-chip-remove{color:var(--z-muted)}
+.close-page-z .close-svc-picker.field-error{border-color:#ff3b30;box-shadow:0 0 0 2px rgba(255,59,48,.12)}
+.close-page-z .close-z-list-pad .close-z-row{
+  margin:0 -14px;padding-left:14px;padding-right:14px;border-top:1px solid var(--z-border);
+}
 .close-page-z .close-menu-item{
   background:#fff!important;color:var(--z-text)!important;border:1px solid var(--z-border)!important;
 }
