@@ -30,9 +30,18 @@
 
     <div class="close-z-group">
       <div class="close-z-cap">Услуги</div>
-      <div class="close-z-list">
+      <div class="close-z-list close-z-list-pad">
+        <div class="master-picker close-svc-picker" id="closeServicePicker">
+          <div class="master-add-row">
+            <select id="closeServiceSelect" class="master-select"><option value="">— Услуга из списка —</option></select>
+            <button type="button" class="ghost" id="closeAddServiceBtn">Добавить</button>
+          </div>
+          <div id="closeServiceChips" class="master-chips"></div>
+          <div id="closeServiceHidden"></div>
+          <span class="field-hint service-required-hint" id="closeServiceHint" hidden>Выберите хотя бы одну услугу</span>
+        </div>
         <label class="close-z-row close-z-row-price">
-          <span class="close-z-row-label">{{ ap.service_name }}</span>
+          <span class="close-z-row-label">Итого</span>
           <span class="close-z-row-input-wrap">
             <input name="price" type="number" step="1" id="closePriceInput" value="{{ ((ap.price or 0)|float)|round|int }}" required inputmode="decimal">
             <i>₽</i>
@@ -139,25 +148,23 @@
         </div>
         {% if has_perm('extra_services') %}
         <div class="close-z-sheet-section">
-          <div class="close-z-cap">Доп. услуги</div>
+          <div class="close-z-cap">Доп. услуги (свободный текст)</div>
           {% if extras %}
           <ul class="close-lines">
             {% for e in extras %}
             <li>
               <span>{{ e.name }}</span>
               <strong>{{ format_money(e.price) }} ₽</strong>
-              <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" class="inline">
-                <button type="submit" class="close-line-del" aria-label="Удалить">×</button>
-              </form>
+              <button type="submit" form="deleteExtra{{ e.id }}" class="close-line-del" aria-label="Удалить">×</button>
             </li>
             {% endfor %}
           </ul>
           {% endif %}
-          <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" class="close-inline-form close-inline-stack">
-            <input name="extra_name" placeholder="Что добавили">
-            <input name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
-            <button type="submit" class="close-mini-submit">Добавить</button>
-          </form>
+          <div class="close-inline-form close-inline-stack">
+            <input form="addExtraForm" name="extra_name" placeholder="Что добавили">
+            <input form="addExtraForm" name="extra_price" type="number" step="0.01" placeholder="Сумма ₽">
+            <button type="submit" form="addExtraForm" class="close-mini-submit">Добавить</button>
+          </div>
         </div>
         {% endif %}
         <button type="button" class="close-submit close-z-btn" id="detailsModalDone">Готово</button>
@@ -192,6 +199,13 @@
       </div>
     </div>
   </form>
+
+  {% if has_perm('extra_services') %}
+  <form method="post" action="{{ url_for('add_extra', aid=ap.id) }}" id="addExtraForm" hidden></form>
+  {% for e in extras %}
+  <form method="post" action="{{ url_for('delete_extra', aid=ap.id, eid=e.id) }}" id="deleteExtra{{ e.id }}" hidden></form>
+  {% endfor %}
+  {% endif %}
 
   <div class="close-footer-fixed close-z-footer">
     <div class="close-z-footer-total">
@@ -246,7 +260,108 @@ const STOCK_DATA = {
   {% endfor %}
 };
 const IS_MASTER = {{ 'true' if is_master else 'false' }};
-const EXTRA_SUM = {% if extras %}{{ extras|map(attribute='price')|sum }}{% else %}0{% endif %};
+const EXTRA_SUM = 0; // extras already included in appointments.price
+
+function initCloseServicePicker() {
+  const services = {{ services_json|safe }};
+  const initial = {{ selected_service_ids|tojson }};
+  const select = document.getElementById('closeServiceSelect');
+  const addBtn = document.getElementById('closeAddServiceBtn');
+  const chips = document.getElementById('closeServiceChips');
+  const hidden = document.getElementById('closeServiceHidden');
+  const picker = document.getElementById('closeServicePicker');
+  const hint = document.getElementById('closeServiceHint');
+  const priceInput = document.getElementById('closePriceInput');
+  if (!select || !addBtn || !chips || !hidden) return;
+
+  const selected = new Set();
+
+  services.forEach(function (s) {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    const price = s.price != null && s.price !== '' ? Math.round(s.price) : 0;
+    opt.textContent = s.name + (price ? ' — ' + price.toLocaleString('ru-RU') + ' ₽' : '');
+    select.appendChild(opt);
+  });
+
+  function showError(show) {
+    if (picker) picker.classList.toggle('field-error', !!show);
+    if (hint) hint.hidden = !show;
+  }
+
+  function syncHidden() {
+    hidden.innerHTML = '';
+    selected.forEach(function (sid) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'service_ids';
+      input.value = sid;
+      hidden.appendChild(input);
+    });
+  }
+
+  function adjustPrice(delta) {
+    if (!priceInput || !delta) return;
+    const cur = parseFloat(priceInput.value || 0) || 0;
+    priceInput.value = String(Math.max(0, Math.round(cur + delta)));
+    if (typeof recalcCloseTotals === 'function') recalcCloseTotals();
+  }
+
+  function addService(id, adjust) {
+    const sid = String(id);
+    if (!sid || selected.has(sid)) return;
+    const service = services.find(function (s) { return String(s.id) === sid; });
+    if (!service) return;
+    selected.add(sid);
+    const chip = document.createElement('span');
+    chip.className = 'master-chip';
+    chip.dataset.id = sid;
+    const priceLabel = service.price ? (' · ' + Math.round(service.price).toLocaleString('ru-RU') + ' ₽') : '';
+    chip.innerHTML = (service.name || 'Услуга') + priceLabel +
+      ' <button type="button" class="master-chip-remove" aria-label="Убрать">×</button>';
+    chip.querySelector('.master-chip-remove').addEventListener('click', function () {
+      if (selected.size <= 1) {
+        showError(true);
+        return;
+      }
+      selected.delete(sid);
+      chip.remove();
+      syncHidden();
+      if (adjust !== false) adjustPrice(-(parseFloat(service.price || 0) || 0));
+      showError(false);
+    });
+    chips.appendChild(chip);
+    syncHidden();
+    if (adjust) adjustPrice(parseFloat(service.price || 0) || 0);
+    showError(false);
+    select.value = '';
+  }
+
+  addBtn.addEventListener('click', function () {
+    if (!select.value) {
+      showError(true);
+      select.focus();
+      return;
+    }
+    addService(select.value, true);
+  });
+
+  (initial || []).forEach(function (id) { addService(id, false); });
+  if (!selected.size && services.length) {
+    // keep empty until user picks — but close requires at least one
+  }
+
+  const form = document.getElementById('closeForm');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!selected.size) {
+        e.preventDefault();
+        showError(true);
+        picker?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+}
 
 function buildMaterialRow() {
   const wrap = document.createElement('div');
@@ -584,6 +699,7 @@ window.addEventListener('load', function () {
   const chips = document.getElementById('masterChips');
   if (chips) new MutationObserver(syncCloseZMasterLabel).observe(chips, { childList: true, subtree: true });
 });
+initCloseServicePicker();
 recalcCloseTotals();
 initCloseZMaster();
 initCloseZPaySheet();
