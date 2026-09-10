@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v121'
+BUILD_VERSION = 'client-v122'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -459,6 +459,7 @@ def employee_tone(employee_id):
 
 CRM_FILTERS = (
     ('all', 'Все'),
+    ('autosalon', 'Автосалоны'),
     ('new', 'Новые'),
     ('booked', 'Запись'),
     ('active', 'В работе'),
@@ -572,7 +573,15 @@ def enrich_crm_client(con, client):
         "SELECT status, appointment_date, start_time, service_name, price FROM appointments WHERE client_id=? ORDER BY appointment_date DESC, start_time DESC LIMIT 1",
         (client['id'],),
     ).fetchone()
-    status_key, status_label = crm_client_status(client, last_appt)
+    source = (client['source'] or '').strip()
+    if source == 'Автосалон':
+        status = client['stage'] if client['stage'] in AUTOSALON_STATUSES else (client['stage'] or AUTOSALON_STATUS_DEFAULT)
+        status_key = 'autosalon'
+        status_label = status
+        status_tone = autosalon_status_tone(autosalon_status_key(status))
+    else:
+        status_key, status_label = crm_client_status(client, last_appt)
+        status_tone = crm_status_tone(status_key)
     car_label = ' · '.join(x for x in [car['car_model'] if car else None, car['plate_number'] if car else None] if x) or '—'
     visit_at = ''
     if last_appt and last_appt['appointment_date']:
@@ -584,10 +593,11 @@ def enrich_crm_client(con, client):
         'car_label': car_label,
         'status_key': status_key,
         'status_label': status_label,
-        'status_tone': crm_status_tone(status_key),
+        'status_tone': status_tone,
         'initials': client_initials(client['name']),
         'visit_at': visit_at,
         'last_price': float(last_appt['price'] or 0) if last_appt else 0,
+        'is_autosalon': source == 'Автосалон',
     }
 
 def list_low_stock_items(con, limit=4):
@@ -930,10 +940,10 @@ def format_date_calendar_ru(day_s=None):
     return f"{d.day} {MONTHS_RU_GEN[d.month]} {d.year} {WEEKDAYS_LONG[d.weekday()].capitalize()}"
 
 def calendar_shift_date(day_s, view, delta):
+    """Стрелки журнала: день/неделя — на неделю, месяц — на месяц.
+    Дни внутри недели выбираются полосой дней сверху."""
     d = date.fromisoformat(day_s)
-    if view == 'day':
-        return (d + timedelta(days=delta)).isoformat()
-    if view == 'week':
+    if view in ('day', 'week'):
         return (d + timedelta(weeks=delta)).isoformat()
     m = d.replace(day=1)
     if delta > 0:
@@ -989,14 +999,64 @@ def _master_display_name(full_name):
     return first, initials
 
 
-def layout_master_board(rows, masters, px_per_hour=56):
-    """День: общая ось времени + колонка на каждого мастера (по primary employee_id)."""
+def get_appointments_employee_map(con, appointment_ids):
+    """appointment_id -> [employee_id, ...] в порядке добавления."""
+    ids = [int(x) for x in (appointment_ids or []) if x]
+    if not ids:
+        return {}
+    placeholders = ','.join('?' * len(ids))
+    rows = con.execute(
+        f"SELECT appointment_id, employee_id FROM appointment_employees "
+        f"WHERE appointment_id IN ({placeholders}) ORDER BY id",
+        ids,
+    ).fetchall()
+    out = {}
+    for r in rows:
+        out.setdefault(int(r['appointment_id']), []).append(int(r['employee_id']))
+    return out
+
+
+def enrich_appointment_rows_cars(con, rows):
+    """Если в записи нет авто — подставляем последнее авто клиента."""
+    out = []
+    cache = {}
+    for r in rows:
+        d = dict(r)
+        car = (d.get('car') or '').strip()
+        plate = (d.get('plate_number') or '').strip()
+        cid = d.get('client_id')
+        if (not car or not plate) and cid:
+            if cid not in cache:
+                cache[cid] = con.execute(
+                    "SELECT car_model, plate_number FROM cars WHERE client_id=? ORDER BY id DESC LIMIT 1",
+                    (cid,),
+                ).fetchone()
+            crow = cache[cid]
+            if crow:
+                if not car:
+                    d['car'] = crow['car_model'] or ''
+                if not plate:
+                    d['plate_number'] = crow['plate_number'] or ''
+        out.append(d)
+    return out
+
+
+def layout_master_board(rows, masters, px_per_hour=56, employee_map=None):
+    """День: колонка на мастера. Совместные записи показываем у всех участников."""
     base = layout_day_timeline(rows, px_per_hour=px_per_hour)
     by_master = {}
     for r in rows:
         if r['status'] == 'Отменен':
             continue
-        by_master.setdefault(r['employee_id'] or 0, []).append(r)
+        aid = r['id']
+        eids = list((employee_map or {}).get(aid) or [])
+        if not eids and r['employee_id']:
+            eids = [int(r['employee_id'])]
+        if not eids:
+            eids = [0]
+        shared = len(eids) > 1
+        for eid in eids:
+            by_master.setdefault(eid or 0, []).append((r, shared, eids))
 
     columns = []
     master_ids = set()
@@ -1004,12 +1064,22 @@ def layout_master_board(rows, masters, px_per_hour=56):
         mid = m['id']
         master_ids.add(mid)
         first, initials = _master_display_name(m['full_name'])
+        col_rows = [item[0] for item in by_master.get(mid, [])]
         tl = layout_day_timeline(
-            by_master.get(mid, []),
+            col_rows,
             day_start=base['day_start'],
             day_end=base['day_end'],
             px_per_hour=px_per_hour,
         )
+        shared_ids = {item[0]['id'] for item in by_master.get(mid, []) if item[1]}
+        co_masters = {}
+        for item in by_master.get(mid, []):
+            if item[1]:
+                co_masters[item[0]['id']] = [eid for eid in item[2] if eid != mid]
+        for ev in tl['events']:
+            rid = ev['row']['id']
+            ev['shared'] = rid in shared_ids
+            ev['co_master_ids'] = co_masters.get(rid, [])
         columns.append({
             'id': mid,
             'name': first,
@@ -1020,16 +1090,27 @@ def layout_master_board(rows, masters, px_per_hour=56):
         })
 
     orphans = []
-    for eid, m_rows in by_master.items():
+    for eid, items in by_master.items():
         if eid not in master_ids:
-            orphans.extend(m_rows)
+            orphans.extend([item[0] for item in items])
     if orphans:
+        # unique by id
+        seen = set()
+        uniq = []
+        for r in orphans:
+            if r['id'] in seen:
+                continue
+            seen.add(r['id'])
+            uniq.append(r)
         tl = layout_day_timeline(
-            orphans,
+            uniq,
             day_start=base['day_start'],
             day_end=base['day_end'],
             px_per_hour=px_per_hour,
         )
+        for ev in tl['events']:
+            ev['shared'] = False
+            ev['co_master_ids'] = []
         columns.append({
             'id': 0,
             'name': 'Без мастера',
@@ -1344,12 +1425,26 @@ def group_services_by_category(services, categories):
         grouped.append({'category': {'id': None, 'name': 'Без подраздела'}, 'services': other})
     return grouped
 
-def set_appointment_services(con, aid, service_ids):
+def set_appointment_services(con, aid, service_ids, details=None):
+    """Сохраняет услуги записи. details: {service_id: {price, note, employee_id}}."""
     con.execute("DELETE FROM appointment_services WHERE appointment_id=?", (aid,))
+    details = details or {}
     for sid in service_ids:
+        meta = details.get(int(sid)) or details.get(str(sid)) or {}
+        price = meta.get('price')
+        note = (meta.get('note') or '').strip()
+        employee_id = meta.get('employee_id')
+        try:
+            price = float(price) if price is not None and str(price).strip() != '' else None
+        except (TypeError, ValueError):
+            price = None
+        try:
+            employee_id = int(employee_id) if employee_id not in (None, '', 0, '0') else None
+        except (TypeError, ValueError):
+            employee_id = None
         con.execute(
-            "INSERT INTO appointment_services(appointment_id,service_id,created_at) VALUES(?,?,?)",
-            (aid, sid, now()),
+            "INSERT INTO appointment_services(appointment_id,service_id,price,note,employee_id,created_at) VALUES(?,?,?,?,?,?)",
+            (aid, sid, price, note, employee_id, now()),
         )
 
 def get_appointment_service_ids(con, aid, primary_id=None):
@@ -1360,6 +1455,74 @@ def get_appointment_service_ids(con, aid, primary_id=None):
     if rows:
         return [r['service_id'] for r in rows]
     return [primary_id] if primary_id else []
+
+def get_appointment_service_rows(con, aid, primary_id=None):
+    """Услуги записи с ценой, примечанием и мастером."""
+    rows = con.execute(
+        "SELECT asv.id AS link_id, asv.service_id, asv.price AS line_price, asv.note, asv.employee_id, "
+        "s.name, s.base_price, s.duration_min "
+        "FROM appointment_services asv "
+        "LEFT JOIN services s ON s.id=asv.service_id "
+        "WHERE asv.appointment_id=? ORDER BY asv.id",
+        (aid,),
+    ).fetchall()
+    if rows:
+        out = []
+        for r in rows:
+            price = r['line_price']
+            if price is None:
+                price = r['base_price'] or 0
+            out.append({
+                'service_id': r['service_id'],
+                'name': r['name'] or f"Услуга #{r['service_id']}",
+                'price': float(price or 0),
+                'base_price': float(r['base_price'] or 0),
+                'note': r['note'] or '',
+                'employee_id': r['employee_id'],
+                'duration_min': int(r['duration_min'] or 0),
+            })
+        return out
+    if not primary_id:
+        return []
+    svc = con.execute("SELECT * FROM services WHERE id=?", (primary_id,)).fetchone()
+    if not svc:
+        return []
+    return [{
+        'service_id': svc['id'],
+        'name': svc['name'],
+        'price': float(svc['base_price'] or 0),
+        'base_price': float(svc['base_price'] or 0),
+        'note': '',
+        'employee_id': None,
+        'duration_min': int(svc['duration_min'] or 0),
+    }]
+
+def parse_service_details_from_form(form, service_ids):
+    """Читает service_price_<id>, service_note_<id>, service_master_<id>."""
+    details = {}
+    for sid in service_ids:
+        sid = int(sid)
+        raw_price = form.get(f'service_price_{sid}', '')
+        raw_note = form.get(f'service_note_{sid}', '')
+        raw_master = form.get(f'service_master_{sid}', '')
+        price = None
+        if raw_price is not None and str(raw_price).strip() != '':
+            try:
+                price = float(raw_price)
+            except (TypeError, ValueError):
+                price = None
+        employee_id = None
+        if raw_master not in (None, '', '0'):
+            try:
+                employee_id = int(raw_master)
+            except (TypeError, ValueError):
+                employee_id = None
+        details[sid] = {
+            'price': price,
+            'note': (raw_note or '').strip(),
+            'employee_id': employee_id,
+        }
+    return details
 
 def resolve_services_bundle(con, service_ids):
     if not service_ids:
@@ -1490,10 +1653,11 @@ def get_masters_salary_config(con, employee_ids=None):
         }
     return out
 
-def suggest_master_salaries(con, employee_ids, price, service_ids=None):
+def suggest_master_salaries(con, employee_ids, price, service_ids=None, service_rows=None):
     """
-    ЗП каждого мастера = его % (или фикс за услугу) / число мастеров на визите.
-    Пример: Артём 30%, Александр 20%, вдвоём → 15% и 10%.
+    ЗП мастера:
+    - если по услугам указан исполнитель — % (или фикс) от суммы его услуг;
+    - иначе старое правило: % от всей суммы / число мастеров.
     """
     ids = [int(eid) for eid in (employee_ids or []) if eid]
     if not ids:
@@ -1504,7 +1668,39 @@ def suggest_master_salaries(con, employee_ids, price, service_ids=None):
         price = 0.0
     n = len(ids)
     svc_ids = [int(s) for s in (service_ids or []) if s]
-    salaries = {}
+    rows = list(service_rows or [])
+    assigned = [r for r in rows if r.get('employee_id')]
+    salaries = {eid: 0.0 for eid in ids}
+
+    if assigned:
+        by_master_price = {eid: 0.0 for eid in ids}
+        by_master_svcs = {eid: [] for eid in ids}
+        for r in assigned:
+            try:
+                eid = int(r['employee_id'])
+            except (TypeError, ValueError):
+                continue
+            if eid not in by_master_price:
+                continue
+            by_master_price[eid] += float(r.get('price') or 0)
+            if r.get('service_id'):
+                by_master_svcs[eid].append(int(r['service_id']))
+        for eid in ids:
+            rates = get_employee_service_rates(con, eid) if con is not None else {}
+            fixed_sum = 0.0
+            used_fixed = False
+            for sid in by_master_svcs[eid]:
+                if sid in rates and rates[sid] > 0:
+                    fixed_sum += float(rates[sid])
+                    used_fixed = True
+            if used_fixed:
+                salaries[eid] = round(fixed_sum, 2)
+            else:
+                pct = get_employee_salary_percent(con, eid) if con is not None else master_salary_percent()
+                part = by_master_price[eid]
+                salaries[eid] = round(part * pct / 100.0, 2) if part > 0 and pct > 0 else 0.0
+        return salaries
+
     for eid in ids:
         rates = get_employee_service_rates(con, eid) if con is not None else {}
         fixed = None
@@ -1522,7 +1718,7 @@ def suggest_master_salaries(con, employee_ids, price, service_ids=None):
                 salaries[eid] = round(price * pct / 100.0 / n, 2)
     return salaries
 
-def parse_salaries_from_form(form, employee_ids, price=None, con=None, service_ids=None):
+def parse_salaries_from_form(form, employee_ids, price=None, con=None, service_ids=None, service_rows=None):
     salaries = {}
     for eid in employee_ids:
         raw = form.get(f'salary_{eid}', '').strip()
@@ -1532,10 +1728,12 @@ def parse_salaries_from_form(form, employee_ids, price=None, con=None, service_i
         single = float(form.get('salary_amount') or 0)
         if single > 0 and employee_ids:
             salaries[int(employee_ids[0])] = single
-    # Если ЗП не указали — считаем по правилам мастера / N
+    # Если ЗП не указали — считаем по правилам мастера / услуг
     if not salaries and employee_ids and con is not None:
         salaries = {
-            eid: amt for eid, amt in suggest_master_salaries(con, employee_ids, price, service_ids).items()
+            eid: amt for eid, amt in suggest_master_salaries(
+                con, employee_ids, price, service_ids, service_rows=service_rows
+            ).items()
             if amt > 0
         }
     return salaries, sum(salaries.values())
@@ -1971,6 +2169,75 @@ def migrate_db(c):
     )
     c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_status ON autosalon_leads(status)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_autosalon_leads_import_key ON autosalon_leads(import_key)")
+    # Per-service price / note / master on close
+    asvc_cols = {r[1] for r in c.execute("PRAGMA table_info(appointment_services)").fetchall()}
+    if 'price' not in asvc_cols:
+        c.execute("ALTER TABLE appointment_services ADD COLUMN price REAL")
+    if 'note' not in asvc_cols:
+        c.execute("ALTER TABLE appointment_services ADD COLUMN note TEXT")
+    if 'employee_id' not in asvc_cols:
+        c.execute("ALTER TABLE appointment_services ADD COLUMN employee_id INTEGER")
+    client_cols2 = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
+    if 'updated_at' not in client_cols2:
+        c.execute("ALTER TABLE clients ADD COLUMN updated_at TEXT")
+    # One-time sync of autosalon leads into general CRM clients
+    c.execute("INSERT OR IGNORE INTO app_settings(key,value) VALUES('autosalon_clients_synced','0')")
+    synced = c.execute("SELECT value FROM app_settings WHERE key='autosalon_clients_synced'").fetchone()
+    if not synced or str(synced['value'] or '0') != '1':
+        sync_autosalon_leads_to_clients(c)
+        c.execute("INSERT OR REPLACE INTO app_settings(key,value) VALUES('autosalon_clients_synced','1')")
+
+
+def sync_autosalon_lead_to_client(con, lead):
+    """Создаёт/обновляет клиента CRM из карточки автосалона."""
+    name = (lead['name'] or '').strip() or 'Без имени'
+    phone = (lead['phone'] or '').strip()
+    car = normalize_car_input(lead['car'] or '') if lead['car'] else ''
+    plate = (lead['plate_number'] or '').upper().replace(' ', '')
+    status = lead['status'] if lead['status'] in AUTOSALON_STATUSES else AUTOSALON_STATUS_DEFAULT
+    note = (lead['note'] or '').strip()
+    existing = find_client_by_phone(con, phone) if phone else None
+    ts = now()
+    if existing:
+        cid = existing['id']
+        src = (existing['source'] or '').strip()
+        new_source = 'Автосалон' if (not src or src in ('Автосалон', 'Запись', 'Ручное добавление')) else src
+        stage = existing['stage'] or 'Новый'
+        if new_source == 'Автосалон' or stage in ('Новый', '') or stage in AUTOSALON_STATUSES:
+            stage = status
+        comment = existing['comment'] or ''
+        if note and (not comment or src == 'Автосалон'):
+            comment = note
+        con.execute(
+            "UPDATE clients SET name=COALESCE(NULLIF(?, ''), name), phone=COALESCE(NULLIF(?, ''), phone), "
+            "source=?, stage=?, comment=?, updated_at=? WHERE id=?",
+            (name, phone, new_source, stage, comment, ts, cid),
+        )
+    else:
+        con.execute(
+            "INSERT INTO clients(name,phone,source,stage,reason,comment,created_at) VALUES(?,?,?,?,?,?,?)",
+            (name, phone, 'Автосалон', status, '', note, ts),
+        )
+        cid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+        ensure_client_bonus_code(con, cid)
+    if car or plate:
+        get_car(con, cid, car, plate)
+    return cid
+
+
+def sync_autosalon_leads_to_clients(con):
+    """Массовый перенос лидов автосалонов в clients."""
+    added = updated = 0
+    for lead in con.execute("SELECT * FROM autosalon_leads ORDER BY id").fetchall():
+        phone = (lead['phone'] or '').strip()
+        before = find_client_by_phone(con, phone) if phone else None
+        sync_autosalon_lead_to_client(con, lead)
+        if before:
+            updated += 1
+        else:
+            added += 1
+    return added, updated
+
 
 def get_setting(key, default=''):
     con = db()
@@ -2739,6 +3006,10 @@ def upsert_autosalon_leads(con, leads, keep_status_note=True):
                 ),
             )
             added += 1
+    try:
+        sync_autosalon_leads_to_clients(con)
+    except Exception:
+        pass
     return added, updated
 
 
@@ -6047,10 +6318,16 @@ def calendar_view():
 
     load = con.execute("SELECT COUNT(*) c, COALESCE(SUM(duration_min),0) mins FROM appointments WHERE appointment_date=? AND status!='Отменен'", (selected,)).fetchone()
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
-    booked_ids = [
-        r['employee_id'] for r in rows
-        if r['employee_id'] and r['appointment_date'] == selected
-    ]
+    # Подтянуть авто из карточки клиента, если в записи пусто
+    rows = enrich_appointment_rows_cars(con, rows)
+    emp_map = get_appointments_employee_map(con, [r['id'] for r in rows])
+    booked_ids = []
+    for r in rows:
+        if r.get('appointment_date') != selected and view == 'day':
+            continue
+        for eid in emp_map.get(r['id']) or ([r['employee_id']] if r.get('employee_id') else []):
+            if eid:
+                booked_ids.append(eid)
     # Колонки журнала — только кто не в «Вых»; в форме записи — все мастера.
     board_employees = list_working_masters(con, selected, extra_ids=booked_ids)
     picker_employees = list_masters(con)
@@ -6063,7 +6340,7 @@ def calendar_view():
     date_strip = None
     if view == 'day':
         date_strip = build_date_strip(selected)
-        master_board = layout_master_board(rows, board_employees)
+        master_board = layout_master_board(rows, board_employees, employee_map=emp_map)
         now_marker = journal_now_marker(selected, master_board)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in picker_employees])
     services_json = json.dumps([{'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']} for s in services])
@@ -6408,12 +6685,28 @@ def close_appointment(aid):
         bundle = resolve_services_bundle(con, service_ids)
         if not bundle:
             con.close(); flash('Выбрана недоступная услуга'); return redirect(url_for('close_appointment', aid=aid))
-        set_appointment_services(con, aid, service_ids)
+        service_details = parse_service_details_from_form(request.form, service_ids)
+        # Если в форме не пришла общая цена — суммируем цены услуг
+        raw_price = request.form.get('price')
+        if raw_price is None or str(raw_price).strip() == '':
+            price = sum(float(service_details[sid]['price'] or 0) for sid in service_ids if service_details.get(sid) and service_details[sid].get('price') is not None)
+            if price <= 0:
+                price = float(bundle['base_price'] or 0)
+        else:
+            price = float(raw_price or 0)
+        # Если у услуги нет своей цены — размажем из каталога
+        for sid in service_ids:
+            meta = service_details.setdefault(sid, {'price': None, 'note': '', 'employee_id': None})
+            if meta.get('price') is None:
+                for row in bundle['rows']:
+                    if row['id'] == sid:
+                        meta['price'] = float(row['base_price'] or 0)
+                        break
+        set_appointment_services(con, aid, service_ids, service_details)
         con.execute(
             "UPDATE appointments SET service_id=?, service_name=?, duration_min=? WHERE id=?",
             (bundle['primary_id'], bundle['name'], bundle['duration_min'], aid),
         )
-        price = float(request.form.get('price') or 0)
         mat, err = process_materials_from_form(con, aid, u['id'], request.form)
         if err:
             con.close(); flash(err); return redirect(url_for('close_appointment', aid=aid))
@@ -6447,8 +6740,9 @@ def close_appointment(aid):
             friend_discount_amount = round(float(price) * percent / 100.0, 2)
             price = round(float(price) - friend_discount_amount, 2)
             friend_discount_applied = True
+        service_rows = get_appointment_service_rows(con, aid, bundle['primary_id'])
         salaries, salary_amount = parse_salaries_from_form(
-            request.form, employee_ids, price, con, service_ids,
+            request.form, employee_ids, price, con, service_ids, service_rows=service_rows,
         )
         profit = price - cert_paid - material_cost - salary_amount - bonus_spent
         due_live = round(max(0.0, float(price) - float(cert_amount or 0) - float(bonus_spent or 0)), 2)
@@ -6496,11 +6790,13 @@ def close_appointment(aid):
         if eid in master_id_set
     ]
     appointment_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+    appointment_service_rows = get_appointment_service_rows(con, aid, ap['service_id'])
     services = con.execute("SELECT * FROM services WHERE active=1 ORDER BY name").fetchall()
     services_json = json.dumps([
         {'id': s['id'], 'name': s['name'], 'price': s['base_price'], 'duration': s['duration_min']}
         for s in services
     ])
+    service_rows_json = json.dumps(appointment_service_rows)
     masters_salary_config = get_masters_salary_config(con)
     masters_json = json.dumps([{'id': e['id'], 'name': e['full_name']} for e in employees])
     low_stock = list_low_stock_items(con)
@@ -6512,7 +6808,9 @@ def close_appointment(aid):
         extras=extras,
         services=services,
         services_json=services_json,
+        service_rows_json=service_rows_json,
         selected_service_ids=appointment_service_ids,
+        appointment_service_rows=appointment_service_rows,
         is_master=(u['role']=='master'),
         client_bonus=client_bonus,
         bonus_percent=global_bonus_percent(),
@@ -8183,9 +8481,17 @@ def crm():
     enriched = [enrich_crm_client(con, r) for r in rows]
     counts = {f[0]: 0 for f in CRM_FILTERS}
     for item in enriched:
-        counts[item['status_key']] = counts.get(item['status_key'], 0) + 1
+        if item.get('is_autosalon'):
+            counts['autosalon'] = counts.get('autosalon', 0) + 1
+        key = item['status_key']
+        if key in counts and key != 'autosalon':
+            counts[key] = counts.get(key, 0) + 1
+        elif key not in ('autosalon',) and key not in counts:
+            pass
     counts['all'] = len(enriched)
-    if crm_filter != 'all':
+    if crm_filter == 'autosalon':
+        enriched = [item for item in enriched if item.get('is_autosalon')]
+    elif crm_filter != 'all':
         enriched = [item for item in enriched if item['status_key'] == crm_filter]
     con.close()
     return render_template(
@@ -8195,7 +8501,7 @@ def crm():
         crm_filter=crm_filter,
         crm_filters=CRM_FILTERS,
         crm_counts=counts,
-        crm_stats={'total': counts['all'], 'new': counts.get('new', 0)},
+        crm_stats={'total': counts['all'], 'new': counts.get('new', 0), 'autosalon': counts.get('autosalon', 0)},
     )
 
 
@@ -8372,6 +8678,12 @@ def autosalons():
             "VALUES(?,?,?,?,?,?,?,?,?,?)",
             (name, phone, car, plate, status, note, 'Автосалон', normalize_phone(phone), ts, ts),
         )
+        lead_id = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
+        lead = con.execute("SELECT * FROM autosalon_leads WHERE id=?", (lead_id,)).fetchone()
+        try:
+            sync_autosalon_lead_to_client(con, lead)
+        except Exception:
+            pass
         con.commit()
         con.close()
         flash('Карточка автосалона добавлена')
@@ -8436,6 +8748,11 @@ def autosalon_card(lid):
             "UPDATE autosalon_leads SET name=?, phone=?, car=?, plate_number=?, status=?, note=?, import_key=?, updated_at=? WHERE id=?",
             (name, phone, car, plate, status, note, normalize_phone(phone), now(), lid),
         )
+        lead = con.execute("SELECT * FROM autosalon_leads WHERE id=?", (lid,)).fetchone()
+        try:
+            sync_autosalon_lead_to_client(con, lead)
+        except Exception:
+            pass
         con.commit()
         con.close()
         flash('Карточка сохранена')

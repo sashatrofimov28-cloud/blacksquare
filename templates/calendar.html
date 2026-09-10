@@ -97,7 +97,7 @@
           {% else %}
           {% set ev_href = '#' %}
           {% endif %}
-          <div class="jr-event {{ ev.tone }}{% if r.status == 'Закрыт' %} done{% endif %}{% if r.status not in ['Закрыт','Отменен'] %} jr-draggable{% endif %}"
+          <div class="jr-event {{ ev.tone }}{% if r.status == 'Закрыт' %} done{% endif %}{% if ev.shared %} shared{% endif %}{% if r.status not in ['Закрыт','Отменен'] %} jr-draggable{% endif %}"
              style="top: {{ ev.top }}px; height: {{ ev.height }}px; left: calc(4px + {{ ev.col }} * ((100% - 8px) / {{ ev.col_count }})); width: calc((100% - 8px) / {{ ev.col_count }} - 2px)"
              role="link" tabindex="0"
              data-href="{{ ev_href }}"
@@ -108,8 +108,11 @@
              data-duration="{{ r.duration_min or (ev.end_m - ev.start_m) }}"
              data-employee-id="{{ r.employee_id or col.id }}"
              draggable="false">
-            <strong>{{ r.start_time }}–{{ r.end_time }}</strong>
+            <strong>{{ r.start_time }}–{{ r.end_time }}{% if ev.shared %} · совм.{% endif %}</strong>
             <span>{{ r.client_name }}</span>
+            {% if r.car or r.plate_number %}
+            <span class="jr-car">{% if r.car %}{{ r.car }}{% endif %}{% if r.car and r.plate_number %} · {% endif %}{% if r.plate_number %}{{ r.plate_number }}{% endif %}</span>
+            {% endif %}
             <span>{{ r.service_name }}</span>
           </div>
           {% endfor %}
@@ -137,6 +140,9 @@
         <div class="cal-week-event {{ ev.tone }}">
           <span>{{ ev.time }}</span>
           <b>{{ ev.row.client_name }}</b>
+          {% if ev.row.car or ev.row.plate_number %}
+          <small class="jr-car">{% if ev.row.car %}{{ ev.row.car }}{% endif %}{% if ev.row.car and ev.row.plate_number %} · {% endif %}{% if ev.row.plate_number %}{{ ev.row.plate_number }}{% endif %}</small>
+          {% endif %}
           <small>{{ ev.row.service_name }}</small>
         </div>
         {% else %}

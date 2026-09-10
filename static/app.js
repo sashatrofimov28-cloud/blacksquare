@@ -512,6 +512,46 @@
     const rates = window.BS_MASTER_RATES || {};
     const serviceIds = (window.BS_APPOINTMENT_SERVICE_IDS || []).map(String);
     const out = {};
+    // Per-service master assignment on close form
+    const byMaster = {};
+    ids.forEach(function (id) { byMaster[String(id)] = 0; });
+    let hasAssigned = false;
+    document.querySelectorAll('.close-svc-line').forEach(function (row) {
+      const sid = row.dataset.id;
+      const priceInput = row.querySelector('.close-svc-price');
+      const masterSel = row.querySelector('.close-svc-master');
+      const linePrice = parseFloat(priceInput && priceInput.value ? priceInput.value : 0) || 0;
+      const mid = masterSel && masterSel.value ? String(masterSel.value) : '';
+      if (mid && byMaster[mid] !== undefined) {
+        hasAssigned = true;
+        byMaster[mid] += linePrice;
+      }
+    });
+    if (hasAssigned) {
+      ids.forEach(function (id) {
+        const cfg = rates[String(id)] || {};
+        const services = cfg.services || {};
+        let fixedSum = 0;
+        let usedFixed = false;
+        document.querySelectorAll('.close-svc-line').forEach(function (row) {
+          const masterSel = row.querySelector('.close-svc-master');
+          if (!masterSel || String(masterSel.value) !== String(id)) return;
+          const sid = String(row.dataset.id || '');
+          if (services[sid] != null && Number(services[sid]) > 0) {
+            fixedSum += Number(services[sid]);
+            usedFixed = true;
+          }
+        });
+        if (usedFixed) {
+          out[id] = Math.round(fixedSum * 100) / 100;
+        } else {
+          const pct = Number(cfg.percent || 0) || 0;
+          const part = byMaster[String(id)] || 0;
+          out[id] = part > 0 && pct > 0 ? Math.round(part * pct) / 100 : 0;
+        }
+      });
+      return out;
+    }
     ids.forEach(function (id) {
       const cfg = rates[String(id)] || {};
       const services = cfg.services || {};
@@ -597,6 +637,7 @@
     });
     const multi = ids.length > 1;
     const hint = document.getElementById('salaryMultiHint');
+    window.BS_syncSalaryMasterGrid = syncSalaryMasterGrid;
     const note = document.getElementById('salaryMultiNote');
     const totalWrap = document.getElementById('salaryTotalWrap');
     const autoHint = document.getElementById('salaryAutoHint');

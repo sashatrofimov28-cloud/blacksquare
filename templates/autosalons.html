@@ -21,7 +21,8 @@
 
   <nav class="crm-z-filters" aria-label="Раздел">
     <a href="{{ url_for('crm') }}" class="crm-z-filter">CRM</a>
-    <a href="{{ url_for('autosalons') }}" class="crm-z-filter on">Автосалоны</a>
+    <a href="{{ url_for('crm', filter='autosalon') }}" class="crm-z-filter">Автосалоны</a>
+    <a href="{{ url_for('autosalons') }}" class="crm-z-filter on">Обзвон</a>
   </nav>
 
   <form method="get" class="crm-z-search">

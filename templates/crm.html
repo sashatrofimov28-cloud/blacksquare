@@ -12,8 +12,9 @@
       <a href="#crmAdd" class="crm-z-add" aria-label="Добавить клиента">+</a>
     </div>
     <nav class="crm-z-filters" aria-label="Раздел" style="margin-bottom:12px">
-      <a href="{{ url_for('crm') }}" class="crm-z-filter on">CRM</a>
-      <a href="{{ url_for('autosalons') }}" class="crm-z-filter">Автосалоны</a>
+      <a href="{{ url_for('crm') }}" class="crm-z-filter{% if crm_filter != 'autosalon' %} on{% endif %}">CRM</a>
+      <a href="{{ url_for('crm', filter='autosalon') }}" class="crm-z-filter{% if crm_filter == 'autosalon' %} on{% endif %}">Автосалоны{% if crm_counts.get('autosalon') %} <em>{{ crm_counts.get('autosalon') }}</em>{% endif %}</a>
+      <a href="{{ url_for('autosalons') }}" class="crm-z-filter">Обзвон</a>
     </nav>
     <div class="crm-z-stats">
       <div class="crm-z-stat">
@@ -24,6 +25,12 @@
         <small>Новых</small>
         <b>{{ crm_stats.new }}</b>
       </div>
+      {% if crm_stats.autosalon %}
+      <div class="crm-z-stat">
+        <small>Автосалоны</small>
+        <b>{{ crm_stats.autosalon }}</b>
+      </div>
+      {% endif %}
     </div>
   </header>
 
