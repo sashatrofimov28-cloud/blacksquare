@@ -26,10 +26,10 @@
   <div class="client-actions">
     <a class="client-act primary" href="tel:{{ client.phone|replace(' ','') }}">Позвонить</a>
     {% if messenger and messenger.telegram %}
-    <a class="client-act" href="{{ messenger.telegram }}" target="_blank" rel="noopener">Telegram</a>
+    <a class="client-act js-msg-telegram" href="{{ messenger.telegram }}" data-msg="telegram" data-digits="{{ messenger.digits }}" rel="noopener">Telegram</a>
     {% endif %}
     {% if messenger and messenger.max %}
-    <a class="client-act js-msg-max" href="{{ messenger.max }}" target="_blank" rel="noopener" data-phone="+{{ messenger.digits }}">MAX</a>
+    <a class="client-act js-msg-max" href="{{ messenger.max }}" data-msg="max" data-digits="{{ messenger.digits }}" data-phone="+{{ messenger.digits }}" data-hint="clientMsgHint" rel="noopener">MAX</a>
     {% endif %}
     {% if messenger and messenger.sms %}
     <a class="client-act" href="{{ messenger.sms }}">SMS</a>
@@ -40,23 +40,8 @@
     {% endif %}
   </div>
   {% if messenger and messenger.digits %}
-  <p class="client-msg-hint" id="clientMsgHint" hidden>Номер +{{ messenger.digits }} скопирован — вставьте в MAX</p>
+  <p class="client-msg-hint" id="clientMsgHint" hidden>Номер +{{ messenger.digits }} скопирован. Откройте MAX → поиск по номеру / новый чат и вставьте.</p>
   {% endif %}
-  <script>
-  (function () {
-    var btn = document.querySelector('.js-msg-max');
-    var hint = document.getElementById('clientMsgHint');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var phone = btn.getAttribute('data-phone') || '';
-      if (phone && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(phone).then(function () {
-          if (hint) { hint.hidden = false; setTimeout(function () { hint.hidden = true; }, 3500); }
-        }).catch(function () {});
-      }
-    });
-  })();
-  </script>
 
   <div class="client-stats">
     <div class="client-stat card-surface">

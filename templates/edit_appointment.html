@@ -508,8 +508,8 @@ window.BS_SALARY_FORCE_SUGGEST = {{ 'false' if existing_salaries else 'true' }};
           <img src="{{ url_for('static', filename=ap.photo_path) }}" alt="Текущее фото">
         </a>
         {% endif %}
-        <label class="close-field-label">Фото к записи
-          <input type="file" name="photo" accept="image/*" capture="environment">
+        <label class="close-field-label">Фото к записи (галерея или камера)
+          <input type="file" name="photo" accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif">
         </label>
       </div>
     </div>

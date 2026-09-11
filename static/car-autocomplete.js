@@ -1,11 +1,12 @@
 (function () {
   var catalog = null;
   var catalogPromise = null;
+  var openWrap = null;
 
   function loadCatalog() {
     if (catalog) return Promise.resolve(catalog);
     if (catalogPromise) return catalogPromise;
-    catalogPromise = fetch('/static/data/car-catalog.json?v=3')
+    catalogPromise = fetch('/static/data/car-catalog.json?v=4')
       .then(function (r) { return r.json(); })
       .then(function (d) { catalog = d; return d; })
       .catch(function () { catalog = { brands: [] }; return catalog; });
@@ -231,30 +232,68 @@
 
   function ensureWrap(input) {
     var wrap = input.closest('.car-ac-wrap');
-    if (wrap) return wrap;
+    if (wrap) {
+      if (!wrap._carList) {
+        var existing = wrap.querySelector('.car-ac-list');
+        if (existing) existing.remove();
+        wrap._carList = document.createElement('div');
+        wrap._carList.className = 'car-ac-list';
+        wrap._carList.hidden = true;
+        document.body.appendChild(wrap._carList);
+      }
+      return wrap;
+    }
     wrap = document.createElement('div');
     wrap.className = 'car-ac-wrap';
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
-    var list = document.createElement('div');
-    list.className = 'car-ac-list';
-    list.hidden = true;
-    wrap.appendChild(list);
+    wrap._carList = document.createElement('div');
+    wrap._carList.className = 'car-ac-list';
+    wrap._carList.hidden = true;
+    document.body.appendChild(wrap._carList);
     return wrap;
   }
 
-  function closeList(wrap) {
-    var list = wrap.querySelector('.car-ac-list');
-    if (list) list.hidden = true;
-    wrap.dataset.open = '0';
+  function positionList(wrap) {
+    var list = wrap._carList;
+    var input = wrap.querySelector('input');
+    if (!list || !input) return;
+    var rect = input.getBoundingClientRect();
+    var gap = 4;
+    var maxH = Math.min(280, Math.floor(window.innerHeight * 0.42));
+    var spaceBelow = window.innerHeight - rect.bottom - 12;
+    var spaceAbove = rect.top - 12;
+    var openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+    var height = Math.min(maxH, openUp ? spaceAbove : spaceBelow);
+    list.style.position = 'fixed';
+    list.style.left = Math.max(8, Math.round(rect.left)) + 'px';
+    list.style.width = Math.max(160, Math.round(rect.width)) + 'px';
+    list.style.right = 'auto';
+    list.style.zIndex = '6000';
+    list.style.maxHeight = Math.max(120, height) + 'px';
+    if (openUp) {
+      list.style.top = 'auto';
+      list.style.bottom = Math.max(8, Math.round(window.innerHeight - rect.top + gap)) + 'px';
+    } else {
+      list.style.bottom = 'auto';
+      list.style.top = Math.round(rect.bottom + gap) + 'px';
+    }
   }
 
-  function openList(wrap) {
-    var list = wrap.querySelector('.car-ac-list');
-    if (list && list.children.length) {
-      list.hidden = false;
-      wrap.dataset.open = '1';
+  function closeList(wrap) {
+    var list = wrap && wrap._carList;
+    if (list) {
+      list.hidden = true;
+      list.innerHTML = '';
     }
+    if (wrap) wrap.dataset.open = '0';
+    if (openWrap === wrap) openWrap = null;
+  }
+
+  function closeAllLists(except) {
+    document.querySelectorAll('.car-ac-wrap').forEach(function (w) {
+      if (w !== except) closeList(w);
+    });
   }
 
   function thumbEl(item) {
@@ -284,12 +323,43 @@
     return t;
   }
 
+  function selectItem(wrap, itemOrValue) {
+    var item = typeof itemOrValue === 'string'
+      ? { value: itemOrValue, label: itemOrValue, hint: '', photo: window.BS_carPhotoUrl ? window.BS_carPhotoUrl(itemOrValue, '', 400) : '' }
+      : itemOrValue;
+    var input = wrap.querySelector('input');
+    if (!input) return;
+    wrap._suppressBlur = true;
+    input.value = item.value || item.label || '';
+    input.dataset.carHint = item.hint || '';
+    input.dataset.carPhoto = item.photo || (window.BS_carPhotoUrl ? window.BS_carPhotoUrl(item.value, item.hint || '', 400) : '');
+    input.dataset.carResolved = '1';
+    closeList(wrap);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new CustomEvent('bs:car-selected', {
+      bubbles: true,
+      detail: {
+        value: item.value,
+        label: item.label || item.value,
+        hint: item.hint || '',
+        photo: input.dataset.carPhoto,
+        photoLarge: window.BS_carPhotoUrlLarge ? window.BS_carPhotoUrlLarge(item.value, item.hint || '') : input.dataset.carPhoto
+      }
+    }));
+    // Keep typed/selected value visible; release focus without reopening list
+    setTimeout(function () {
+      wrap._suppressBlur = false;
+      try { input.blur(); } catch (e) {}
+    }, 10);
+  }
+
   function renderList(wrap, items, activeIdx) {
-    var list = wrap.querySelector('.car-ac-list');
+    var list = wrap._carList;
+    if (!list) return;
     list.innerHTML = '';
     if (!items.length) {
-      list.hidden = true;
-      wrap.dataset.open = '0';
+      closeList(wrap);
       return;
     }
     items.forEach(function (item, idx) {
@@ -313,41 +383,25 @@
       }
       btn.appendChild(text);
       btn.dataset.value = item.value;
-      btn.addEventListener('mousedown', function (e) {
+      // pointerdown/touchstart: на телефоне blur срабатывает раньше click
+      function choose(e) {
         e.preventDefault();
+        e.stopPropagation();
         selectItem(wrap, item);
-      });
+      }
+      btn.addEventListener('pointerdown', choose);
+      btn.addEventListener('mousedown', choose);
+      btn.addEventListener('touchstart', choose, { passive: false });
       list.appendChild(btn);
     });
-    openList(wrap);
-  }
-
-  function selectItem(wrap, itemOrValue) {
-    var item = typeof itemOrValue === 'string'
-      ? { value: itemOrValue, label: itemOrValue, hint: '', photo: window.BS_carPhotoUrl ? window.BS_carPhotoUrl(itemOrValue, '', 400) : '' }
-      : itemOrValue;
-    var input = wrap.querySelector('input');
-    input.value = item.value;
-    input.dataset.carHint = item.hint || '';
-    input.dataset.carPhoto = item.photo || (window.BS_carPhotoUrl ? window.BS_carPhotoUrl(item.value, item.hint || '', 400) : '');
-    input.dataset.carResolved = '1';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    input.dispatchEvent(new CustomEvent('bs:car-selected', {
-      bubbles: true,
-      detail: {
-        value: item.value,
-        label: item.label || item.value,
-        hint: item.hint || '',
-        photo: input.dataset.carPhoto,
-        photoLarge: window.BS_carPhotoUrlLarge ? window.BS_carPhotoUrlLarge(item.value, item.hint || '') : input.dataset.carPhoto
-      }
-    }));
-    closeList(wrap);
+    list.hidden = false;
+    wrap.dataset.open = '1';
+    openWrap = wrap;
+    positionList(wrap);
   }
 
   function resolveInput(wrap, input) {
-    var q = input.value.trim();
+    var q = (input.value || '').trim();
     if (!q || input.dataset.carResolved === '1') return;
     loadCatalog().then(function () {
       var local = resolveLocal(q);
@@ -369,6 +423,8 @@
     if (!input || input.dataset.carAcInit === '1') return;
     input.dataset.carAcInit = '1';
     input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('autocapitalize', 'off');
     input.setAttribute('spellcheck', 'false');
     var wrap = ensureWrap(input);
     var timer = null;
@@ -376,7 +432,7 @@
     var activeIdx = -1;
 
     function runSuggest() {
-      var q = input.value.trim();
+      var q = (input.value || '').trim();
       input.dataset.carResolved = '0';
       if (q.length < 1) {
         items = [];
@@ -386,6 +442,8 @@
       loadCatalog().then(function () {
         var local = filterCatalog(q, 10);
         return fetchDb(q).then(function (db) {
+          // если запрос уже изменился — не показываем устаревшее
+          if ((input.value || '').trim() !== q) return;
           items = mergeItems(db, local, 12);
           activeIdx = -1;
           renderList(wrap, items, activeIdx);
@@ -395,15 +453,19 @@
 
     input.addEventListener('input', function () {
       clearTimeout(timer);
-      timer = setTimeout(runSuggest, 120);
+      timer = setTimeout(runSuggest, 100);
     });
 
     input.addEventListener('focus', function () {
-      if (input.value.trim().length >= 1) runSuggest();
+      closeAllLists(wrap);
+      if ((input.value || '').trim().length >= 1) runSuggest();
     });
 
     input.addEventListener('keydown', function (e) {
-      if (!items.length) return;
+      if (!items.length || wrap.dataset.open !== '1') {
+        if (e.key === 'Escape') closeList(wrap);
+        return;
+      }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         activeIdx = Math.min(activeIdx + 1, items.length - 1);
@@ -421,12 +483,28 @@
     });
 
     input.addEventListener('blur', function () {
+      if (wrap._suppressBlur) return;
       setTimeout(function () {
+        if (wrap._suppressBlur) return;
         closeList(wrap);
+        // не затираем ручной ввод — только мягко нормализуем, если нашли каталог
         resolveInput(wrap, input);
-      }, 150);
+      }, 220);
     });
   }
+
+  function onViewportChange() {
+    if (openWrap && openWrap.dataset.open === '1') positionList(openWrap);
+  }
+
+  window.addEventListener('resize', onViewportChange);
+  window.addEventListener('scroll', onViewportChange, true);
+  document.addEventListener('pointerdown', function (e) {
+    if (!openWrap) return;
+    var t = e.target;
+    if (openWrap.contains(t) || (openWrap._carList && openWrap._carList.contains(t))) return;
+    closeList(openWrap);
+  });
 
   function boot() {
     document.querySelectorAll('input.js-car-ac, input[data-car-ac]').forEach(initCarAutocomplete);

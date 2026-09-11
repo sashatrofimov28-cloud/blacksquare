@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v123'
+BUILD_VERSION = 'client-v124'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -2773,17 +2773,35 @@ def normalize_phone(phone):
 
 
 def client_messenger_links(phone):
-    """Ссылки для быстрого написания клиенту в Telegram / MAX / SMS."""
+    """Ссылки для быстрого написания клиенту в Telegram / MAX / SMS.
+
+    Telegram: tg://resolve?phone=... открывает диалог по номеру в приложении.
+    (https://t.me/+... — это invite-ссылка, не чат по телефону.)
+    MAX: публичного deep-link по номеру нет — копируем номер и открываем приложение.
+    """
     d = normalize_phone(phone)
     if not d:
-        return {'digits': '', 'telegram': '', 'max': '', 'sms': '', 'tel': ''}
+        return {
+            'digits': '',
+            'telegram': '',
+            'telegram_app': '',
+            'max': '',
+            'sms': '',
+            'tel': '',
+            'wa': '',
+        }
     return {
         'digits': d,
-        'telegram': f'https://t.me/+{d}',
-        # MAX открываем приложение/сайт; номер копируется кнопкой на карточке
+        # Deep-link в приложение Telegram сразу в чат с этим номером
+        'telegram': f'tg://resolve?phone={d}',
+        'telegram_app': f'tg://resolve?phone={d}',
+        # Запасной https (без «+» после t.me/ — иначе это invite)
+        'telegram_web': f'https://t.me/{d}',
+        # MAX: deep-link по номеру не поддерживается — открываем приложение
         'max': 'https://max.ru/',
         'sms': f'sms:+{d}',
         'tel': f'tel:+{d}',
+        'wa': f'https://wa.me/{d}',
     }
 
 

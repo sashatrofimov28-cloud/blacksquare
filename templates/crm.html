@@ -1,18 +1,5 @@
 {% extends "base.html" %}
-{% block theme_color %}#f2f2f7
-<script>
-(function () {
-  document.querySelectorAll('.js-msg-max').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var phone = btn.getAttribute('data-phone') || '';
-      if (phone && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(phone).catch(function () {});
-      }
-    });
-  });
-})();
-</script>
-{% endblock %}
+{% block theme_color %}#f2f2f7{% endblock %}
 {% block status_bar_style %}black-translucent{% endblock %}
 {% block body_class %} body-z-light{% endblock %}
 {% block main_class %} main-z-light{% endblock %}
@@ -61,6 +48,8 @@
     {% endfor %}
   </nav>
 
+  <p class="crm-z-msg-hint client-msg-hint" id="clientMsgHint" hidden>Номер скопирован — в MAX найдите чат по номеру</p>
+
   <div class="crm-z-list">
     {% for item in rows %}
     {% set c = item.client %}
@@ -82,10 +71,10 @@
       {% if msg and msg.digits %}
       <div class="crm-z-msg">
         {% if msg.telegram %}
-        <a class="crm-z-msg-btn" href="{{ msg.telegram }}" target="_blank" rel="noopener" title="Telegram">TG</a>
+        <a class="crm-z-msg-btn js-msg-telegram" href="{{ msg.telegram }}" data-msg="telegram" data-digits="{{ msg.digits }}" title="Telegram">TG</a>
         {% endif %}
         {% if msg.max %}
-        <a class="crm-z-msg-btn js-msg-max" href="{{ msg.max }}" target="_blank" rel="noopener" data-phone="+{{ msg.digits }}" title="MAX">MAX</a>
+        <a class="crm-z-msg-btn js-msg-max" href="{{ msg.max }}" data-msg="max" data-digits="{{ msg.digits }}" data-phone="+{{ msg.digits }}" data-hint="clientMsgHint" title="MAX">MAX</a>
         {% endif %}
       </div>
       {% endif %}
