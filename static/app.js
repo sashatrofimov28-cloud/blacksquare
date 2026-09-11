@@ -768,10 +768,13 @@
         card.appendChild(b);
         card.appendChild(small);
         card.addEventListener('click', function () {
+          const allowMulti = picker.dataset.multi === '1';
           if (selected.has(sid)) {
             selected.delete(sid);
+          } else if (allowMulti) {
+            selected.add(sid);
           } else {
-            // journal sheet: one primary master by default (tap another replaces)
+            // journal sheet single: tap another replaces
             selected.clear();
             selected.add(sid);
           }
@@ -797,7 +800,8 @@
       const master = masters.find(function (m) { return String(m.id) === sid; });
       if (!master) return;
       if (uiCards) {
-        selected.clear();
+        const allowMulti = picker.dataset.multi === '1';
+        if (!allowMulti) selected.clear();
         selected.add(sid);
         renderCards();
         syncHidden();
@@ -854,9 +858,10 @@
     };
 
     if (uiCards) {
+      const allowMulti = picker.dataset.multi === '1';
       initial.forEach(function (id) { if (id) selected.add(String(id)); });
-      // keep only first for card UI if multiple initial
-      if (selected.size > 1) {
+      // single-select card UI: keep only first if multiple initial
+      if (!allowMulti && selected.size > 1) {
         const first = initial.find(Boolean);
         selected.clear();
         if (first) selected.add(String(first));

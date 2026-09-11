@@ -72,6 +72,8 @@
       <div class="dzc-who">
         <b>{{ r.client_name }}{% if r.car %} · {{ r.car }}{% endif %}</b>
         <span>{{ r.service_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+        {% if r.comment %}<span class="dzc-note">📝 {{ r.comment[:60] }}{% if r.comment|length > 60 %}…{% endif %}</span>{% endif %}
+        {% if r.photo_path %}<span class="dzc-note">📷 фото</span>{% endif %}
       </div>
       <div class="dzc-side">
         <em class="work">{{ meta.label }}</em>
@@ -126,6 +128,8 @@
       <div class="dzc-who">
         <b>{{ r.client_name }}{% if r.car %} · {{ r.car }}{% endif %}</b>
         <span>{{ r.service_name }}{% if r.plate_number %} · {{ r.plate_number }}{% endif %}</span>
+        {% if r.comment %}<span class="dzc-note">📝 {{ r.comment[:60] }}{% if r.comment|length > 60 %}…{% endif %}</span>{% endif %}
+        {% if r.photo_path %}<span class="dzc-note">📷 фото</span>{% endif %}
       </div>
       <div class="dzc-side">
         <em class="next">Закрыт</em>
