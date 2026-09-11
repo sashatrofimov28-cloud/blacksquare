@@ -26,11 +26,34 @@
       </div>
     </div>
 
+    {% if ap.comment or ap.photo_path %}
+    <div class="close-z-group close-appt-note">
+      <div class="close-z-cap">Для мастера</div>
+      <div class="close-z-list close-z-list-pad">
+        {% if ap.comment %}<p class="close-appt-comment">{{ ap.comment }}</p>{% endif %}
+        {% if ap.photo_path %}
+        <a class="close-appt-photo" href="{{ url_for('static', filename=ap.photo_path) }}" target="_blank" rel="noopener">
+          <img src="{{ url_for('static', filename=ap.photo_path) }}" alt="Фото к записи">
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <div class="close-z-group">
-      <div class="close-z-cap">Услуга</div>
-      <div class="close-z-list">
+      <div class="close-z-cap">Услуги</div>
+      <div class="close-z-list close-z-list-pad">
+        <div class="master-picker close-svc-picker" id="closeServicePicker">
+          <div class="master-add-row">
+            <select id="closeServiceSelect" class="master-select"><option value="">— Услуга из списка —</option></select>
+            <button type="button" class="ghost" id="closeAddServiceBtn">Добавить</button>
+          </div>
+          <div id="closeServiceLines" class="close-svc-lines"></div>
+          <div id="closeServiceHidden"></div>
+          <span class="field-hint service-required-hint" id="closeServiceHint" hidden>Выберите хотя бы одну услугу</span>
+        </div>
         <label class="close-z-row close-z-row-price">
-          <span class="close-z-row-label">{{ ap.service_name }}</span>
+          <span class="close-z-row-label">Итого</span>
           <span class="close-z-row-input-wrap">
             <input name="price" type="number" step="0.01" id="closePriceInput" value="{{ ap.price }}" required inputmode="decimal">
             <i>₽</i>
@@ -239,6 +262,177 @@ recalcEditTotals();
   });
   sync();
 })();
+
+function initCloseServicePicker() {
+  const services = {{ services_json|safe }};
+  const initialRows = {{ service_rows_json|default('[]')|safe }};
+  const initialIds = {{ appointment_service_ids|default([])|tojson }};
+  const masters = {{ masters_json|safe }};
+  const select = document.getElementById('closeServiceSelect');
+  const addBtn = document.getElementById('closeAddServiceBtn');
+  const lines = document.getElementById('closeServiceLines');
+  const hidden = document.getElementById('closeServiceHidden');
+  const picker = document.getElementById('closeServicePicker');
+  const hint = document.getElementById('closeServiceHint');
+  const priceInput = document.getElementById('closePriceInput');
+  if (!select || !addBtn || !lines || !hidden) return;
+
+  const selected = new Map();
+  let priceManual = false;
+  if (priceInput) priceInput.addEventListener('input', function () { priceManual = true; });
+
+  services.forEach(function (s) {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    const price = s.price != null && s.price !== '' ? Math.round(s.price) : 0;
+    opt.textContent = s.name + (price ? ' — ' + price.toLocaleString('ru-RU') + ' ₽' : '');
+    select.appendChild(opt);
+  });
+
+  function showError(show) {
+    if (picker) picker.classList.toggle('field-error', !!show);
+    if (hint) hint.hidden = !show;
+  }
+  function syncHidden() {
+    hidden.innerHTML = '';
+    selected.forEach(function (_meta, sid) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'service_ids';
+      input.value = sid;
+      hidden.appendChild(input);
+    });
+  }
+  function sumLines() {
+    let sum = 0;
+    selected.forEach(function (meta) { sum += parseFloat(meta.price || 0) || 0; });
+    return Math.round(sum);
+  }
+  function syncTotalFromLines() {
+    if (!priceInput || priceManual) return;
+    priceInput.value = String(sumLines());
+    if (typeof recalcEditTotals === 'function') recalcEditTotals();
+    window.BS_APPOINTMENT_SERVICE_IDS = Array.from(selected.keys());
+    if (window.BS_syncSalaryMasterGrid) window.BS_syncSalaryMasterGrid();
+  }
+  function masterOptions(selectedId) {
+    let html = '<option value="">Кто сделал</option>';
+    (masters || []).forEach(function (m) {
+      const sel = String(m.id) === String(selectedId || '') ? ' selected' : '';
+      html += '<option value="' + m.id + '"' + sel + '>' + (m.name || ('#' + m.id)) + '</option>';
+    });
+    return html;
+  }
+  function renderLines() {
+    lines.innerHTML = '';
+    selected.forEach(function (meta, sid) {
+      const row = document.createElement('div');
+      row.className = 'close-svc-line';
+      row.dataset.id = sid;
+      row.innerHTML =
+        '<div class="close-svc-line-top">' +
+          '<b>' + (meta.name || 'Услуга') + '</b>' +
+          '<button type="button" class="close-line-del close-svc-remove" aria-label="Убрать">×</button>' +
+        '</div>' +
+        '<div class="close-svc-line-grid">' +
+          '<label>Цена ₽<input type="number" step="1" inputmode="decimal" name="service_price_' + sid + '" value="' + Math.round(meta.price || 0) + '" class="close-svc-price"></label>' +
+          '<label>Мастер<select name="service_master_' + sid + '" class="close-svc-master">' + masterOptions(meta.employee_id) + '</select></label>' +
+        '</div>' +
+        '<label class="close-svc-note-label">Примечание' +
+          '<input type="text" name="service_note_' + sid + '" value="' + String(meta.note || '').replace(/"/g, '&quot;') + '" placeholder="Что сделали / детали" class="close-svc-note">' +
+        '</label>';
+      row.querySelector('.close-svc-remove').addEventListener('click', function () {
+        if (selected.size <= 1) { showError(true); return; }
+        selected.delete(sid);
+        syncHidden();
+        renderLines();
+        priceManual = false;
+        syncTotalFromLines();
+        showError(false);
+      });
+      row.querySelector('.close-svc-price').addEventListener('input', function (e) {
+        meta.price = parseFloat(e.target.value || 0) || 0;
+        priceManual = false;
+        syncTotalFromLines();
+      });
+      row.querySelector('.close-svc-note').addEventListener('input', function (e) {
+        meta.note = e.target.value || '';
+      });
+      row.querySelector('.close-svc-master').addEventListener('change', function (e) {
+        meta.employee_id = e.target.value ? parseInt(e.target.value, 10) : null;
+        if (meta.employee_id && window.BS_setAppointmentMasters) {
+          var hid = document.getElementById('masterHiddenInputs');
+          var cur = hid
+            ? Array.from(hid.querySelectorAll('input[name="employee_ids"]')).map(function (i) { return String(i.value); })
+            : [];
+          var mid = String(meta.employee_id);
+          if (cur.indexOf(mid) < 0) {
+            window.BS_setAppointmentMasters(cur.concat([mid]));
+          }
+        }
+        if (window.BS_syncSalaryMasterGrid) {
+          window.BS_SALARY_FORCE_SUGGEST = true;
+          window.BS_syncSalaryMasterGrid();
+        }
+      });
+      lines.appendChild(row);
+    });
+    syncHidden();
+  }
+  function addService(id, opts) {
+    opts = opts || {};
+    const sid = String(id);
+    if (!sid || selected.has(sid)) return;
+    const service = services.find(function (s) { return String(s.id) === sid; });
+    if (!service && opts.name == null) return;
+    const base = opts.price != null ? opts.price : (service ? (parseFloat(service.price || 0) || 0) : 0);
+    selected.set(sid, {
+      name: opts.name || (service && service.name) || 'Услуга',
+      price: base,
+      base: service ? (parseFloat(service.price || 0) || 0) : base,
+      note: opts.note || '',
+      employee_id: opts.employee_id || null,
+    });
+    renderLines();
+    if (opts.adjust) {
+      priceManual = false;
+      syncTotalFromLines();
+    }
+    showError(false);
+    select.value = '';
+  }
+  addBtn.addEventListener('click', function () {
+    if (!select.value) { showError(true); select.focus(); return; }
+    addService(select.value, { adjust: true });
+  });
+  if (initialRows && initialRows.length) {
+    initialRows.forEach(function (r) {
+      addService(r.service_id, {
+        name: r.name,
+        price: r.price,
+        note: r.note,
+        employee_id: r.employee_id,
+        adjust: false,
+      });
+    });
+  } else {
+    (initialIds || []).forEach(function (id) { addService(id, { adjust: false }); });
+  }
+  const form = document.getElementById('closeForm');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!selected.size) {
+        e.preventDefault();
+        showError(true);
+        picker && picker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+  window.BS_closeSelectedServices = selected;
+  window.BS_closeServiceSum = sumLines;
+}
+initCloseServicePicker();
+
 window.BS_MASTERS = {{ masters_json|safe }};
 window.BS_INITIAL_MASTERS = {{ selected_employee_ids|tojson }};
 window.BS_EXISTING_SALARIES = {{ existing_salaries|tojson }};
@@ -257,7 +451,7 @@ window.BS_SALARY_FORCE_SUGGEST = {{ 'false' if existing_salaries else 'true' }};
     </div>
   </header>
 
-  <form method="post" class="close-form close-z-form" id="editApptForm">
+  <form method="post" class="close-form close-z-form" id="editApptForm" enctype="multipart/form-data">
     <div class="close-z-group">
       <div class="close-z-cap">Клиент</div>
       <div class="close-z-list close-z-list-pad">
@@ -306,9 +500,17 @@ window.BS_SALARY_FORCE_SUGGEST = {{ 'false' if existing_salaries else 'true' }};
     </div>
 
     <div class="close-z-group">
-      <div class="close-z-cap">Комментарий</div>
+      <div class="close-z-cap">Примечание и фото для мастера</div>
       <div class="close-z-list close-z-list-pad">
-        <textarea name="comment" placeholder="Комментарий" rows="2">{{ ap.comment or '' }}</textarea>
+        <textarea name="comment" placeholder="Что важно знать мастеру" rows="2">{{ ap.comment or '' }}</textarea>
+        {% if ap.photo_path %}
+        <a class="close-appt-photo" href="{{ url_for('static', filename=ap.photo_path) }}" target="_blank" rel="noopener">
+          <img src="{{ url_for('static', filename=ap.photo_path) }}" alt="Текущее фото">
+        </a>
+        {% endif %}
+        <label class="close-field-label">Фото к записи
+          <input type="file" name="photo" accept="image/*" capture="environment">
+        </label>
       </div>
     </div>
   </form>

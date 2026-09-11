@@ -1,5 +1,18 @@
 {% extends "base.html" %}
-{% block theme_color %}#f2f2f7{% endblock %}
+{% block theme_color %}#f2f2f7
+<script>
+(function () {
+  document.querySelectorAll('.js-msg-max').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var phone = btn.getAttribute('data-phone') || '';
+      if (phone && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(phone).catch(function () {});
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}
 {% block status_bar_style %}black-translucent{% endblock %}
 {% block body_class %} body-z-light{% endblock %}
 {% block main_class %} main-z-light{% endblock %}
@@ -51,19 +64,32 @@
   <div class="crm-z-list">
     {% for item in rows %}
     {% set c = item.client %}
-    <a class="crm-z-card {{ item.status_tone }}" href="{{ url_for('client_card', cid=c.id) }}">
-      <div class="crm-z-av">{{ item.initials }}</div>
-      <div class="crm-z-body">
-        <div class="crm-z-row">
-          <b>{{ c.name }}</b>
-          {% if item.visit_at %}<span class="crm-z-date">{{ item.visit_at[:16] }}</span>{% endif %}
+    {% set msg = item.messenger %}
+    <div class="crm-z-card {{ item.status_tone }}">
+      <a class="crm-z-card-main" href="{{ url_for('client_card', cid=c.id) }}">
+        <div class="crm-z-av">{{ item.initials }}</div>
+        <div class="crm-z-body">
+          <div class="crm-z-row">
+            <b>{{ c.name }}</b>
+            {% if item.visit_at %}<span class="crm-z-date">{{ item.visit_at[:16] }}</span>{% endif %}
+          </div>
+          <span class="crm-z-meta">{{ c.phone or '—' }}</span>
+          <span class="crm-z-meta">{{ item.car_label }}</span>
+          <span class="crm-z-pill {{ item.status_tone }}">{{ item.status_label }}</span>
         </div>
-        <span class="crm-z-meta">{{ c.phone or '—' }}</span>
-        <span class="crm-z-meta">{{ item.car_label }}</span>
-        <span class="crm-z-pill {{ item.status_tone }}">{{ item.status_label }}</span>
+        {% if item.last_price %}<strong class="crm-z-price">{{ format_money(item.last_price) }} ₽</strong>{% endif %}
+      </a>
+      {% if msg and msg.digits %}
+      <div class="crm-z-msg">
+        {% if msg.telegram %}
+        <a class="crm-z-msg-btn" href="{{ msg.telegram }}" target="_blank" rel="noopener" title="Telegram">TG</a>
+        {% endif %}
+        {% if msg.max %}
+        <a class="crm-z-msg-btn js-msg-max" href="{{ msg.max }}" target="_blank" rel="noopener" data-phone="+{{ msg.digits }}" title="MAX">MAX</a>
+        {% endif %}
       </div>
-      {% if item.last_price %}<strong class="crm-z-price">{{ format_money(item.last_price) }} ₽</strong>{% endif %}
-    </a>
+      {% endif %}
+    </div>
     {% else %}
     <p class="crm-z-empty">Клиенты не найдены</p>
     {% endfor %}

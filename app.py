@@ -19,7 +19,7 @@ except ImportError:
     WebPushException = Exception
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_VERSION = 'client-v122'
+BUILD_VERSION = 'client-v123'
 APP_TZ = ZoneInfo(os.environ.get('APP_TZ', 'Asia/Yekaterinburg'))
 app = Flask(
     __name__,
@@ -598,6 +598,7 @@ def enrich_crm_client(con, client):
         'visit_at': visit_at,
         'last_price': float(last_appt['price'] or 0) if last_appt else 0,
         'is_autosalon': source == 'Автосалон',
+        'messenger': client_messenger_links(client['phone']),
     }
 
 def list_low_stock_items(con, limit=4):
@@ -2177,6 +2178,9 @@ def migrate_db(c):
         c.execute("ALTER TABLE appointment_services ADD COLUMN note TEXT")
     if 'employee_id' not in asvc_cols:
         c.execute("ALTER TABLE appointment_services ADD COLUMN employee_id INTEGER")
+    appt_cols2 = {r[1] for r in c.execute("PRAGMA table_info(appointments)").fetchall()}
+    if 'photo_path' not in appt_cols2:
+        c.execute("ALTER TABLE appointments ADD COLUMN photo_path TEXT")
     client_cols2 = {r[1] for r in c.execute("PRAGMA table_info(clients)").fetchall()}
     if 'updated_at' not in client_cols2:
         c.execute("ALTER TABLE clients ADD COLUMN updated_at TEXT")
@@ -2766,6 +2770,22 @@ def normalize_phone(phone):
     elif len(d) == 10:
         d = '7' + d
     return d if len(d) >= 10 else ''
+
+
+def client_messenger_links(phone):
+    """Ссылки для быстрого написания клиенту в Telegram / MAX / SMS."""
+    d = normalize_phone(phone)
+    if not d:
+        return {'digits': '', 'telegram': '', 'max': '', 'sms': '', 'tel': ''}
+    return {
+        'digits': d,
+        'telegram': f'https://t.me/+{d}',
+        # MAX открываем приложение/сайт; номер копируется кнопкой на карточке
+        'max': 'https://max.ru/',
+        'sms': f'sms:+{d}',
+        'tel': f'tel:+{d}',
+    }
+
 
 
 def _autosalon_header_map(headers):
@@ -6231,8 +6251,12 @@ def calendar_view():
                 cid = get_client(con,name,phone); carid = get_car(con,cid,car,plate)
                 price = float(request.form.get('price') or bundle['base_price'] or 0)
                 primary = employee_ids[0]
-                con.execute("INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (cid,carid,name,phone,car,plate,bundle['primary_id'],bundle['name'],d,start,end,bundle['duration_min'],'Записан',primary,price,request.form.get('comment',''),now()))
+                photo_path = save_appointment_photo(request.files.get('photo'))
+                con.execute(
+                    "INSERT INTO appointments(client_id,car_id,client_name,phone,car,plate_number,service_id,service_name,appointment_date,start_time,end_time,duration_min,status,employee_id,price,comment,photo_path,created_at) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (cid,carid,name,phone,car,plate,bundle['primary_id'],bundle['name'],d,start,end,bundle['duration_min'],'Записан',primary,price,request.form.get('comment',''),photo_path,now()),
+                )
                 aid = con.execute("SELECT last_insert_rowid() id").fetchone()['id']
                 set_appointment_employees(con, aid, employee_ids)
                 set_appointment_services(con, aid, service_ids)
@@ -6589,9 +6613,39 @@ def edit_appointment(aid):
             ok, err, employee_ids = apply_appointment_masters_from_form(con, aid, request.form)
             if not ok:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid, master_error=1))
-            price = float(request.form.get('price') or 0)
-            service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
-            salaries, salary_amount = parse_salaries_from_form(request.form, employee_ids, price, con, service_ids)
+            service_ids = parse_service_ids(request.form)
+            if not service_ids:
+                service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+            ok, err = validate_service_ids(con, service_ids)
+            if not ok:
+                con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
+            bundle = resolve_services_bundle(con, service_ids)
+            if not bundle:
+                con.rollback(); con.close(); flash('Выбрана недоступная услуга'); return redirect(url_for('edit_appointment', aid=aid))
+            service_details = parse_service_details_from_form(request.form, service_ids)
+            for sid in service_ids:
+                meta = service_details.setdefault(sid, {'price': None, 'note': '', 'employee_id': None})
+                if meta.get('price') is None:
+                    for row in bundle.get('rows') or []:
+                        if row['id'] == sid:
+                            meta['price'] = float(row['base_price'] or 0)
+                            break
+            set_appointment_services(con, aid, service_ids, service_details)
+            con.execute(
+                "UPDATE appointments SET service_id=?, service_name=?, duration_min=? WHERE id=?",
+                (bundle['primary_id'], bundle['name'], bundle['duration_min'], aid),
+            )
+            raw_price = request.form.get('price')
+            if raw_price is None or str(raw_price).strip() == '':
+                price = sum(float((service_details.get(sid) or {}).get('price') or 0) for sid in service_ids)
+                if price <= 0:
+                    price = float(bundle.get('base_price') or ap['price'] or 0)
+            else:
+                price = float(raw_price or 0)
+            service_rows = get_appointment_service_rows(con, aid, bundle['primary_id'])
+            salaries, salary_amount = parse_salaries_from_form(
+                request.form, employee_ids, price, con, service_ids, service_rows=service_rows,
+            )
             mat, err = process_materials_from_form(con, aid, u['id'], request.form)
             if err:
                 con.rollback(); con.close(); flash(err); return redirect(url_for('edit_appointment', aid=aid))
@@ -6634,10 +6688,17 @@ def edit_appointment(aid):
         name = request.form['client_name']; phone = request.form['phone']
         car = normalize_car_input(request.form.get('car', '')); plate = request.form.get('plate_number', '').upper().replace(' ', '')
         price = float(request.form.get('price') or bundle['base_price'] or 0)
-        con.execute(
-            "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
-            (name, phone, car, plate, bundle['primary_id'], bundle['name'], d, start, end, bundle['duration_min'], primary, price, request.form.get('comment', ''), aid)
-        )
+        photo_path = save_appointment_photo(request.files.get('photo'))
+        if photo_path:
+            con.execute(
+                "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=?,photo_path=? WHERE id=?",
+                (name, phone, car, plate, bundle['primary_id'], bundle['name'], d, start, end, bundle['duration_min'], primary, price, request.form.get('comment', ''), photo_path, aid)
+            )
+        else:
+            con.execute(
+                "UPDATE appointments SET client_name=?,phone=?,car=?,plate_number=?,service_id=?,service_name=?,appointment_date=?,start_time=?,end_time=?,duration_min=?,employee_id=?,price=?,comment=? WHERE id=?",
+                (name, phone, car, plate, bundle['primary_id'], bundle['name'], d, start, end, bundle['duration_min'], primary, price, request.form.get('comment', ''), aid)
+            )
         set_appointment_employees(con, aid, employee_ids)
         set_appointment_services(con, aid, service_ids)
         con.commit(); con.close(); flash('Запись обновлена')
@@ -6658,9 +6719,34 @@ def edit_appointment(aid):
     appointment_masters = appointment_master_rows(con, aid, ap['employee_id'])
     existing_salaries = get_appointment_salaries(con, aid)
     appointment_service_ids = get_appointment_service_ids(con, aid, ap['service_id'])
+    appointment_service_rows = get_appointment_service_rows(con, aid, ap['service_id'])
     masters_salary_config = get_masters_salary_config(con)
+    service_rows_json = json.dumps(appointment_service_rows)
     con.close()
-    return render_template('edit_appointment.html', ap=ap, materials=materials, extras=extras, used_materials=used_materials, services=services, employees=employees, selected_employee_ids=selected_employee_ids, selected_service_ids=selected_service_ids, masters_json=masters_json, services_json=services_json, is_closed=is_closed, is_master=(u['role'] == 'master'), master_error=master_error, appointment_masters=appointment_masters, existing_salaries=existing_salaries, appt_date_label=format_date_calendar_ru(ap['appointment_date']), master_salary_percent=master_salary_percent(), appointment_service_ids=appointment_service_ids, masters_salary_config=masters_salary_config)
+    return render_template(
+        'edit_appointment.html',
+        ap=ap,
+        materials=materials,
+        extras=extras,
+        used_materials=used_materials,
+        services=services,
+        employees=employees,
+        selected_employee_ids=selected_employee_ids,
+        selected_service_ids=selected_service_ids,
+        masters_json=masters_json,
+        services_json=services_json,
+        service_rows_json=service_rows_json,
+        appointment_service_rows=appointment_service_rows,
+        is_closed=is_closed,
+        is_master=(u['role'] == 'master'),
+        master_error=master_error,
+        appointment_masters=appointment_masters,
+        existing_salaries=existing_salaries,
+        appt_date_label=format_date_calendar_ru(ap['appointment_date']),
+        master_salary_percent=master_salary_percent(),
+        appointment_service_ids=appointment_service_ids,
+        masters_salary_config=masters_salary_config,
+    )
 
 @app.route('/appointment/<int:aid>/close', methods=['GET','POST'])
 @login_required
@@ -7062,6 +7148,26 @@ def certificate_has_template():
 
 STOCK_UPLOAD_DIR = BASE_DIR / 'static' / 'uploads' / 'stock'
 STOCK_PHOTO_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+
+APPOINTMENT_UPLOAD_DIR = BASE_DIR / 'static' / 'uploads' / 'appointments'
+APPOINTMENT_PHOTO_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic'}
+
+def save_appointment_photo(file_storage):
+    if not file_storage or not getattr(file_storage, 'filename', None):
+        return None
+    ext = Path(secure_filename(file_storage.filename)).suffix.lower()
+    if ext not in APPOINTMENT_PHOTO_EXT:
+        # allow empty extension phones sometimes
+        if not ext:
+            ext = '.jpg'
+        else:
+            return None
+    APPOINTMENT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    name = f"{int(time.time())}_{hashlib.md5((file_storage.filename or 'p').encode()).hexdigest()[:8]}{ext}"
+    path = APPOINTMENT_UPLOAD_DIR / name
+    file_storage.save(str(path))
+    return f"uploads/appointments/{name}"
 
 def save_stock_photo(file_storage):
     if not file_storage or not file_storage.filename:
@@ -8640,6 +8746,7 @@ def client_card(cid):
         status_tone=status_tone,
         friend_card=friend_card,
         friend_card_url=friend_card_url_val,
+        messenger=client_messenger_links(client['phone']),
     )
 
 

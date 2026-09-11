@@ -27,6 +27,19 @@
         {% if origin %}<em class="booking-origin">{{ origin }}</em>{% endif %}
       </div>
     </div>
+    {% if ap.comment or ap.photo_path %}
+    <div class="close-z-group close-appt-note">
+      <div class="close-z-cap">Для мастера</div>
+      <div class="close-z-list close-z-list-pad">
+        {% if ap.comment %}<p class="close-appt-comment">{{ ap.comment }}</p>{% endif %}
+        {% if ap.photo_path %}
+        <a class="close-appt-photo" href="{{ url_for('static', filename=ap.photo_path) }}" target="_blank" rel="noopener">
+          <img src="{{ url_for('static', filename=ap.photo_path) }}" alt="Фото к записи">
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
 
     <div class="close-z-group">
       <div class="close-z-cap">Услуги</div>
@@ -370,6 +383,16 @@ function initCloseServicePicker() {
       });
       row.querySelector('.close-svc-master').addEventListener('change', function (e) {
         meta.employee_id = e.target.value ? parseInt(e.target.value, 10) : null;
+        if (meta.employee_id && window.BS_setAppointmentMasters) {
+          var hid = document.getElementById('masterHiddenInputs');
+          var cur = hid
+            ? Array.from(hid.querySelectorAll('input[name="employee_ids"]')).map(function (i) { return String(i.value); })
+            : [];
+          var mid = String(meta.employee_id);
+          if (cur.indexOf(mid) < 0) {
+            window.BS_setAppointmentMasters(cur.concat([mid]));
+          }
+        }
         if (window.BS_syncSalaryMasterGrid) {
           window.BS_SALARY_FORCE_SUGGEST = true;
           window.BS_syncSalaryMasterGrid();
